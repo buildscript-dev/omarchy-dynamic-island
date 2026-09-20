@@ -33,22 +33,23 @@
       "showNotifications": true,
       "replaceOsd": true,
       "hideInFullscreen": true,
-      "showWhenIdle": false,
+      "showWhenIdle": true,
       "artworkTint": true,
       "showMicIndicator": true,
       "scrollVolume": true,
-      "monitor": "external",
+      "monitor": "focused",
       "showClock": true,
       "clockFormat": "HH:mm",
       "islandHeight": 30,
-      "showWorkspaces": true
+      "showWorkspaces": true,
+      "onlineExtras": true
     },
     "schema": [
       {
         "key": "shape",
         "type": "enum",
         "label": "Island shape",
-        "description": "pill: floating iPhone-style bubble inside the bar. notch: MacBook notch hanging from the top edge.",
+        "description": "pill: a floating bubble at the top of the screen. notch: a MacBook-style notch attached to the top edge.",
         "options": [
           "pill",
           "notch"
@@ -58,7 +59,7 @@
       {
         "key": "islandWidth",
         "type": "integer",
-        "label": "Bubble width when idle (px, pill shape)",
+        "label": "Width when nothing is happening (px)",
         "defaultValue": 96,
         "min": 60,
         "max": 300,
@@ -67,7 +68,7 @@
       {
         "key": "pillInset",
         "type": "integer",
-        "label": "Gap between the bubble and the top edge (px)",
+        "label": "Gap between the island and the top edge (px)",
         "defaultValue": 6,
         "min": 0,
         "max": 20,
@@ -76,8 +77,8 @@
       {
         "key": "style",
         "type": "enum",
-        "label": "Island surface",
-        "description": "black: true MacBook notch. bar: the bar's own theme color. glass: translucent and blurred.",
+        "label": "Island background",
+        "description": "black: solid black, like a real notch. bar: your bar's color. glass: see-through and blurred.",
         "options": [
           "black",
           "bar",
@@ -89,7 +90,7 @@
         "key": "palette",
         "type": "enum",
         "label": "Accent colors",
-        "description": "apple: Apple system colors (green charging, orange timer\u2026). theme: the Omarchy theme's accent and urgent colors.",
+        "description": "apple: Apple's colors (green charging, orange timer). theme: your Omarchy theme's colors.",
         "options": [
           "apple",
           "theme"
@@ -99,7 +100,7 @@
       {
         "key": "notchWidth",
         "type": "integer",
-        "label": "Notch width (px, notch shape)",
+        "label": "Notch width (px, notch shape only)",
         "defaultValue": 200,
         "min": 120,
         "max": 400,
@@ -108,13 +109,13 @@
       {
         "key": "openOnHover",
         "type": "boolean",
-        "label": "Open when the pointer rests on the notch",
+        "label": "Open when you rest the pointer on it",
         "defaultValue": true
       },
       {
         "key": "hoverDelay",
         "type": "integer",
-        "label": "Hover delay before opening (ms)",
+        "label": "How long to rest before it opens (ms)",
         "defaultValue": 320,
         "min": 0,
         "max": 2000,
@@ -123,69 +124,71 @@
       {
         "key": "showNotifications",
         "type": "boolean",
-        "label": "Peek new notifications in the island",
+        "label": "Show new notifications in the island",
         "defaultValue": true
       },
       {
         "key": "replaceOsd",
         "type": "boolean",
-        "label": "Show volume / brightness / keyboard OSD in the island",
-        "description": "Takes over `omarchy osd`. Keep omarchy.osd in disabledPlugins while this is on.",
+        "label": "Show volume and brightness in the island",
+        "description": "Replaces Omarchy's own pop-up. Add \"omarchy.osd\" to disabledPlugins, or you get both.",
         "defaultValue": true
       },
       {
         "key": "hideInFullscreen",
         "type": "boolean",
-        "label": "Tuck the notch away over fullscreen windows",
+        "label": "Get out of the way of fullscreen windows",
         "defaultValue": true
       },
       {
         "key": "showWhenIdle",
         "type": "boolean",
-        "label": "Keep the island visible when nothing is happening (off = auto-hide)",
-        "defaultValue": false
+        "label": "Always keep the island on screen",
+        "defaultValue": true,
+        "description": "On: it is always there. Off: it hides when nothing is happening and slides back for music, alerts and notifications, or when you touch the top edge. Off is the look to use with the bar hidden."
       },
       {
         "key": "artworkTint",
         "type": "boolean",
-        "label": "Tint the music waveform with the album art color",
+        "label": "Color the music view from the album art",
         "defaultValue": true
       },
       {
         "key": "showMicIndicator",
         "type": "boolean",
-        "label": "Orange privacy dot while the microphone is in use",
+        "label": "Orange dot while the microphone is in use",
         "defaultValue": true
       },
       {
         "key": "scrollVolume",
         "type": "boolean",
-        "label": "Scroll on the notch to change volume",
+        "label": "Scroll on the island to change volume",
         "defaultValue": true
       },
       {
         "key": "monitor",
         "type": "string",
-        "label": "Monitor",
-        "description": "\"external\": the external monitor, or the built-in display when none is connected \u00b7 \"focused\" \u00b7 \"all\" \u00b7 or a connector name.",
-        "defaultValue": "external"
+        "label": "Which monitor",
+        "description": "focused: follows the monitor you are working on. external: the external monitor, or the built-in one when nothing is plugged in. all: one island per monitor. Or a connector name such as HDMI-A-1.",
+        "defaultValue": "focused"
       },
       {
         "key": "showClock",
         "type": "boolean",
-        "label": "Show the clock inside the island",
+        "label": "Show a clock in the island",
         "defaultValue": true
       },
       {
         "key": "clockFormat",
         "type": "string",
-        "label": "Clock format (Qt, e.g. HH:mm or h:mm AP)",
-        "defaultValue": "HH:mm"
+        "label": "Clock format",
+        "defaultValue": "HH:mm",
+        "description": "Qt format: HH:mm for 24-hour, h:mm AP for AM/PM."
       },
       {
         "key": "islandHeight",
         "type": "integer",
-        "label": "Bubble height (px)",
+        "label": "Island height (px)",
         "defaultValue": 30,
         "min": 20,
         "max": 44,
@@ -194,7 +197,14 @@
       {
         "key": "showWorkspaces",
         "type": "boolean",
-        "label": "Flash the workspace when switching",
+        "label": "Flash the workspace when you switch",
+        "defaultValue": true
+      },
+      {
+        "key": "onlineExtras",
+        "type": "boolean",
+        "label": "Allow the island to use the internet",
+        "description": "Covers album artwork for streaming players, the weather line and the Omarchy update check. Off: the island makes no network requests at all.",
         "defaultValue": true
       }
     ]

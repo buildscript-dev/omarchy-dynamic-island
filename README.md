@@ -40,7 +40,9 @@ Two optional steps:
   namespace `omarchy-dynamic-island`.
 
 Requires Omarchy with `omarchy-shell` (Quickshell). No other dependencies,
-no root, no network access. It never edits your config for you.
+no root, no installer, no background daemon. It never edits your config for
+you. It downloads album artwork for streaming players unless you turn that
+off — see [Network use](#network-use).
 
 ## How it behaves
 
@@ -80,13 +82,15 @@ Other details:
 
 The island can replace the bar entirely. Hide the bar with
 `omarchy toggle bar on` (that sets the `bar-off` flag; `omarchy toggle bar off`
-brings it back). The island keeps working on its own:
+brings it back), and set `"showWhenIdle": false` on the island entry. It
+then keeps working on its own:
 
 - **Auto hide / auto appear**: with nothing live it slides away; music,
   timers, recording, phone mirroring, alerts, HUDs and notifications bring it
   back. Touch the top-center edge with the pointer to reveal it and the clock.
-- **Monitor**: `monitor: "external"` (default) puts it on the external
-  monitor, falling back to the built-in display when none is plugged in.
+- **Monitor**: `"monitor": "external"` pins it to the external monitor,
+  falling back to the built-in display when none is plugged in. The default,
+  `focused`, follows the monitor you are working on instead.
 - **Size**: a 30 px floating bubble 6 px below the top edge (`islandHeight`,
   `pillInset`).
 - **Workspaces**: switching flashes a pill with a dot per workspace.
@@ -151,35 +155,49 @@ Bluetooth, Pipewire and the `omarchy-*` helpers), so actions behave the same.
 - **Scroll** on the closed notch: volume ±2 %.
 - Click the artwork in the expanded player to raise the player window.
 
-## Styles and colors
+## Settings
 
-Set these on the island's bar entry in `~/.config/omarchy/shell.json`.
-Changes apply as soon as you save:
+Every setting goes on the island's entry in `~/.config/omarchy/shell.json`.
+Changes apply as soon as you save the file — no restart:
 
 ```json
 { "id": "io.github.buildscript-dev.dynamic-island", "style": "glass", "palette": "theme" }
 ```
 
-| Key | Default | Meaning |
+| Setting | Default | What it does |
 |---|---|---|
-| `shape` | `pill` | `pill` = floating iPhone bubble inside the bar, sized to its content · `notch` = MacBook notch hanging from the top edge |
-| `islandWidth` | `96` | idle width of the bubble in px (`pill`) |
-| `pillInset` | `6` | gap between the bubble and the top edge (`pill`) |
-| `islandHeight` | `30` | height of the bubble in px (`pill`) |
-| `style` | `black` | `black` = true MacBook notch · `bar` = the bar's theme background/text · `glass` = translucent, blurred by Hyprland |
-| `palette` | `apple` | `apple` = Apple system colors (green charging, orange timer, red record, indigo focus) · `theme` = your theme's accent/urgent |
-| `notchWidth` | `200` | width of the idle notch in px (`notch`) |
-| `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on the notch |
-| `showNotifications` | `true` | peek new notifications |
-| `replaceOsd` | `true` | show `omarchy osd` (volume, brightness…) in the island |
-| `hideInFullscreen` | `true` | slide away over fullscreen windows; a 3px strip at the top edge brings it back |
-| `showWhenIdle` | `false` | keep the bare island visible when nothing is happening (off = auto-hide) |
-| `artworkTint` | `true` | tint the waveform with the album's color |
-| `showMicIndicator` | `true` | orange mic-in-use dot |
-| `scrollVolume` | `true` | scroll on the notch for volume |
-| `monitor` | `external` | `external` = the external monitor, falling back to the built-in display · `focused` = follows the focused monitor · `all` = one per monitor · or a connector name (`eDP-2`) |
-| `showClock` / `clockFormat` | `true` / `HH:mm` | clock inside the island (Qt format string) |
-| `showWorkspaces` | `true` | flash a workspace pill when switching |
+| `shape` | `pill` | `pill` = a floating bubble at the top of the screen · `notch` = a MacBook-style notch attached to the top edge |
+| `style` | `black` | `black` = solid black, like a real notch · `bar` = your bar's color · `glass` = see-through and blurred |
+| `palette` | `apple` | `apple` = Apple's colors (green charging, orange timer, red recording) · `theme` = your Omarchy theme's colors |
+| `showWhenIdle` | `true` | keep the island on screen with nothing happening. Turn it **off** for the standalone look: it hides itself and comes back for music, alerts and notifications, or when you touch the top edge |
+| `monitor` | `focused` | `focused` = follows the monitor you are working on · `external` = the external monitor, or the built-in one when nothing is plugged in · `all` = one per monitor · or a connector name such as `HDMI-A-1` |
+| `onlineExtras` | `true` | let the island use the internet: album artwork for streaming players, the weather line, the Omarchy update check. Off = no network requests at all |
+| `showNotifications` | `true` | show new notifications in the island |
+| `replaceOsd` | `true` | show volume and brightness in the island instead of Omarchy's pop-up |
+| `hideInFullscreen` | `true` | get out of the way of fullscreen windows; a 3 px strip at the top edge brings it back |
+| `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on it, after this many ms |
+| `scrollVolume` | `true` | scroll on the island to change volume |
+| `showClock` / `clockFormat` | `true` / `HH:mm` | clock inside the island (Qt format: `HH:mm`, or `h:mm AP` for AM/PM) |
+| `showWorkspaces` | `true` | flash the workspace when you switch |
+| `artworkTint` | `true` | color the music view from the album art |
+| `showMicIndicator` | `true` | orange dot while the microphone is in use |
+| `islandWidth` / `islandHeight` / `pillInset` | `96` / `30` / `6` | size of the bubble and its gap from the top edge (`pill`) |
+| `notchWidth` | `200` | width of the notch (`notch` shape only) |
+
+Omarchy's settings UI reads the same list, so you can also change these from
+the plugin's settings panel instead of editing JSON.
+
+## Network use
+
+The island itself makes exactly one kind of request: downloading album
+artwork for players that publish it as an `https` URL (Spotify and other
+streaming clients), cached under
+`${XDG_CACHE_HOME:-~/.cache}/omarchy-dynamic-island` and cleaned after 7
+days. It also runs Omarchy's own `omarchy-weather-status` and
+`omarchy-update-available` helpers, which reach the network themselves.
+
+Set `"onlineExtras": false` and all three stop. Nothing else in the plugin
+opens a connection, and nothing is ever sent anywhere.
 
 ## What it installs
 
@@ -203,7 +221,12 @@ hidden.
 | Plugin | Adds |
 |---|---|
 | [OnePlus Experience](https://github.com/buildscript-dev/omarchy-oneplus-experience) | earbuds page: battery, noise control, EQ · battery and noise-mode alerts |
-| Taildroid | phone page: mirroring, calls, messages · call live activity |
+| Taildroid (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity |
+
+The phone page expects my own Taildroid fork, which adds calls and
+messages. That fork is not published yet, so for now the phone page stays
+hidden for everyone else — nothing breaks, the island simply doesn't show
+it.
 
 ## IPC
 

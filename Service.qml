@@ -68,9 +68,13 @@ Item {
   readonly property bool showNotifications: setting("showNotifications", true) === true
   readonly property bool replaceOsd: setting("replaceOsd", true) === true
   readonly property bool hideInFullscreen: setting("hideInFullscreen", true) === true
-  // Standalone island: with nothing to show it tucks away, and slides back
-  // in for anything live (or when the pointer touches the top-center edge).
-  readonly property bool showWhenIdle: setting("showWhenIdle", false) === true
+  // On by default the island always sits there. Turn it off and it tucks
+  // away with nothing to show, sliding back in for anything live (or when
+  // the pointer touches the top-center edge) — the standalone, no-bar look.
+  readonly property bool showWhenIdle: setting("showWhenIdle", true) === true
+  // One switch for everything that reaches the network: album artwork for
+  // streaming players, the weather line, and the Omarchy update check.
+  readonly property bool onlineExtras: setting("onlineExtras", true) === true
   readonly property bool showWorkspaces: setting("showWorkspaces", true) === true
   readonly property bool artworkTint: setting("artworkTint", true) === true
   readonly property bool showMicIndicator: setting("showMicIndicator", true) === true
@@ -78,7 +82,7 @@ Item {
   // external: the external monitor when one is plugged in, otherwise the
   // built-in display · focused: follows the focused monitor · all: one per
   // monitor · or a connector name such as HDMI-A-1.
-  readonly property string monitor: String(setting("monitor", "external"))
+  readonly property string monitor: String(setting("monitor", "focused"))
   function isInternal(name) { return /^(eDP|LVDS|DSI)-/.test(String(name || "")) }
   readonly property string preferredScreen: {
     var all = Quickshell.screens
@@ -244,6 +248,8 @@ Item {
     artLocal = ""
     if (trackArt === "" || !artworkTint) return
     if (trackArt.indexOf("http") !== 0) { artLocal = trackArt; return }
+    // Remote artwork is the only download the island itself makes.
+    if (!onlineExtras) return
     artFetch.running = false
     artFetch.command = ["sh", "-c",
       "d=\"${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-dynamic-island\"; mkdir -p \"$d\"; " +
@@ -770,8 +776,8 @@ Item {
     command: ["omarchy-update-available"]
     onExited: function(code) { root.updateAvailable = code === 0 }
   }
-  Timer { interval: 21600000; running: true; repeat: true; triggeredOnStart: true; onTriggered: updateCheck.running = true }
-  function checkUpdates() { if (!updateCheck.running) updateCheck.running = true }
+  Timer { interval: 21600000; running: root.onlineExtras; repeat: true; triggeredOnStart: true; onTriggered: updateCheck.running = true }
+  function checkUpdates() { if (root.onlineExtras && !updateCheck.running) updateCheck.running = true }
   function runUpdate() { Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"]) }
 
   // ------------------------------------------------------------ keyboard layout
@@ -835,7 +841,8 @@ Item {
       }
     }
   }
-  Timer { interval: 1800000; running: true; repeat: true; triggeredOnStart: true; onTriggered: if (!weatherRead.running) weatherRead.running = true }
+  Timer { interval: 1800000; running: root.onlineExtras; repeat: true; triggeredOnStart: true; onTriggered: if (!weatherRead.running) weatherRead.running = true }
+  onOnlineExtrasChanged: if (!onlineExtras) { weatherText = ""; weatherPlace = ""; weatherTemp = ""; updateAvailable = false }
 
   // ------------------------------------------------------------ notification history
   readonly property string historyDir: root.notifDir + "/history"
