@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.buildscript-dev.dynamic-island",
+  "name": "Dynamic Island",
+  "version": "2.1.0",
+  "author": "buildscript-dev",
+  "license": "MIT",
+  "description": "An iPhone-style Dynamic Island for Omarchy: a floating bubble in the bar that springs open for music, volume and brightness, notifications, charging, Bluetooth, timers and screen recording, with a built-in Control Center for Wi-Fi, Bluetooth, sound, earbuds, tray and power.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Dynamic Island",
+    "description": "iPhone-style floating island with live activities. Reserves its space in the bar.",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "shape": "pill",
+      "islandWidth": 96,
+      "pillInset": 6,
+      "style": "black",
+      "palette": "apple",
+      "notchWidth": 200,
+      "openOnHover": true,
+      "hoverDelay": 320,
+      "showNotifications": true,
+      "replaceOsd": true,
+      "hideInFullscreen": true,
+      "showWhenIdle": false,
+      "artworkTint": true,
+      "showMicIndicator": true,
+      "scrollVolume": true,
+      "monitor": "external",
+      "showClock": true,
+      "clockFormat": "HH:mm",
+      "islandHeight": 30,
+      "showWorkspaces": true
+    },
+    "schema": [
+      {
+        "key": "shape",
+        "type": "enum",
+        "label": "Island shape",
+        "description": "pill: floating iPhone-style bubble inside the bar. notch: MacBook notch hanging from the top edge.",
+        "options": [
+          "pill",
+          "notch"
+        ],
+        "defaultValue": "pill"
+      },
+      {
+        "key": "islandWidth",
+        "type": "integer",
+        "label": "Bubble width when idle (px, pill shape)",
+        "defaultValue": 96,
+        "min": 60,
+        "max": 300,
+        "step": 4
+      },
+      {
+        "key": "pillInset",
+        "type": "integer",
+        "label": "Gap between the bubble and the top edge (px)",
+        "defaultValue": 6,
+        "min": 0,
+        "max": 20,
+        "step": 1
+      },
+      {
+        "key": "style",
+        "type": "enum",
+        "label": "Island surface",
+        "description": "black: true MacBook notch. bar: the bar's own theme color. glass: translucent and blurred.",
+        "options": [
+          "black",
+          "bar",
+          "glass"
+        ],
+        "defaultValue": "black"
+      },
+      {
+        "key": "palette",
+        "type": "enum",
+        "label": "Accent colors",
+        "description": "apple: Apple system colors (green charging, orange timer\u2026). theme: the Omarchy theme's accent and urgent colors.",
+        "options": [
+          "apple",
+          "theme"
+        ],
+        "defaultValue": "apple"
+      },
+      {
+        "key": "notchWidth",
+        "type": "integer",
+        "label": "Notch width (px, notch shape)",
+        "defaultValue": 200,
+        "min": 120,
+        "max": 400,
+        "step": 10
+      },
+      {
+        "key": "openOnHover",
+        "type": "boolean",
+        "label": "Open when the pointer rests on the notch",
+        "defaultValue": true
+      },
+      {
+        "key": "hoverDelay",
+        "type": "integer",
+        "label": "Hover delay before opening (ms)",
+        "defaultValue": 320,
+        "min": 0,
+        "max": 2000,
+        "step": 20
+      },
+      {
+        "key": "showNotifications",
+        "type": "boolean",
+        "label": "Peek new notifications in the island",
+        "defaultValue": true
+      },
+      {
+        "key": "replaceOsd",
+        "type": "boolean",
+        "label": "Show volume / brightness / keyboard OSD in the island",
+        "description": "Takes over `omarchy osd`. Keep omarchy.osd in disabledPlugins while this is on.",
+        "defaultValue": true
+      },
+      {
+        "key": "hideInFullscreen",
+        "type": "boolean",
+        "label": "Tuck the notch away over fullscreen windows",
+        "defaultValue": true
+      },
+      {
+        "key": "showWhenIdle",
+        "type": "boolean",
+        "label": "Keep the island visible when nothing is happening (off = auto-hide)",
+        "defaultValue": false
+      },
+      {
+        "key": "artworkTint",
+        "type": "boolean",
+        "label": "Tint the music waveform with the album art color",
+        "defaultValue": true
+      },
+      {
+        "key": "showMicIndicator",
+        "type": "boolean",
+        "label": "Orange privacy dot while the microphone is in use",
+        "defaultValue": true
+      },
+      {
+        "key": "scrollVolume",
+        "type": "boolean",
+        "label": "Scroll on the notch to change volume",
+        "defaultValue": true
+      },
+      {
+        "key": "monitor",
+        "type": "string",
+        "label": "Monitor",
+        "description": "\"external\": the external monitor, or the built-in display when none is connected \u00b7 \"focused\" \u00b7 \"all\" \u00b7 or a connector name.",
+        "defaultValue": "external"
+      },
+      {
+        "key": "showClock",
+        "type": "boolean",
+        "label": "Show the clock inside the island",
+        "defaultValue": true
+      },
+      {
+        "key": "clockFormat",
+        "type": "string",
+        "label": "Clock format (Qt, e.g. HH:mm or h:mm AP)",
+        "defaultValue": "HH:mm"
+      },
+      {
+        "key": "islandHeight",
+        "type": "integer",
+        "label": "Bubble height (px)",
+        "defaultValue": 30,
+        "min": 20,
+        "max": 44,
+        "step": 1
+      },
+      {
+        "key": "showWorkspaces",
+        "type": "boolean",
+        "label": "Flash the workspace when switching",
+        "defaultValue": true
+      }
+    ]
+  }
+}
