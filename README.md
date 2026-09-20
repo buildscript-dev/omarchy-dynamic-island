@@ -1,5 +1,7 @@
 # Dynamic Island for Omarchy (`io.github.buildscript-dev.dynamic-island`)
 
+![The expanded island: clock, this week, timer pills and Focus](preview.png)
+
 An iPhone-style Dynamic Island that runs natively inside `omarchy-shell`
 (Quickshell). A floating black bubble sits at the top of the screen and
 springs open for whatever is happening: music, volume and brightness,
