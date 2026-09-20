@@ -1,6 +1,6 @@
 # Dynamic Island for Omarchy (`io.github.buildscript-dev.dynamic-island`)
 
-![The expanded island: clock, this week, timer pills and Focus](preview.png)
+![The island going from its idle pill to a volume HUD, a charging alert and the expanded card](demo.gif)
 
 An iPhone-style Dynamic Island that runs natively inside `omarchy-shell`
 (Quickshell). A floating black bubble sits at the top of the screen and
@@ -48,14 +48,14 @@ off — see [Network use](#network-use).
 
 ## How it behaves
 
-The island has five shapes. Moving between them is one spring animation:
+The island has six modes. Moving between them is one spring animation:
 it opens with a slight overshoot and closes with more damping. Content
 fades out fast, then the new content comes in from a soft blur while the
 shape is still settling. This is the same order Apple uses.
 
 | Mode | Size | Triggered by |
 |---|---|---|
-| **Idle notch** | notch width × bar height, concave "ears" into the top edge | nothing happening |
+| **Idle** | a small bubble (`pill`), or a notch with concave "ears" into the top edge (`notch`) | nothing happening |
 | **Compact live activity** | widens sideways: leading + trailing content | music playing (art + waveform tinted by the album color), timer (orange countdown), screen recording (pulsing red dot + elapsed) |
 | **Alert pill** | wide, a little taller | charging / on battery / low battery, Bluetooth connect/disconnect, Do Not Disturb, timer done, `omarchy osd -m` messages |
 | **HUD** | drops down with a level bar | volume, brightness, keyboard backlight: every `omarchy osd -p` |
@@ -115,10 +115,11 @@ changes, keyboard layout switches, charging, Bluetooth, Focus.
 
 ## Control Center
 
-Press **Super + A**, or right-click the island (or use the  button in the
-expanded island), to open the Control Center. It holds everything that used
-to sit on the right side of the bar. Click outside it or press Esc to close
-(Esc on a sub-page goes back first).
+Right-click the island, or use the  button in the expanded island, to open
+the Control Center — or bind a key to it, see
+[Keyboard shortcuts](#keyboard-shortcuts-optional-in-confighyprbindingslua).
+It holds everything that usually sits on the right side of the bar. Click
+outside it or press Esc to close (Esc on a sub-page goes back first).
 
 - **Header**: time and date, the notification center (with a badge count),
   the calendar, and an **Update** button when Omarchy updates are available.
