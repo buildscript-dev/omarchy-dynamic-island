@@ -21,14 +21,14 @@ Item {
   property var s: null
   property var win: null
   property bool active: false
-  property string page: "main"   // main | wifi | bluetooth | audio | buds | phone | call | messages | thread | notifications | notif | calendar | power
+  property string page: "main"   // main | wifi | bluetooth | audio | buds | phone | call | messages | thread | notifications | calendar | power
 
   readonly property int pad: 18
   readonly property int innerWidth: width - pad * 2
   // The island sizes itself to this, so each page gets exactly its height.
   // Reading a conversation needs room, so those pages get a bigger panel.
-  readonly property bool roomy: page === "thread" || page === "notif"
-  readonly property int preferredWidth: roomy ? 620 : 440
+  readonly property bool roomy: page === "thread"
+  readonly property int preferredWidth: Math.min(roomy ? 620 : 440, Math.max(360, (win ? win.width : 640) - 48))
   readonly property int preferredHeight: Math.min(roomy ? 760 : 560, Math.ceil(pageHeight) + pad * 2)
   readonly property real pageHeight: page === "main" ? mainPage.implicitHeight
     : page === "wifi" ? wifiPage.implicitHeight
@@ -40,7 +40,6 @@ Item {
     : page === "messages" ? messagesPage.implicitHeight
     : page === "thread" ? threadPage.implicitHeight
     : page === "notifications" ? notifPage.implicitHeight
-    : page === "notif" ? notifDetail.implicitHeight
     : page === "calendar" ? calPage.implicitHeight
     : powerPage.implicitHeight
 
@@ -61,9 +60,11 @@ Item {
     keypadInCall = false
     // Typing goes straight to the dialer / message box.
     if (page === "call") Qt.callLater(function() { dialLabel.forceActiveFocus() })
-    else if (page === "thread") Qt.callLater(function() { (root.threadInfo.threadId === 0 ? toField : draftField).forceActiveFocus() })
-    else if (page === "notif") Qt.callLater(function() { notifReply.forceActiveFocus() })
-    else Qt.callLater(function() { root.forceActiveFocus() })
+    else if (page === "thread") {
+      // Opened straight from a shortcut: show the newest conversation.
+      if (!root.threadInfo.name && root.allChats.length > 0) { root.openThread(root.allChats[0]); return }
+      Qt.callLater(function() { (root.threadInfo.isNew === true ? toField : draftField).forceActiveFocus() })
+    }
   }
 
   function go(p) { page = p }
@@ -440,8 +441,7 @@ Item {
     // Clicking the peek asked for the whole notification; open it here.
     function onPendingNotifChanged() {
       if (!root.s.pendingNotif || !root.win.isTarget()) return
-      root.notifInfo = root.s.pendingNotif
-      root.go("notif")
+      root.activateNotif(root.s.pendingNotif)
       Qt.callLater(function() { root.s.pendingNotif = null })
     }
     function onPendingThreadChanged() {
@@ -460,37 +460,79 @@ Item {
     command: ["wl-paste", "--no-newline"]
     stdout: StdioCollector { onStreamFinished: root.dialNumber += String(text || "").replace(/[^0-9*#+]/g, "") }
   }
-  property var notifInfo: null
+  // A phone notification is just the newest line of a chat, so open the chat.
   function activateNotif(n) {
-    if (n.phone) { notifInfo = n; go("notif"); return }
+    if (n.phone) {
+      var c = root.chatFor(n.app, n.title)
+      if (c) { root.openThread({ kind: "chat", key: c.key, app: c.app, replyId: c.replyId,
+                                 name: c.title, face: c.icon, body: "", date: c.date }); return }
+    }
     if (!root.s.openForApp(n.app)) Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "invokeLast"])
   }
-  // One phone notification stacks several messages, one per <br/>, oldest first.
-  function notifLines(text) {
+  // Every conversation the phone knows about, newest first: real SMS threads,
+  // and the chats that only reach this machine as notifications.
+  readonly property var allChats: {
     var out = []
-    var parts = String(text || "").split(/<br\s*\/?>/i)
-    for (var i = 0; i < parts.length; i++) {
-      var one = Model.plainText(parts[i]).trim()
-      if (one !== "") out.push(one)
+    var sms = root.phone ? root.phone.conversations : []
+    for (var i = 0; i < sms.length; i++) {
+      var t = sms[i]
+      out.push({ kind: "sms", threadId: t.threadId, key: "", app: "Messages", replyId: "",
+                 name: t.name || (t.addresses || []).join(", "), face: t.face || "",
+                 body: String(t.body || ((t.attachments || []).length ? "Attachment" : "")),
+                 outgoing: !!t.outgoing, date: t.date, unread: !t.read && !t.outgoing, addresses: t.addresses || [] })
     }
+    var ch = root.phone ? root.phone.chats : []
+    for (var j = 0; j < ch.length; j++) {
+      var c = ch[j]
+      out.push({ kind: "chat", threadId: 0, key: c.key, app: c.app, replyId: String(c.replyId || ""),
+                 name: c.title, face: c.icon || "", body: String(c.body || ""),
+                 outgoing: !!c.outgoing, date: c.date, unread: false, addresses: [] })
+    }
+    out.sort(function(a, b) { return b.date - a.date })
     return out
   }
-  function sendNotifReply(text) {
-    if (!root.notifInfo || String(text).trim() === "" || !root.phone) return
-    root.phone.replyTo(root.notifInfo.replyId, text)
+  function chatFor(app, title) {
+    var ch = root.phone ? root.phone.chats : []
+    for (var i = 0; i < ch.length; i++) {
+      if (String(ch[i].app) === String(app) && String(ch[i].title) === String(title)) return ch[i]
+    }
+    return null
+  }
+  // One conversation view serves both kinds; only where the text comes from differs.
+  readonly property var threadMsgs: {
+    if (root.threadInfo.kind === "chat") {
+      var raw = root.phone ? root.phone.chatMessages : []
+      var out = []
+      for (var i = 0; i < raw.length; i++)
+        out.push({ body: raw[i].text, outgoing: !!raw[i].out, date: raw[i].date, attachments: [], files: [] })
+      return out
+    }
+    var t = root.phone && root.phone.threadMessages.length > 0 ? root.phone.threadMessages : (root.threadInfo.seed || [])
+    return t
   }
   function openThread(t) {
-    threadInfo = t ? { threadId: t.threadId, name: t.name, addresses: t.addresses || [], face: t.face || "",
-                       seed: t.body ? [{ body: t.body, outgoing: !!t.outgoing, attachments: [], files: [] }] : [] }
-                   : { threadId: 0, name: "New Message", addresses: [], seed: [] }
+    if (!t) {
+      threadInfo = { kind: "sms", isNew: true, threadId: 0, key: "", app: "Messages", replyId: "",
+                     name: "New Message", addresses: [], face: "", seed: [] }
+    } else {
+      threadInfo = { kind: String(t.kind || "sms"), isNew: false, threadId: t.threadId || 0, key: String(t.key || ""),
+                     app: String(t.app || "Messages"), replyId: String(t.replyId || ""),
+                     name: t.name, addresses: t.addresses || [], face: t.face || "",
+                     seed: t.body ? [{ body: t.body, outgoing: !!t.outgoing, date: t.date, attachments: [], files: [] }] : [] }
+      if (threadInfo.kind === "chat") root.phone.openChat(threadInfo.key)
+      else root.phone.openThread(threadInfo.threadId)
+    }
     draft = ""
     newRecipient = ""
-    if (t) phone.openThread(t.threadId)
     go("thread")
   }
   function sendDraft() {
     if (draft.trim() === "") return
-    if (threadInfo.threadId) phone.sendSms(threadInfo.threadId, draft, [])
+    if (threadInfo.kind === "chat") {
+      if (threadInfo.replyId === "") return
+      phone.replyTo(threadInfo.replyId, draft, threadInfo.key)
+    }
+    else if (threadInfo.threadId) phone.sendSms(threadInfo.threadId, draft, [])
     else if (newRecipient.trim() !== "") phone.sendSms(0, draft, [newRecipient.trim()])
     draft = ""
   }
@@ -680,8 +722,19 @@ Item {
       source: hd.photo
       fallbackColor: root.tileOff
     }
-    Label { anchors.left: hdFace.visible ? hdFace.right : backBtn.right; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.title; font.pixelSize: 16; font.weight: Font.Bold }
-    Label { anchors.right: sw.visible ? sw.left : parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.busyText; font.pixelSize: 11; color: root.dim }
+    Label {
+      anchors.left: hdFace.visible ? hdFace.right : backBtn.right
+      anchors.leftMargin: 10
+      // A long chat name has to stop at the panel edge, not run past it.
+      anchors.right: busyLabel.left
+      anchors.rightMargin: 8
+      anchors.verticalCenter: parent.verticalCenter
+      text: hd.title
+      elide: Text.ElideRight
+      font.pixelSize: 16
+      font.weight: Font.Bold
+    }
+    Label { id: busyLabel; anchors.right: sw.visible ? sw.left : parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.busyText; font.pixelSize: 11; color: root.dim }
     Switch { id: sw; visible: hd.hasSwitch; on: hd.switchOn; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; onToggled: hd.switched() }
   }
 
@@ -1614,7 +1667,7 @@ Item {
       Header { title: "Messages"; busyText: root.psKde.reachable ? (root.psKde.name || "") : "Phone not reachable" }
       Row2 { glyph: "󰏫"; title: "New Message"; onClicked: root.openThread(null) }
       Label {
-        visible: root.phone && root.phone.conversations.length === 0
+        visible: root.allChats.length === 0
         width: root.innerWidth
         wrapMode: Text.WordWrap
         font.pixelSize: 12
@@ -1629,14 +1682,15 @@ Item {
           width: parent.width
           spacing: 2
           Repeater {
-            model: root.phone ? root.phone.conversations : []
+            model: root.allChats
             delegate: Row2 {
               required property var modelData
               glyph: "󰍡"
               photo: modelData.face ? "file://" + modelData.face : ""
-              selected: !modelData.read && !modelData.outgoing
-              title: modelData.name || (modelData.addresses || []).join(", ")
-              subtitle: (modelData.outgoing ? "You: " : "") + String(modelData.body || ((modelData.attachments || []).length ? "Attachment" : "")).replace(/\s+/g, " ")
+              selected: modelData.unread
+              title: modelData.name
+              subtitle: (modelData.kind === "chat" ? modelData.app : "SMS") + " · "
+                + (modelData.outgoing ? "You: " : "") + String(modelData.body).replace(/\s+/g, " ")
               trailing: root.s.timeAgo(modelData.date)
               onClicked: root.openThread(modelData)
             }
@@ -1654,9 +1708,13 @@ Item {
       width: parent.width
       spacing: 8
 
-      Header { title: root.threadInfo.name || "Message"; photo: root.threadInfo.face ? "file://" + root.threadInfo.face : "" }
+      Header {
+        title: root.threadInfo.name || "Message"
+        photo: root.threadInfo.face ? "file://" + root.threadInfo.face : ""
+        busyText: root.threadInfo.kind === "chat" ? root.threadInfo.app : ""
+      }
       Rectangle {
-        visible: root.threadInfo.threadId === 0
+        visible: root.threadInfo.isNew === true
         width: root.innerWidth
         height: 34
         radius: 12
@@ -1679,56 +1737,107 @@ Item {
       ListView {
         id: bubbles
         width: root.innerWidth
-        height: root.threadInfo.threadId === 0 ? 60 : 460
+        height: root.threadInfo.isNew === true ? 60 : 460
         clip: true
         spacing: 6
         // The message that opened the thread shows at once; history follows from the phone.
-        model: root.phone && root.phone.threadMessages.length > 0 ? root.phone.threadMessages : (root.threadInfo.seed || [])
+        model: root.threadMsgs
         onCountChanged: Qt.callLater(function() { bubbles.positionViewAtEnd() })
         delegate: Item {
           id: msg
           required property var modelData
           // Pictures come from the phone one file at a time; until one lands the
           // bubble still has to say the message carried something.
-          readonly property var files: (modelData.files || []).filter(function(f) { return f !== "" })
-          readonly property int pending: (modelData.attachments || []).length - files.length
+          readonly property var atts: modelData.attachments || []
+          readonly property var paths: modelData.files || []
+          readonly property int pending: msg.atts.length - msg.paths.filter(function(f) { return f !== "" }).length
+          readonly property bool out: !!modelData.outgoing
           width: bubbles.width
           height: bubble.height
           Rectangle {
             id: bubble
-            anchors.right: msg.modelData.outgoing ? parent.right : undefined
+            anchors.right: msg.out ? parent.right : undefined
             width: Math.min(bubbles.width * 0.78, bubbleCol.width + 24)
             height: bubbleCol.implicitHeight + 14
             radius: 16
-            color: msg.modelData.outgoing ? root.onColor("blue") : root.tileOff
+            color: msg.out ? root.onColor("blue") : root.tileOff
             Column {
               id: bubbleCol
               x: 12
               y: 7
               spacing: 6
               width: Math.min(bubbles.width * 0.78 - 24,
-                              Math.max(bubbleText.implicitWidth, msg.files.length > 0 ? 210 : 0))
+                              Math.max(bubbleText.implicitWidth, timeText.implicitWidth,
+                                       msg.atts.length > 0 ? 230 : 0))
               Repeater {
-                model: msg.files
-                Image {
-                  required property string modelData
-                  source: "file://" + modelData
+                model: msg.atts
+                delegate: Column {
+                  required property int index
+                  required property var modelData
+                  readonly property string file: String(msg.paths[index] || "")
+                  readonly property string mime: String(modelData.mime || "")
                   width: bubbleCol.width
-                  fillMode: Image.PreserveAspectFit
-                  asynchronous: true
-                  cache: false
+                  spacing: 4
+                  Image {
+                    visible: parent.file !== "" && parent.mime.indexOf("image/") === 0
+                    source: visible ? "file://" + parent.file : ""
+                    width: bubbleCol.width
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    cache: false
+                  }
+                  // Voice notes, video, anything else: hand it to the desktop.
+                  Rectangle {
+                    visible: parent.file !== "" && parent.mime.indexOf("image/") !== 0
+                    width: bubbleCol.width
+                    height: visible ? 34 : 0
+                    radius: 17
+                    color: msg.out ? Qt.rgba(1, 1, 1, 0.18) : root.tileHover
+                    Glyph {
+                      id: playGlyph
+                      x: 10
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: parent.parent.mime.indexOf("audio/") === 0 ? "\U000f040a" : "\U000f0220"
+                      font.pixelSize: 14
+                      color: msg.out ? "#ffffff" : root.fg
+                    }
+                    Label {
+                      anchors.left: playGlyph.right
+                      anchors.leftMargin: 8
+                      anchors.right: parent.right
+                      anchors.rightMargin: 10
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: parent.parent.mime.indexOf("audio/") === 0 ? "Voice message" : parent.parent.mime
+                      elide: Text.ElideRight
+                      font.pixelSize: 12
+                      color: msg.out ? "#ffffff" : root.fg
+                    }
+                    MouseArea {
+                      anchors.fill: parent
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: Quickshell.execDetached(["xdg-open", parent.parent.file])
+                    }
+                  }
                 }
               }
-              Text {
+              Label {
                 id: bubbleText
                 width: bubbleCol.width
                 visible: text !== ""
-                text: msg.modelData.body || (msg.pending > 0 ? "📎 Attachment" : "")
+                text: String(msg.modelData.body || "") || (msg.pending > 0 ? "📎 Attachment" : "")
                 wrapMode: Text.Wrap
-                font.family: root.s.textFont
                 font.pixelSize: 13
-                color: msg.modelData.outgoing ? "#ffffff" : root.fg
+                color: msg.out ? "#ffffff" : root.fg
                 textFormat: Text.PlainText
+              }
+              Label {
+                id: timeText
+                width: bubbleCol.width
+                horizontalAlignment: Text.AlignRight
+                visible: msg.modelData.date > 0
+                text: Qt.formatDateTime(new Date(msg.modelData.date), "HH:mm")
+                font.pixelSize: 10
+                color: msg.out ? Qt.rgba(1, 1, 1, 0.7) : root.dim
               }
             }
           }
@@ -1755,10 +1864,22 @@ Item {
             onTextEdited: root.draft = text
             Keys.onReturnPressed: root.sendDraft()
             Keys.onEscapePressed: root.back()
-            Text { anchors.verticalCenter: parent.verticalCenter; visible: draftField.text === ""; text: "Text Message"; font: draftField.font; color: root.dim }
+            readonly property bool canSend: root.threadInfo.kind !== "chat" || root.threadInfo.replyId !== ""
+            enabled: draftField.canSend
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              visible: draftField.text === ""
+              text: draftField.canSend
+                ? (root.threadInfo.kind === "chat" ? "Reply on " + root.threadInfo.app : "Text Message")
+                : "This chat can only be answered while its notification is live"
+              font: draftField.font
+              color: root.dim
+              width: parent.width
+              elide: Text.ElideRight
+            }
           }
         }
-        Round { width: 36; height: 36; glyph: "󰒊"; on: root.draft.trim() !== ""; onClicked: root.sendDraft() }
+        Round { width: 36; height: 36; glyph: "󰒊"; on: root.draft.trim() !== "" && draftField.canSend; onClicked: root.sendDraft() }
       }
     }
 
@@ -1853,102 +1974,6 @@ Item {
         color: clearMouse.containsMouse ? root.tileHover : root.tileOff
         Label { anchors.centerIn: parent; text: "Clear All"; font.pixelSize: 12; font.weight: Font.DemiBold }
         MouseArea { id: clearMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.s.clearHistory() }
-      }
-    }
-
-    // ------------------------------------------------ one phone notification
-    Column {
-      id: notifDetail
-      visible: opacity > 0.01
-      opacity: root.page === "notif" ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: 160 } }
-      width: parent.width
-      spacing: 8
-
-      readonly property var info: root.notifInfo || ({})
-      readonly property var lines: root.notifLines(notifDetail.info.fullText || notifDetail.info.body || "")
-
-      Header {
-        title: String(notifDetail.info.title || "Notification")
-        photo: String(notifDetail.info.image || "")
-      }
-      Label {
-        width: root.innerWidth
-        text: String(notifDetail.info.app || "") + (notifDetail.info.time ? "  ·  " + root.s.timeAgo(notifDetail.info.time) : "")
-        font.pixelSize: 11
-        color: root.dim
-      }
-      Scroller {
-        height: Math.min(contentHeight, 480)
-        contentHeight: msgList.implicitHeight
-        Column {
-          id: msgList
-          width: parent.width
-          spacing: 6
-          Repeater {
-            model: notifDetail.lines
-            delegate: Rectangle {
-              required property string modelData
-              width: msgList.width
-              height: lineText.implicitHeight + 16
-              radius: 14
-              color: root.tileOff
-              Label {
-                id: lineText
-                x: 12
-                y: 8
-                width: parent.width - 24
-                text: parent.modelData
-                wrapMode: Text.WordWrap
-                font.pixelSize: 13
-              }
-            }
-          }
-          Label {
-            visible: notifDetail.lines.length === 0
-            width: parent.width
-            text: "No text in this notification."
-            color: root.dim
-            font.pixelSize: 12
-          }
-        }
-      }
-      Row {
-        spacing: 8
-        visible: String(notifDetail.info.replyId || "") !== ""
-        Rectangle {
-          width: root.innerWidth - 42
-          height: 36
-          radius: 18
-          color: root.tileOff
-          TextInput {
-            id: notifReply
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 14
-            verticalAlignment: TextInput.AlignVCenter
-            font.family: root.s.textFont
-            font.pixelSize: 13
-            color: root.fg
-            clip: true
-            Keys.onEscapePressed: root.back()
-            Keys.onReturnPressed: { root.sendNotifReply(notifReply.text); notifReply.text = "" }
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              visible: notifReply.text === ""
-              text: "Reply to " + String(notifDetail.info.title || "")
-              font: notifReply.font
-              color: root.dim
-            }
-          }
-        }
-        Round { width: 36; height: 36; glyph: "󰒉"; on: notifReply.text.trim() !== ""; onClicked: { root.sendNotifReply(notifReply.text); notifReply.text = "" } }
-      }
-      Row2 {
-        glyph: "󰅂"
-        title: "Open " + String(notifDetail.info.app || "app")
-        subtitle: "Open that app on this machine"
-        onClicked: { root.s.openForApp(notifDetail.info.app); root.win.closeControls() }
       }
     }
 

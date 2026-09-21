@@ -522,7 +522,7 @@ Item {
       var sms = root.lastSms.body.slice(0, 24)
       if (sms !== "" && Date.now() - root.lastSms.time < 10000 && (body.indexOf(sms) !== -1 || summary.indexOf(sms) !== -1)) return
       var iconUrl = root.notifIcon(d, summary)
-      var pn = root.phoneNotif(d)
+      var pn = root.relayed(d)
       var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
       root.pushActivity({
         kind: "notification", source: "notification", file: file,
@@ -567,16 +567,28 @@ Item {
     }
     return ""
   }
+  // What is known about a relayed notification: the phone's own entry while it
+  // is still on the phone, and once it is gone, the relayed line itself, which
+  // is still "<title>: <text>" with its <br/> message breaks intact.
+  function relayed(d) {
+    if (String(d.app || "") !== phoneRelay) return null
+    var live = root.phoneNotif(d)
+    if (live) return live
+    var body = Model.plainText(d.body)
+    var cut = body.indexOf(": ")
+    if (cut < 0) return { title: Model.plainText(d.summary), text: body, replyId: "", icon: "" }
+    return { title: body.slice(0, cut), text: body.slice(cut + 2), replyId: "", icon: "" }
+  }
   function notifApp(d, summary) {
     var app = String(d.app || "")
     return app === phoneRelay && String(summary || "") !== "" ? String(summary) : app
   }
   function notifIcon(d, summary) {
     if (String(d.app || "") === phoneRelay && root.phone) {
-      var pn = root.phoneNotif(d)
+      var pn = root.relayed(d)
       var chats = root.phone.pstate.phoneChats || {}
       var icon = pn && String(pn.icon || "") !== "" ? String(pn.icon)
-        : String(chats[String(summary || "") + "\u0000" + Model.plainText(d.body).split(":")[0]]
+        : String((pn ? chats[String(summary || "") + "\u0000" + pn.title] : "")
                  || (root.phone.pstate.phoneApps || {})[String(summary || "")] || "")
       if (icon !== "") return icon.indexOf("/") === 0 ? "file://" + icon : icon
     }
@@ -933,6 +945,10 @@ Item {
     onCountChanged: root.readHistory()
     onStatusChanged: if (status === FolderListModel.Ready) root.readHistory()
   }
+  // Taildroid loads after the history is first read, so the phone's chat names
+  // and pictures land late; read it again once they arrive.
+  property int phoneChatCount: phone && phone.pstate.phoneChats ? Object.keys(phone.pstate.phoneChats).length : 0
+  onPhoneChatCountChanged: readHistory()
   function readHistory() {
     if (historyRead.running) { historyAgain = true; return }
     historyRead.running = true
@@ -951,7 +967,7 @@ Item {
           try {
             var d = JSON.parse(lines[i].substring(tab + 1))
             var summary = Model.plainText(d.summary)
-            var pn = root.phoneNotif(d)
+            var pn = root.relayed(d)
             out.push({ file: lines[i].substring(0, tab), app: root.notifApp(d, summary),
               title: pn ? String(pn.title) : summary,
               body: pn ? root.newestLine(pn.text) : Model.plainText(d.body),

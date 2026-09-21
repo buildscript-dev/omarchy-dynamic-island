@@ -120,7 +120,8 @@ PanelWindow {
   // ---------------------------------------------------------------- geometry
   function geometryFor(m) {
     if (m === "controls")
-      return { w: 440, h: Math.max(120, cc.preferredHeight), rb: 34, rt: s.pill ? 0 : 10 }
+      // The body has to grow with the page, or a wide one spills off the pill.
+      return { w: Math.max(120, cc.preferredWidth), h: Math.max(120, cc.preferredHeight), rb: 34, rt: s.pill ? 0 : 10 }
     var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth : alertContentWidth
     return Model.geometry(m, s.notchWidth, s.notchHeight, content, s.pill)
   }
