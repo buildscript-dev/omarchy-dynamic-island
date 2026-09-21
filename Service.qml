@@ -521,21 +521,83 @@ Item {
       if (summary === "" && body === "") return
       var sms = root.lastSms.body.slice(0, 24)
       if (sms !== "" && Date.now() - root.lastSms.time < 10000 && (body.indexOf(sms) !== -1 || summary.indexOf(sms) !== -1)) return
-      var image = String(d.image || "")
-      var appIcon = String(d.appIcon || "")
-      var iconUrl = image !== "" ? image
-        : appIcon.indexOf("/") !== -1 || appIcon.indexOf("file:") === 0 ? appIcon
-        : appIcon !== "" ? Quickshell.iconPath(appIcon, true) : root.appIconFor(d.app)
+      var iconUrl = root.notifIcon(d, summary)
+      var pn = root.phoneNotif(d)
       var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
       root.pushActivity({
         kind: "notification", source: "notification", file: file,
-        app: String(d.app || ""), title: summary !== "" ? summary : body,
-        body: summary !== "" ? body : "", image: iconUrl,
+        app: root.notifApp(d, summary),
+        title: pn ? String(pn.title) : (summary !== "" ? summary : body),
+        body: pn ? root.newestLine(pn.text) : (summary !== "" ? body : ""), image: iconUrl,
+        replyId: pn ? String(pn.replyId || "") : "",
         urgent: Number(d.urgency) === 2,
         duration: Number(d.urgency) === 2 ? 8000 : 5000
       })
     }
   }
+  // Every phone notification arrives as "KDE Connect" with the KDE Connect logo;
+  // the Android app's own name is in the summary. Taildroid keeps that name
+  // pointed at the icon KDE Connect fetched from the phone, so WhatsApp looks
+  // like WhatsApp here, the same as it does on the phone.
+  readonly property string phoneRelay: "KDE Connect"
+  // The relayed notification only carries "<title>: <text>" as one escaped line.
+  // Taildroid publishes what the phone itself shows, so match this one to it and
+  // take the chat's own icon, its title, and its newest line.
+  function phoneNotif(d) {
+    if (String(d.app || "") !== phoneRelay || !root.phone) return null
+    var app = Model.plainText(d.summary)
+    var body = Model.plainText(d.body)
+    var list = root.phone.pstate.phoneNotifs || []
+    var fallback = null
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].app) !== app) continue
+      if (body.indexOf(String(list[i].title)) === 0) return list[i]
+      if (!fallback) fallback = list[i]
+    }
+    return fallback
+  }
+  // WhatsApp stacks a chat's messages oldest first, one per <br/>. The newest is
+  // the last of those, and a single message may itself run over several lines.
+  function newestLine(text) {
+    var parts = String(text || "").split(/<br\s*\/?>/i)
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var one = Model.plainText(parts[i]).replace(/\s+/g, " ").trim()
+      if (one !== "") return one
+    }
+    return ""
+  }
+  function notifApp(d, summary) {
+    var app = String(d.app || "")
+    return app === phoneRelay && String(summary || "") !== "" ? String(summary) : app
+  }
+  function notifIcon(d, summary) {
+    if (String(d.app || "") === phoneRelay && root.phone) {
+      var pn = root.phoneNotif(d)
+      var chats = root.phone.pstate.phoneChats || {}
+      var icon = pn && String(pn.icon || "") !== "" ? String(pn.icon)
+        : String(chats[String(summary || "") + "\u0000" + Model.plainText(d.body).split(":")[0]]
+                 || (root.phone.pstate.phoneApps || {})[String(summary || "")] || "")
+      if (icon !== "") return icon.indexOf("/") === 0 ? "file://" + icon : icon
+    }
+    var image = String(d.image || "")
+    if (image !== "") return image
+    var appIcon = String(d.appIcon || "")
+    if (appIcon.indexOf("/") !== -1 || appIcon.indexOf("file:") === 0) return appIcon
+    if (appIcon !== "") return Quickshell.iconPath(appIcon, true)
+    return root.appIconFor(notifApp(d, summary))
+  }
+
+  // No reply handle (Gmail, GPay…): the next best thing is that app on this
+  // machine — most of them are Omarchy webapps, which open on the right service.
+  function openForApp(app) {
+    var name = String(app || "").trim()
+    if (name === "") return false
+    var entry = typeof DesktopEntries.heuristicLookup === "function" ? DesktopEntries.heuristicLookup(name) : null
+    if (!entry) return false
+    if (typeof entry.execute === "function") { entry.execute(); return true }
+    return false
+  }
+
   // Many apps send no icon at all; fall back to the app's own desktop-entry
   // icon (Firefox, Spotify…) so notifications carry the app's logo, not a bell.
   function appIconFor(app) {
@@ -549,10 +611,23 @@ Item {
   // SMS arrive twice (phoned + KDE Connect's mirrored popup); keep ours.
   property var lastSms: ({ body: "", time: 0 })
   property var pendingThread: null
+  // A chat you can answer opens its reply box; anything else opens the app it
+  // came from, so clicking a notification always lands somewhere useful.
+  property var replyTarget: null
   function notificationActivate() {
     if (activity && activity.sms) {
       controlsRequested("messages")
       pendingThread = activity.sms
+      finishActivity()
+      return
+    }
+    if (activity && String(activity.replyId || "") !== "") {
+      replyTarget = { replyId: String(activity.replyId), title: String(activity.title || ""), file: String(activity.file || "") }
+      controlsRequested("notifications")
+      finishActivity()
+      return
+    }
+    if (activity && root.openForApp(activity.app)) {
       finishActivity()
       return
     }
@@ -872,11 +947,14 @@ Item {
           if (tab < 0) continue
           try {
             var d = JSON.parse(lines[i].substring(tab + 1))
-            var appIcon = String(d.appIcon || "")
-            out.push({ file: lines[i].substring(0, tab), app: String(d.app || ""), title: Model.plainText(d.summary),
-              body: Model.plainText(d.body), time: Number(d.timestamp) || 0, urgent: Number(d.urgency) === 2,
-              image: String(d.image || "") !== "" ? String(d.image)
-                : appIcon.indexOf("/") !== -1 ? appIcon : appIcon !== "" ? Quickshell.iconPath(appIcon, true) : root.appIconFor(d.app) })
+            var summary = Model.plainText(d.summary)
+            var pn = root.phoneNotif(d)
+            out.push({ file: lines[i].substring(0, tab), app: root.notifApp(d, summary),
+              title: pn ? String(pn.title) : summary,
+              body: pn ? root.newestLine(pn.text) : Model.plainText(d.body),
+              time: Number(d.timestamp) || 0, urgent: Number(d.urgency) === 2,
+              replyId: pn ? String(pn.replyId || "") : "",
+              image: root.notifIcon(d, summary) })
           } catch (e) {}
         }
         out.sort(function(a, b) { return b.time - a.time })

@@ -431,6 +431,12 @@ Item {
   property string newRecipient: ""
   Connections {
     target: root.s
+    // Clicking the peek asked for a reply; open that card's box.
+    function onReplyTargetChanged() {
+      if (!root.s.replyTarget || !root.win.isTarget()) return
+      root.replyFile = String(root.s.replyTarget.file || "")
+      Qt.callLater(function() { root.s.replyTarget = null })
+    }
     function onPendingThreadChanged() {
       // Every monitor has an island; only the one showing it opens the thread.
       if (!root.s.pendingThread || !root.win.isTarget()) return
@@ -447,9 +453,19 @@ Item {
     command: ["wl-paste", "--no-newline"]
     stdout: StdioCollector { onStreamFinished: root.dialNumber += String(text || "").replace(/[^0-9*#+]/g, "") }
   }
+  // Which notification card currently shows its reply box.
+  property string replyFile: ""
+  function activateNotif(n) {
+    if (String(n.replyId || "") !== "") {
+      replyFile = replyFile === String(n.file || "") ? "" : String(n.file || "")
+      return
+    }
+    replyFile = ""
+    if (!root.s.openForApp(n.app)) Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "invokeLast"])
+  }
   function openThread(t) {
-    threadInfo = t ? { threadId: t.threadId, name: t.name, addresses: t.addresses || [],
-                       seed: t.body ? [{ body: t.body, outgoing: !!t.outgoing, attachments: 0 }] : [] }
+    threadInfo = t ? { threadId: t.threadId, name: t.name, addresses: t.addresses || [], face: t.face || "",
+                       seed: t.body ? [{ body: t.body, outgoing: !!t.outgoing, attachments: [], files: [] }] : [] }
                    : { threadId: 0, name: "New Message", addresses: [], seed: [] }
     draft = ""
     newRecipient = ""
@@ -622,6 +638,7 @@ Item {
     property bool hasSwitch: false
     property bool switchOn: false
     property string busyText: ""
+    property string photo: ""
     signal switched()
     width: root.innerWidth
     height: 34
@@ -635,7 +652,19 @@ Item {
       Glyph { anchors.centerIn: parent; text: "󰅁"; font.pixelSize: 16 }
       MouseArea { id: backMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.back() }
     }
-    Label { anchors.left: backBtn.right; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.title; font.pixelSize: 16; font.weight: Font.Bold }
+    Artwork {
+      id: hdFace
+      anchors.left: backBtn.right
+      anchors.leftMargin: 10
+      anchors.verticalCenter: parent.verticalCenter
+      visible: hd.photo !== ""
+      width: visible ? 26 : 0
+      height: 26
+      radius: 13
+      source: hd.photo
+      fallbackColor: root.tileOff
+    }
+    Label { anchors.left: hdFace.visible ? hdFace.right : backBtn.right; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.title; font.pixelSize: 16; font.weight: Font.Bold }
     Label { anchors.right: sw.visible ? sw.left : parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.busyText; font.pixelSize: 11; color: root.dim }
     Switch { id: sw; visible: hd.hasSwitch; on: hd.switchOn; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; onToggled: hd.switched() }
   }
@@ -674,6 +703,7 @@ Item {
   component Row2: Rectangle {
     id: row
     property string glyph: ""
+    property string photo: ""
     property string title: ""
     property string subtitle: ""
     property bool selected: false
@@ -687,15 +717,18 @@ Item {
     radius: 14
     color: rowMouse.containsMouse ? root.tileOff : "transparent"
     MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: row.clicked() }
-    Rectangle {
+    Artwork {
       id: rowIcon
       x: 6
       anchors.verticalCenter: parent.verticalCenter
       width: 30
       height: 30
       radius: 15
-      color: row.selected ? root.onColor("blue") : root.tileOff
-      Glyph { anchors.centerIn: parent; text: row.glyph; font.pixelSize: 15; color: row.selected ? "#ffffff" : root.fg }
+      source: row.photo
+      fallbackGlyph: row.glyph
+      glyphFont: root.s.iconFont
+      glyphColor: row.selected ? "#ffffff" : root.fg
+      fallbackColor: row.selected ? root.onColor("blue") : root.tileOff
     }
     Column {
       anchors.left: rowIcon.right
@@ -1584,9 +1617,10 @@ Item {
             delegate: Row2 {
               required property var modelData
               glyph: "󰍡"
+              photo: modelData.face ? "file://" + modelData.face : ""
               selected: !modelData.read && !modelData.outgoing
               title: modelData.name || (modelData.addresses || []).join(", ")
-              subtitle: (modelData.outgoing ? "You: " : "") + String(modelData.body || (modelData.attachments ? "Attachment" : "")).replace(/\s+/g, " ")
+              subtitle: (modelData.outgoing ? "You: " : "") + String(modelData.body || ((modelData.attachments || []).length ? "Attachment" : "")).replace(/\s+/g, " ")
               trailing: root.s.timeAgo(modelData.date)
               onClicked: root.openThread(modelData)
             }
@@ -1604,7 +1638,7 @@ Item {
       width: parent.width
       spacing: 8
 
-      Header { title: root.threadInfo.name || "Message" }
+      Header { title: root.threadInfo.name || "Message"; photo: root.threadInfo.face ? "file://" + root.threadInfo.face : "" }
       Rectangle {
         visible: root.threadInfo.threadId === 0
         width: root.innerWidth
@@ -1629,34 +1663,57 @@ Item {
       ListView {
         id: bubbles
         width: root.innerWidth
-        height: root.threadInfo.threadId === 0 ? 60 : 340
+        height: root.threadInfo.threadId === 0 ? 60 : 460
         clip: true
         spacing: 6
         // The message that opened the thread shows at once; history follows from the phone.
         model: root.phone && root.phone.threadMessages.length > 0 ? root.phone.threadMessages : (root.threadInfo.seed || [])
         onCountChanged: Qt.callLater(function() { bubbles.positionViewAtEnd() })
         delegate: Item {
+          id: msg
           required property var modelData
+          // Pictures come from the phone one file at a time; until one lands the
+          // bubble still has to say the message carried something.
+          readonly property var files: (modelData.files || []).filter(function(f) { return f !== "" })
+          readonly property int pending: (modelData.attachments || []).length - files.length
           width: bubbles.width
           height: bubble.height
           Rectangle {
             id: bubble
-            anchors.right: modelData.outgoing ? parent.right : undefined
-            width: Math.min(bubbles.width * 0.78, bubbleText.implicitWidth + 24)
-            height: bubbleText.implicitHeight + 14
+            anchors.right: msg.modelData.outgoing ? parent.right : undefined
+            width: Math.min(bubbles.width * 0.78, bubbleCol.width + 24)
+            height: bubbleCol.implicitHeight + 14
             radius: 16
-            color: modelData.outgoing ? root.onColor("blue") : root.tileOff
-            Text {
-              id: bubbleText
+            color: msg.modelData.outgoing ? root.onColor("blue") : root.tileOff
+            Column {
+              id: bubbleCol
               x: 12
               y: 7
-              width: Math.min(bubbles.width * 0.78 - 24, implicitWidth)
-              text: modelData.body || (modelData.attachments ? "📎 Attachment" : "")
-              wrapMode: Text.Wrap
-              font.family: root.s.textFont
-              font.pixelSize: 13
-              color: modelData.outgoing ? "#ffffff" : root.fg
-              textFormat: Text.PlainText
+              spacing: 6
+              width: Math.min(bubbles.width * 0.78 - 24,
+                              Math.max(bubbleText.implicitWidth, msg.files.length > 0 ? 210 : 0))
+              Repeater {
+                model: msg.files
+                Image {
+                  required property string modelData
+                  source: "file://" + modelData
+                  width: bubbleCol.width
+                  fillMode: Image.PreserveAspectFit
+                  asynchronous: true
+                  cache: false
+                }
+              }
+              Text {
+                id: bubbleText
+                width: bubbleCol.width
+                visible: text !== ""
+                text: msg.modelData.body || (msg.pending > 0 ? "📎 Attachment" : "")
+                wrapMode: Text.Wrap
+                font.family: root.s.textFont
+                font.pixelSize: 13
+                color: msg.modelData.outgoing ? "#ffffff" : root.fg
+                textFormat: Text.PlainText
+              }
             }
           }
         }
@@ -1720,10 +1777,18 @@ Item {
               id: card
               required property var modelData
               width: root.innerWidth
-              height: Math.max(56, cardText.implicitHeight + 20)
+              height: Math.max(56, cardText.implicitHeight + 20) + (card.replying ? 44 : 0)
               radius: 18
               color: cardMouse.containsMouse ? root.tileHover : root.tileOff
-              MouseArea { id: cardMouse; anchors.fill: parent; hoverEnabled: true }
+              readonly property bool canReply: String(modelData.replyId || "") !== ""
+              readonly property bool replying: root.replyFile === String(modelData.file || "") && card.canReply
+              MouseArea {
+                id: cardMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.activateNotif(card.modelData)
+              }
               Artwork {
                 id: cardIcon
                 x: 10
@@ -1748,6 +1813,39 @@ Item {
                 Label { width: parent.width; text: card.modelData.app + "  ·  " + root.s.timeAgo(card.modelData.time); font.pixelSize: 11; color: root.dim }
                 Label { width: parent.width; text: card.modelData.title; font.weight: Font.DemiBold; color: card.modelData.urgent ? root.onColor("red") : root.fg }
                 Label { width: parent.width; visible: text !== ""; text: card.modelData.body; font.pixelSize: 12; color: root.dim; wrapMode: Text.WordWrap; maximumLineCount: 2 }
+                Item { width: 1; height: card.replying ? 6 : 0 }
+                Rectangle {
+                  visible: card.replying
+                  width: parent.width
+                  height: card.replying ? 32 : 0
+                  radius: 16
+                  color: root.tileOff
+                  TextInput {
+                    id: replyField
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    verticalAlignment: TextInput.AlignVCenter
+                    font.family: root.s.textFont
+                    font.pixelSize: 12
+                    color: root.fg
+                    clip: true
+                    onVisibleChanged: if (visible) Qt.callLater(function() { replyField.forceActiveFocus() })
+                    Keys.onEscapePressed: root.replyFile = ""
+                    Keys.onReturnPressed: {
+                      if (replyField.text.trim() !== "" && root.phone) root.phone.replyTo(card.modelData.replyId, replyField.text)
+                      replyField.text = ""
+                      root.replyFile = ""
+                    }
+                    Text {
+                      anchors.verticalCenter: parent.verticalCenter
+                      visible: replyField.text === ""
+                      text: "Reply to " + card.modelData.title
+                      font: replyField.font
+                      color: root.dim
+                    }
+                  }
+                }
               }
               Rectangle {
                 anchors.right: parent.right
