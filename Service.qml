@@ -764,7 +764,9 @@ Item {
     var out = []
     if (currentCall) out.push("call")
     if (recording) out.push("recording")
-    if (phoneMirroring) out.push("phone")
+    // The mirror's own window is the indicator; a second one on this desktop
+    // counting how long the phone has been up says nothing the phone doesn't.
+    if (phoneMirroring && !phoneMuted) out.push("phone")
     if (timerActive) out.push("timer")
     if (mediaLive) out.push("media")
     return out

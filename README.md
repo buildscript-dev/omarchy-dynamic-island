@@ -242,9 +242,10 @@ While the phone's screen is mirrored on this desktop, the mirror is already
 showing everything the phone has to say, so the island stops repeating it:
 notifications relayed from the phone, incoming messages, and "connected",
 "nearby" and "hotspot" alerts all stay quiet until the mirror closes. An
-incoming call still takes over the island, and the mirror itself shows as a
-live activity. Set `muteWhileMirrored` to `false` to get the notifications
-back.
+incoming call still takes over the island, and the island itself gets out of
+the way: no mirror live activity counting how long the phone has been up,
+because the mirror window is already the indicator. Set `muteWhileMirrored` to
+`false` to get all of it back.
 
 This counts any mirror window — Taildroid's own, a DeX display, a single
 mirrored app, or a plain `scrcpy` — however it was started.
