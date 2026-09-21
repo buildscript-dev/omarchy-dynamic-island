@@ -7,6 +7,7 @@ import Quickshell.Services.UPower
 import Quickshell.Services.Pipewire
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
+import Quickshell.Wayland
 import qs.Commons
 import "IslandModel.js" as Model
 
@@ -66,6 +67,10 @@ Item {
   readonly property bool openOnHover: setting("openOnHover", true) === true
   readonly property int hoverDelay: Number(setting("hoverDelay", 320))
   readonly property bool showNotifications: setting("showNotifications", true) === true
+  // The phone's own screen is on this desktop while it is mirrored, and it
+  // shows its notifications, its messages and its status itself. The island
+  // stays out of the way until the mirror closes.
+  readonly property bool muteWhileMirrored: setting("muteWhileMirrored", true) === true
   readonly property bool replaceOsd: setting("replaceOsd", true) === true
   readonly property bool hideInFullscreen: setting("hideInFullscreen", true) === true
   // On by default the island always sits there. Turn it off and it tucks
@@ -536,10 +541,15 @@ Item {
       var summary = Model.plainText(d.summary)
       var body = Model.plainText(d.body)
       if (summary === "" && body === "") return
-      var sms = root.lastSms.body.slice(0, 24)
-      if (sms !== "" && Date.now() - root.lastSms.time < 10000 && (body.indexOf(sms) !== -1 || summary.indexOf(sms) !== -1)) return
-      var iconUrl = root.notifIcon(d, summary)
       var pn = root.relayed(d)
+      // The phone is right there showing this itself.
+      if (pn && root.phoneMuted) return
+      // The same message can arrive from the phone and from this machine's own
+      // copy of the app (Signal, WhatsApp, Telegram): whichever lands first wins.
+      var line = pn ? root.newestLine(pn.text) : (body !== "" ? body : summary)
+      if (Model.seenRecently(root.recentMessages, line, Date.now(), root.duplicateWindow)) return
+      root.recentMessages = Model.rememberMessage(root.recentMessages, line, Date.now(), root.duplicateWindow)
+      var iconUrl = root.notifIcon(d, summary)
       var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
       root.pushActivity({
         kind: "notification", source: "notification", file: file,
@@ -638,8 +648,11 @@ Item {
     return Quickshell.iconPath(name.toLowerCase().replace(/\s+/g, "-"), true)
   }
 
-  // SMS arrive twice (phoned + KDE Connect's mirrored popup); keep ours.
-  property var lastSms: ({ body: "", time: 0 })
+  // What the island has shown lately, so the second copy of one message is
+  // dropped no matter which side it comes from: phoned reading the phone, KDE
+  // Connect mirroring the phone's popup, or the desktop app for the same chat.
+  property var recentMessages: []
+  readonly property int duplicateWindow: 12000
   property var pendingThread: null
   // A chat you can answer opens its reply box; anything else opens the app it
   // came from, so clicking a notification always lands somewhere useful.
@@ -816,6 +829,22 @@ Item {
   }
   readonly property var phone: phoneLoader.item
   readonly property bool phoneMirroring: !!(phone && phone.sessionRunning)
+  // The mirror as the compositor sees it, so a window Taildroid did not start
+  // itself counts too: a DeX display, a single mirrored app, a bare scrcpy.
+  readonly property bool mirrorWindowOpen: {
+    var list = ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []
+    for (var i = 0; i < list.length; i++) {
+      var id = String(list[i].appId || "").toLowerCase()
+      if (id.indexOf("taildroid") !== -1 || id.indexOf("scrcpy") !== -1) return true
+    }
+    return false
+  }
+  readonly property bool phoneOnScreen: phoneMirroring || mirrorWindowOpen
+  // ponytail: "on screen" means a mirror window exists, not that it is on the
+  // workspace you are looking at — park the mirror elsewhere and the island
+  // still holds its tongue. Per-workspace visibility needs the Hyprland client
+  // list; add it if parking the mirror turns out to be the normal way to work.
+  readonly property bool phoneMuted: muteWhileMirrored && phoneOnScreen
   property real phoneSince: 0
   onPhoneMirroringChanged: if (phoneMirroring) phoneSince = Date.now()
 
@@ -846,6 +875,11 @@ Item {
     ignoreUnknownSignals: true
     function onPhoneEvent(ev) {
       if (!root.settled) return
+      // Connected, nearby, hotspot: the mirror shows the phone's own status
+      // bar, so these say nothing new while it is open. Calls and errors still
+      // come through — those are worth interrupting for.
+      if (root.phoneMuted && (ev.kind === "connected" || ev.kind === "disconnected"
+          || ev.kind === "nearby" || ev.kind === "hotspot")) return
       if (ev.kind === "connected")
         root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰄜", tint: "green", title: ev.model || root.phoneName,
           value: ev.transport === "usb" ? "USB" : "Wi-Fi", duration: 2400 })
@@ -865,10 +899,12 @@ Item {
         root.pushActivity({ kind: "alert", source: "hotspot", icon: "󰀂", tint: ev.on ? "green" : "secondary", title: "Hotspot",
           value: ev.on ? "Connected" : "Off", duration: 2200 })
       else if (ev.kind === "sms") {
-        root.lastSms = { body: String(ev.body || ""), time: Date.now() }
-        if (root.showNotifications)
+        var text = String(ev.body || "")
+        var dup = Model.seenRecently(root.recentMessages, text, Date.now(), root.duplicateWindow)
+        root.recentMessages = Model.rememberMessage(root.recentMessages, text, Date.now(), root.duplicateWindow)
+        if (root.showNotifications && !root.phoneMuted && !dup)
           root.pushActivity({ kind: "notification", source: "sms", file: "", app: "Messages · " + root.phoneName,
-            title: ev.name || (ev.addresses || []).join(", "), body: String(ev.body || ""), image: "",
+            title: ev.name || (ev.addresses || []).join(", "), body: text, image: "",
             urgent: false, duration: 6000, sms: ev })
       }
       else if (ev.kind === "error")
@@ -1067,6 +1103,7 @@ Item {
         media: { title: root.trackTitle, artist: root.trackArtist, playing: root.isPlaying, player: root.playerName },
         timerLeft: Math.round(root.timerLeft), recording: root.recording, micInUse: root.micInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
+        phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
         shape: root.shape, monitor: root.monitor, style: root.style, palette: root.palette, font: root.textFont, notchHeight: root.notchHeight
       })
     }

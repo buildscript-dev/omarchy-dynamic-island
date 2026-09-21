@@ -176,6 +176,7 @@ Changes apply as soon as you save the file — no restart:
 | `monitor` | `focused` | `focused` = follows the monitor you are working on · `external` = the external monitor, or the built-in one when nothing is plugged in · `all` = one per monitor · or a connector name such as `HDMI-A-1` |
 | `onlineExtras` | `true` | let the island use the internet: album artwork for streaming players, the weather line, the Omarchy update check. Off = no network requests at all |
 | `showNotifications` | `true` | show new notifications in the island |
+| `muteWhileMirrored` | `true` | with the phone's screen mirrored on this desktop, leave its notifications, messages and status to the mirror. Calls still come through. Needs Taildroid |
 | `replaceOsd` | `true` | show volume and brightness in the island instead of Omarchy's pop-up |
 | `hideInFullscreen` | `true` | get out of the way of fullscreen windows; a 3 px strip at the top edge brings it back |
 | `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on it, after this many ms |
@@ -228,12 +229,29 @@ hidden.
 | Plugin | Adds |
 |---|---|
 | [OnePlus Experience](https://github.com/buildscript-dev/omarchy-oneplus-experience) | earbuds page: battery, noise control, EQ · battery and noise-mode alerts |
-| Taildroid (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity |
+| Taildroid (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity · quiet island while the phone is mirrored |
 
 The phone page expects my own Taildroid fork, which adds calls and
 messages. That fork is not published yet, so for now the phone page stays
 hidden for everyone else — nothing breaks, the island simply doesn't show
 it.
+
+### With the phone on screen
+
+While the phone's screen is mirrored on this desktop, the mirror is already
+showing everything the phone has to say, so the island stops repeating it:
+notifications relayed from the phone, incoming messages, and "connected",
+"nearby" and "hotspot" alerts all stay quiet until the mirror closes. An
+incoming call still takes over the island, and the mirror itself shows as a
+live activity. Set `muteWhileMirrored` to `false` to get the notifications
+back.
+
+This counts any mirror window — Taildroid's own, a DeX display, a single
+mirrored app, or a plain `scrcpy` — however it was started.
+
+A message that reaches this machine twice, once relayed from the phone and
+once from this desktop's own copy of the same chat app, shows once: the first
+one in wins, and a repeat of the same text within twelve seconds is dropped.
 
 ## IPC
 

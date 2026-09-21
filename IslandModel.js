@@ -230,6 +230,41 @@ function playerKey(p) {
 }
 
 // Notification bodies can carry markup; the island shows plain text.
+// The same message reaches this machine twice: phoned reads it off the phone,
+// and KDE Connect mirrors the phone's own popup. Either can land first, so
+// compare what they say rather than where they came from.
+function sameMessage(a, b) {
+  var x = plainText(a).toLowerCase()
+  var y = plainText(b).toLowerCase()
+  if (x === "" || y === "") return false
+  if (x === y) return true
+  // One side often truncates a long message, so a shared opening counts — but
+  // only once there is enough of it. "Hi" and "Hi, are you there?" are two
+  // different messages; sixty characters in, nobody says the same thing twice.
+  var n = Math.min(x.length, y.length, 60)
+  return n >= 24 && x.slice(0, n) === y.slice(0, n)
+}
+
+// True when one of the recent { body, time } entries says the same thing.
+function seenRecently(recent, text, now, windowMs) {
+  var list = recent || []
+  for (var i = 0; i < list.length; i++) {
+    if (now - list[i].time > windowMs) continue
+    if (sameMessage(list[i].body, text)) return true
+  }
+  return false
+}
+
+// Keep the ring short: only the last few messages, only while they're fresh.
+function rememberMessage(recent, text, now, windowMs) {
+  var out = []
+  var list = recent || []
+  for (var i = 0; i < list.length; i++)
+    if (now - list[i].time <= windowMs) out.push(list[i])
+  out.push({ body: String(text || ""), time: now })
+  return out.slice(-8)
+}
+
 function plainText(s) {
   return String(s || "")
     .replace(/<br\s*\/?>/gi, " ")

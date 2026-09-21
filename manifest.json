@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.buildscript-dev.dynamic-island",
   "name": "Dynamic Island",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "author": "buildscript-dev",
   "license": "MIT",
   "description": "An iPhone-style Dynamic Island for Omarchy: a floating bubble in the bar that springs open for music, volume and brightness, notifications, charging, Bluetooth, timers and screen recording, with a built-in Control Center for Wi-Fi, Bluetooth, sound, earbuds, tray and power.",
@@ -42,7 +42,8 @@
       "clockFormat": "HH:mm",
       "islandHeight": 30,
       "showWorkspaces": true,
-      "onlineExtras": true
+      "onlineExtras": true,
+      "muteWhileMirrored": true
     },
     "schema": [
       {
@@ -125,6 +126,13 @@
         "key": "showNotifications",
         "type": "boolean",
         "label": "Show new notifications in the island",
+        "defaultValue": true
+      },
+      {
+        "key": "muteWhileMirrored",
+        "type": "boolean",
+        "label": "Stay quiet while the phone is mirrored",
+        "description": "With the phone's screen mirrored on this desktop, it already shows its own notifications, messages and status, so the island does not repeat them. Calls still come through. Needs the Taildroid plugin.",
         "defaultValue": true
       },
       {
