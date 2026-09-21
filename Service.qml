@@ -530,6 +530,7 @@ Item {
         title: pn ? String(pn.title) : (summary !== "" ? summary : body),
         body: pn ? root.newestLine(pn.text) : (summary !== "" ? body : ""), image: iconUrl,
         replyId: pn ? String(pn.replyId || "") : "",
+        phone: !!pn, fullText: pn ? String(pn.text) : "",
         urgent: Number(d.urgency) === 2,
         duration: Number(d.urgency) === 2 ? 8000 : 5000
       })
@@ -614,6 +615,7 @@ Item {
   // A chat you can answer opens its reply box; anything else opens the app it
   // came from, so clicking a notification always lands somewhere useful.
   property var replyTarget: null
+  property var pendingNotif: null
   function notificationActivate() {
     if (activity && activity.sms) {
       controlsRequested("messages")
@@ -621,9 +623,10 @@ Item {
       finishActivity()
       return
     }
-    if (activity && String(activity.replyId || "") !== "") {
-      replyTarget = { replyId: String(activity.replyId), title: String(activity.title || ""), file: String(activity.file || "") }
-      controlsRequested("notifications")
+    if (activity && activity.phone) {
+      // Phone notifications open in full: every line, the picture, the reply box.
+      pendingNotif = activity
+      controlsRequested("notif")
       finishActivity()
       return
     }
@@ -954,6 +957,7 @@ Item {
               body: pn ? root.newestLine(pn.text) : Model.plainText(d.body),
               time: Number(d.timestamp) || 0, urgent: Number(d.urgency) === 2,
               replyId: pn ? String(pn.replyId || "") : "",
+              phone: !!pn, fullText: pn ? String(pn.text) : "",
               image: root.notifIcon(d, summary) })
           } catch (e) {}
         }

@@ -21,12 +21,15 @@ Item {
   property var s: null
   property var win: null
   property bool active: false
-  property string page: "main"   // main | wifi | bluetooth | audio | buds | phone | call | messages | thread | notifications | calendar | power
+  property string page: "main"   // main | wifi | bluetooth | audio | buds | phone | call | messages | thread | notifications | notif | calendar | power
 
   readonly property int pad: 18
   readonly property int innerWidth: width - pad * 2
   // The island sizes itself to this, so each page gets exactly its height.
-  readonly property int preferredHeight: Math.min(560, Math.ceil(pageHeight) + pad * 2)
+  // Reading a conversation needs room, so those pages get a bigger panel.
+  readonly property bool roomy: page === "thread" || page === "notif"
+  readonly property int preferredWidth: roomy ? 620 : 440
+  readonly property int preferredHeight: Math.min(roomy ? 760 : 560, Math.ceil(pageHeight) + pad * 2)
   readonly property real pageHeight: page === "main" ? mainPage.implicitHeight
     : page === "wifi" ? wifiPage.implicitHeight
     : page === "bluetooth" ? btPage.implicitHeight
@@ -37,6 +40,7 @@ Item {
     : page === "messages" ? messagesPage.implicitHeight
     : page === "thread" ? threadPage.implicitHeight
     : page === "notifications" ? notifPage.implicitHeight
+    : page === "notif" ? notifDetail.implicitHeight
     : page === "calendar" ? calPage.implicitHeight
     : powerPage.implicitHeight
 
@@ -58,6 +62,7 @@ Item {
     // Typing goes straight to the dialer / message box.
     if (page === "call") Qt.callLater(function() { dialLabel.forceActiveFocus() })
     else if (page === "thread") Qt.callLater(function() { (root.threadInfo.threadId === 0 ? toField : draftField).forceActiveFocus() })
+    else if (page === "notif") Qt.callLater(function() { notifReply.forceActiveFocus() })
     else Qt.callLater(function() { root.forceActiveFocus() })
   }
 
@@ -432,10 +437,12 @@ Item {
   Connections {
     target: root.s
     // Clicking the peek asked for a reply; open that card's box.
-    function onReplyTargetChanged() {
-      if (!root.s.replyTarget || !root.win.isTarget()) return
-      root.replyFile = String(root.s.replyTarget.file || "")
-      Qt.callLater(function() { root.s.replyTarget = null })
+    // Clicking the peek asked for the whole notification; open it here.
+    function onPendingNotifChanged() {
+      if (!root.s.pendingNotif || !root.win.isTarget()) return
+      root.notifInfo = root.s.pendingNotif
+      root.go("notif")
+      Qt.callLater(function() { root.s.pendingNotif = null })
     }
     function onPendingThreadChanged() {
       // Every monitor has an island; only the one showing it opens the thread.
@@ -453,15 +460,24 @@ Item {
     command: ["wl-paste", "--no-newline"]
     stdout: StdioCollector { onStreamFinished: root.dialNumber += String(text || "").replace(/[^0-9*#+]/g, "") }
   }
-  // Which notification card currently shows its reply box.
-  property string replyFile: ""
+  property var notifInfo: null
   function activateNotif(n) {
-    if (String(n.replyId || "") !== "") {
-      replyFile = replyFile === String(n.file || "") ? "" : String(n.file || "")
-      return
-    }
-    replyFile = ""
+    if (n.phone) { notifInfo = n; go("notif"); return }
     if (!root.s.openForApp(n.app)) Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "invokeLast"])
+  }
+  // One phone notification stacks several messages, one per <br/>, oldest first.
+  function notifLines(text) {
+    var out = []
+    var parts = String(text || "").split(/<br\s*\/?>/i)
+    for (var i = 0; i < parts.length; i++) {
+      var one = Model.plainText(parts[i]).trim()
+      if (one !== "") out.push(one)
+    }
+    return out
+  }
+  function sendNotifReply(text) {
+    if (!root.notifInfo || String(text).trim() === "" || !root.phone) return
+    root.phone.replyTo(root.notifInfo.replyId, text)
   }
   function openThread(t) {
     threadInfo = t ? { threadId: t.threadId, name: t.name, addresses: t.addresses || [], face: t.face || "",
@@ -1777,11 +1793,9 @@ Item {
               id: card
               required property var modelData
               width: root.innerWidth
-              height: Math.max(56, cardText.implicitHeight + 20) + (card.replying ? 44 : 0)
+              height: Math.max(56, cardText.implicitHeight + 20)
               radius: 18
               color: cardMouse.containsMouse ? root.tileHover : root.tileOff
-              readonly property bool canReply: String(modelData.replyId || "") !== ""
-              readonly property bool replying: root.replyFile === String(modelData.file || "") && card.canReply
               MouseArea {
                 id: cardMouse
                 anchors.fill: parent
@@ -1813,39 +1827,6 @@ Item {
                 Label { width: parent.width; text: card.modelData.app + "  ·  " + root.s.timeAgo(card.modelData.time); font.pixelSize: 11; color: root.dim }
                 Label { width: parent.width; text: card.modelData.title; font.weight: Font.DemiBold; color: card.modelData.urgent ? root.onColor("red") : root.fg }
                 Label { width: parent.width; visible: text !== ""; text: card.modelData.body; font.pixelSize: 12; color: root.dim; wrapMode: Text.WordWrap; maximumLineCount: 2 }
-                Item { width: 1; height: card.replying ? 6 : 0 }
-                Rectangle {
-                  visible: card.replying
-                  width: parent.width
-                  height: card.replying ? 32 : 0
-                  radius: 16
-                  color: root.tileOff
-                  TextInput {
-                    id: replyField
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    verticalAlignment: TextInput.AlignVCenter
-                    font.family: root.s.textFont
-                    font.pixelSize: 12
-                    color: root.fg
-                    clip: true
-                    onVisibleChanged: if (visible) Qt.callLater(function() { replyField.forceActiveFocus() })
-                    Keys.onEscapePressed: root.replyFile = ""
-                    Keys.onReturnPressed: {
-                      if (replyField.text.trim() !== "" && root.phone) root.phone.replyTo(card.modelData.replyId, replyField.text)
-                      replyField.text = ""
-                      root.replyFile = ""
-                    }
-                    Text {
-                      anchors.verticalCenter: parent.verticalCenter
-                      visible: replyField.text === ""
-                      text: "Reply to " + card.modelData.title
-                      font: replyField.font
-                      color: root.dim
-                    }
-                  }
-                }
               }
               Rectangle {
                 anchors.right: parent.right
@@ -1872,6 +1853,102 @@ Item {
         color: clearMouse.containsMouse ? root.tileHover : root.tileOff
         Label { anchors.centerIn: parent; text: "Clear All"; font.pixelSize: 12; font.weight: Font.DemiBold }
         MouseArea { id: clearMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.s.clearHistory() }
+      }
+    }
+
+    // ------------------------------------------------ one phone notification
+    Column {
+      id: notifDetail
+      visible: opacity > 0.01
+      opacity: root.page === "notif" ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 160 } }
+      width: parent.width
+      spacing: 8
+
+      readonly property var info: root.notifInfo || ({})
+      readonly property var lines: root.notifLines(notifDetail.info.fullText || notifDetail.info.body || "")
+
+      Header {
+        title: String(notifDetail.info.title || "Notification")
+        photo: String(notifDetail.info.image || "")
+      }
+      Label {
+        width: root.innerWidth
+        text: String(notifDetail.info.app || "") + (notifDetail.info.time ? "  ·  " + root.s.timeAgo(notifDetail.info.time) : "")
+        font.pixelSize: 11
+        color: root.dim
+      }
+      Scroller {
+        height: Math.min(contentHeight, 480)
+        contentHeight: msgList.implicitHeight
+        Column {
+          id: msgList
+          width: parent.width
+          spacing: 6
+          Repeater {
+            model: notifDetail.lines
+            delegate: Rectangle {
+              required property string modelData
+              width: msgList.width
+              height: lineText.implicitHeight + 16
+              radius: 14
+              color: root.tileOff
+              Label {
+                id: lineText
+                x: 12
+                y: 8
+                width: parent.width - 24
+                text: parent.modelData
+                wrapMode: Text.WordWrap
+                font.pixelSize: 13
+              }
+            }
+          }
+          Label {
+            visible: notifDetail.lines.length === 0
+            width: parent.width
+            text: "No text in this notification."
+            color: root.dim
+            font.pixelSize: 12
+          }
+        }
+      }
+      Row {
+        spacing: 8
+        visible: String(notifDetail.info.replyId || "") !== ""
+        Rectangle {
+          width: root.innerWidth - 42
+          height: 36
+          radius: 18
+          color: root.tileOff
+          TextInput {
+            id: notifReply
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
+            verticalAlignment: TextInput.AlignVCenter
+            font.family: root.s.textFont
+            font.pixelSize: 13
+            color: root.fg
+            clip: true
+            Keys.onEscapePressed: root.back()
+            Keys.onReturnPressed: { root.sendNotifReply(notifReply.text); notifReply.text = "" }
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              visible: notifReply.text === ""
+              text: "Reply to " + String(notifDetail.info.title || "")
+              font: notifReply.font
+              color: root.dim
+            }
+          }
+        }
+        Round { width: 36; height: 36; glyph: "󰒉"; on: notifReply.text.trim() !== ""; onClicked: { root.sendNotifReply(notifReply.text); notifReply.text = "" } }
+      }
+      Row2 {
+        glyph: "󰅂"
+        title: "Open " + String(notifDetail.info.app || "app")
+        subtitle: "Open that app on this machine"
+        onClicked: { root.s.openForApp(notifDetail.info.app); root.win.closeControls() }
       }
     }
 

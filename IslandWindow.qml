@@ -908,7 +908,7 @@ PanelWindow {
         // ------------------------------------------------ control center
         Reveal {
           shown: win.mode === "controls"
-          width: 440
+          width: controlCenter.preferredWidth
           height: Math.max(0, win.bh)
           anchors.horizontalCenter: parent.horizontalCenter
           inDelay: 110
