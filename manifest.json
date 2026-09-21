@@ -36,6 +36,7 @@
       "showWhenIdle": true,
       "artworkTint": true,
       "showMicIndicator": true,
+      "showCameraIndicator": true,
       "scrollVolume": true,
       "monitor": "focused",
       "showClock": true,
@@ -165,6 +166,12 @@
         "key": "showMicIndicator",
         "type": "boolean",
         "label": "Orange dot while the microphone is in use",
+        "defaultValue": true
+      },
+      {
+        "key": "showCameraIndicator",
+        "type": "boolean",
+        "label": "Green dot while the camera is in use",
         "defaultValue": true
       },
       {

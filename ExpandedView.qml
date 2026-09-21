@@ -67,6 +67,14 @@ Item {
         radius: 3
         color: root.s.tint("orange")
       }
+      Rectangle {
+        visible: root.s.cameraInUse
+        anchors.verticalCenter: parent.verticalCenter
+        width: 6
+        height: 6
+        radius: 3
+        color: root.s.tint("green")
+      }
       Text {
         visible: root.s.dnd
         anchors.verticalCenter: parent.verticalCenter

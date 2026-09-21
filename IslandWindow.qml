@@ -77,7 +77,9 @@ PanelWindow {
     if (t) return t.kind
     if (fullscreen && s.hideInFullscreen && !hovered) return "hidden"
     if (s.live !== "") return "compact"
-    return s.showWhenIdle || hovered ? "idle" : "hidden"
+    // A privacy dot nobody can see is not an indicator: mic or camera capture
+    // brings the pill back even when the island is set to hide while idle.
+    return s.showWhenIdle || hovered || s.micInUse || s.cameraInUse ? "idle" : "hidden"
   }
 
   // Views keep drawing the last payload of their kind while they fade out.
@@ -706,19 +708,6 @@ PanelWindow {
           Behavior on opacity { NumberAnimation { duration: win.mode === "idle" || win.mode === "compact" ? 260 : 90 } }
         }
 
-        // Privacy indicator: orange dot while any app is capturing the mic.
-        Rectangle {
-          width: 6
-          height: 6
-          radius: 3
-          anchors.verticalCenter: parent.top
-          anchors.verticalCenterOffset: win.s.notchHeight / 2
-          color: win.s.tint("orange")
-          x: win.edge + 4
-          opacity: win.s.micInUse && win.mode === "idle" ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: 250 } }
-        }
-
         // ------------------------------------------------ alert (wide pill)
         Reveal {
           shown: win.mode === "alert"
@@ -923,6 +912,34 @@ PanelWindow {
             active: win.controlsOpen
           }
         }
+      }
+    }
+
+    // Privacy indicators: orange while an app captures the microphone, green
+    // while one holds the camera. They sit beside the island rather than in
+    // it — the pill's shadow layer clips its own children, and a live
+    // activity already fills the pill edge to edge.
+    Row {
+      spacing: 4
+      x: island.x + island.width + 6
+      y: win.s.islandTop + Math.round((win.bh - 6) / 2)
+      visible: win.mode === "idle" || win.mode === "compact"
+
+      Rectangle {
+        width: 6
+        height: 6
+        radius: 3
+        color: win.s.tint("orange")
+        opacity: win.s.micInUse ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 250 } }
+      }
+      Rectangle {
+        width: 6
+        height: 6
+        radius: 3
+        color: win.s.tint("green")
+        opacity: win.s.cameraInUse ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 250 } }
       }
     }
   }

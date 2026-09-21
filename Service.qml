@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.UPower
-import Quickshell.Services.Pipewire
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
 import Quickshell.Wayland
@@ -83,6 +82,7 @@ Item {
   readonly property bool showWorkspaces: setting("showWorkspaces", true) === true
   readonly property bool artworkTint: setting("artworkTint", true) === true
   readonly property bool showMicIndicator: setting("showMicIndicator", true) === true
+  readonly property bool showCameraIndicator: setting("showCameraIndicator", true) === true
   readonly property bool scrollVolume: setting("scrollVolume", true) === true
   // external: the external monitor when one is plugged in, otherwise the
   // built-in display · focused: follows the focused monitor · all: one per
@@ -405,17 +405,30 @@ Item {
     Quickshell.execDetached(["omarchy-capture-screenrecording", "--stop-recording"])
   }
 
-  // ------------------------------------------------------------ microphone privacy dot
-  readonly property bool micInUse: {
-    if (!root.showMicIndicator) return false
-    var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i]
-      if (!n || !n.isStream) continue
-      var props = n.properties || {}
-      if (props["media.class"] === "Stream/Input/Audio" && props["stream.monitor"] !== "true") return true
+  // ------------------------------------------------------------ privacy dots
+  // One poll answers for both. PipeWire only sees a camera that came through
+  // the portal, and most apps open /dev/video* themselves, so ask the kernel
+  // who holds the device. Capture off a monitor source is desktop audio, not
+  // the microphone, so those streams are skipped.
+  property bool micInUse: false
+  property bool cameraInUse: false
+  Timer {
+    interval: 2500
+    repeat: true
+    running: root.showMicIndicator || root.showCameraIndicator
+    triggeredOnStart: true
+    onTriggered: if (!privacyProc.running) privacyProc.running = true
+  }
+  Process {
+    id: privacyProc
+    command: ["sh", "-c", "c=0; m=0; fuser -s /dev/video* 2>/dev/null && c=1; mons=\" $(pactl list sources short | grep '\\.monitor' | cut -f1 | tr '\\n' ' ')\"; for id in $(pactl list source-outputs 2>/dev/null | sed -n 's/^\\tSource: //p'); do case \"$mons\" in *\" $id \"*) ;; *) m=1 ;; esac; done; echo \"$m$c\""]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var t = String(text || "").trim()
+        root.micInUse = root.showMicIndicator && t.charAt(0) === "1"
+        root.cameraInUse = root.showCameraIndicator && t.charAt(1) === "1"
+      }
     }
-    return false
   }
 
   // ------------------------------------------------------------ battery
@@ -1103,7 +1116,7 @@ Item {
       return JSON.stringify({
         live: root.live, second: root.secondLive, controls: root.controlsShown, activity: root.activity, queued: root.queue.length,
         media: { title: root.trackTitle, artist: root.trackArtist, playing: root.isPlaying, player: root.playerName },
-        timerLeft: Math.round(root.timerLeft), recording: root.recording, micInUse: root.micInUse,
+        timerLeft: Math.round(root.timerLeft), recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
         shape: root.shape, monitor: root.monitor, style: root.style, palette: root.palette, font: root.textFont, notchHeight: root.notchHeight
