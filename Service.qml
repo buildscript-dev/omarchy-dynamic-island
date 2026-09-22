@@ -261,9 +261,13 @@ Item {
       "rm -f \"$d\"/*.part; " +
       "f=\"$d/$(printf %s \"$1\" | md5sum | cut -c1-20).img\"; " +
       // Download to a scratch file: only a whole, small enough image is published.
+      // The kernel caps the file itself (ulimit -f, in 512-byte blocks), so a body
+      // with no Content-Length fails curl's write at the limit instead of filling
+      // the disk. XFSZ is ignored so that write fails with EFBIG, not a core dump.
       "if [ ! -s \"$f\" ]; then p=\"$f.part\"; " +
-      "curl -fsL --proto '=http,https' --proto-redir '=http,https' --max-redirs 3 " +
-      "--max-time 8 --max-filesize " + root.artMaxBytes + " -o \"$p\" \"$1\" " +
+      "( trap '' XFSZ; ulimit -f " + (root.artMaxBytes / 512) + " && " +
+      "exec curl -fsL --proto '=http,https' --proto-redir '=http,https' --max-redirs 3 " +
+      "--max-time 8 --max-filesize " + root.artMaxBytes + " -o \"$p\" \"$1\" ) " +
       "|| { rm -f \"$p\"; exit 1; }; " +
       // Content-Length can lie, so weigh what actually landed.
       "[ \"$(wc -c < \"$p\")\" -le " + root.artMaxBytes + " ] || { rm -f \"$p\"; exit 1; }; " +

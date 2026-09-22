@@ -197,8 +197,9 @@ artwork for players that publish it as an `https` URL (Spotify and other
 streaming clients), cached under
 `${XDG_CACHE_HOME:-~/.cache}/omarchy-dynamic-island` and cleaned after 7
 days. The URL comes from the player, so the download is bounded: plain HTTP
-and HTTPS only (including redirects), at most 4 MB per image, discarded
-rather than cached if the body turns out larger than the server claimed, and
+and HTTPS only (including redirects), at most 4 MB per image, enforced as a file-size
+limit on the download itself, so a response that never ends or lies about its
+length stops at 4 MB and is discarded rather than cached, and
 the whole cache is held under 32 MB by evicting the least recently used
 files. It also runs Omarchy's own `omarchy-weather-status` and
 `omarchy-update-available` helpers, which reach the network themselves.
