@@ -196,19 +196,57 @@ the plugin's settings panel instead of editing JSON.
 ## Network use
 
 The island itself makes exactly one kind of request: downloading album
-artwork for players that publish it as an `https` URL (Spotify and other
-streaming clients), cached under
-`${XDG_CACHE_HOME:-~/.cache}/omarchy-dynamic-island` and cleaned after 7
-days. The URL comes from the player, so the download is bounded: plain HTTP
-and HTTPS only (including redirects), at most 4 MB per image, enforced as a file-size
-limit on the download itself, so a response that never ends or lies about its
-length stops at 4 MB and is discarded rather than cached, and
-the whole cache is held under 32 MB by evicting the least recently used
-files. It also runs Omarchy's own `omarchy-weather-status` and
+artwork for players that publish it as an `http(s)` URL (Spotify and other
+streaming clients). Because that URL comes from the player, the download is
+held to fixed limits:
+
+- plain HTTP and HTTPS only, including every redirect (at most 3);
+- at most 4 MB, enforced by the kernel as a file-size limit while the file is
+  written, so a response that never ends or lies about its length stops at
+  4 MB and is thrown away;
+- 10 seconds for the transfer, 15 for the whole job;
+- no `~/.curlrc` and no proxy or TLS settings from the environment.
+
+The one image kept is the current track's, in
+`/run/user/<uid>/omarchy-dynamic-island` (per-user, mode 0700, in memory,
+gone at logout). The island draws and tints only that copy, never the URL.
+
+It also runs Omarchy's own `omarchy-weather-status` and
 `omarchy-update-available` helpers, which reach the network themselves.
 
 Set `"onlineExtras": false` and all three stop. Nothing else in the plugin
 opens a connection, and nothing is ever sent anywhere.
+
+## What it runs
+
+The island lives inside the long-running Omarchy shell, so every program it
+starts follows the same rules (`IslandModel.js`, `SafeProcess.qml`):
+
+- **Fixed executables.** Each command is an absolute path in a root-owned
+  directory: `/usr/share/omarchy/bin` for Omarchy's helpers, `/usr/bin` for
+  the rest. Nothing is looked up on your `PATH`.
+- **Closed environment.** Children get a short allowlist of session
+  variables (Wayland, Hyprland, D-Bus, XDG base and picture/video folders)
+  and a fixed `PATH=/usr/share/omarchy/bin:/usr/bin`. Nothing that names a
+  program to run, such as `EDITOR` or `BROWSER`, is passed on.
+- **Deadlines.** Every command runs under GNU `timeout`, which signals its
+  whole process group and follows up with `KILL`. The only exceptions are
+  the things you start on purpose that are meant to keep running: a screen
+  recording, a screenshot selection, the update terminal, the lock screen and
+  log-out/restart/shut-down, and a phone attachment you open.
+- **Capped output.** Anything the island reads back is capped while it is
+  produced (`head -c`, with `pipefail`) and dropped if it runs over. That
+  covers helper output, the notification files, `shell.json` and the
+  notification history.
+- **Regular files only.** Files are read only if they are regular files and
+  not symlinks, and a path swapped for a FIFO afterwards just runs into the
+  deadline. The `FileView`s only watch for changes; they never load a file.
+
+Everything drawn from outside (notification text, media titles, device
+names, messages, IPC arguments) is rendered as plain text
+(`Text.PlainText`) and shortened first. Images load only from local files
+and the shell's own icon providers. Notification pictures load only from
+Omarchy's own copies in `~/.local/state/omarchy/notifications/images`.
 
 ## What it installs
 
@@ -219,15 +257,20 @@ Only the plugin folder. It declares:
 2. A **bar-widget**: an invisible spacer in the bar's center that reserves
    the island's width, so bar widgets flow around it like the macOS menu bar.
 
-It writes no files outside its own folder, installs no systemd units, and
-never edits your configuration. Everything else is the two optional config
+It installs no systemd units and never edits your configuration. The only
+file it writes is the current album-art image in
+`/run/user/<uid>/omarchy-dynamic-island` (see [Network use](#network-use)).
+Removing an entry from the Control Center's notification list deletes that
+entry from Omarchy's own history folder, as Omarchy's panel does. Everything else is the two optional config
 lines under [Install](#install), which you add yourself.
 
 ## Optional integrations
 
 If these plugins are installed, the island loads their services and adds
 their controls; if they are missing, nothing happens and those pages are
-hidden.
+hidden. The island loads a plugin's `Service.qml` from
+`~/.config/omarchy/plugins/<id>/` only when that file is a regular file, the
+same code Omarchy loads for that plugin. It is never downloaded.
 
 | Plugin | Adds |
 |---|---|
@@ -241,8 +284,13 @@ the phone IPC methods answer `no-taildroid`, and nothing else changes.
 
 ## IPC
 
+Any program in your session can call these, so they only change what the
+island shows. None of them places a call, sends a message or reads one out.
+`state` reports what kind of thing is showing, never its text. Arguments are
+checked and shortened, and a page name that isn't on the list is refused.
+
 ```sh
-omarchy-shell island state               # JSON snapshot
+omarchy-shell island state               # JSON snapshot (kinds, not contents)
 omarchy-shell island ping
 omarchy-shell island expand | collapse
 omarchy-shell island controls [main|wifi|bluetooth|audio|buds|phone|messages|call|thread|notifications|calendar|power]
@@ -257,8 +305,9 @@ omarchy osd -i brightness -p 50          # the stock OSD command, now shown in t
 # without it they change nothing and answer "no-taildroid".
 omarchy-shell island phoneToggle         # mirroring on/off
 omarchy-shell island messages            # open the Messages page
-omarchy-shell island answer | hangup     # the call that is ringing now
-omarchy-shell island dial "+15551234"    # place a call from the phone
+omarchy-shell island answer              # pick up the call ringing on screen right now
+omarchy-shell island hangup              # end the current call
+omarchy-shell island dial "+15551234"    # open the keypad with this number; you press call
 omarchy-shell island phoneDex            # open the phone's desktop mode
 ```
 

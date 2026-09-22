@@ -22,22 +22,52 @@ Item {
   property var manifest: null
   readonly property string pluginId: "io.github.buildscript-dev.dynamic-island"
 
+  // ------------------------------------------------------------ processes
+  // Fire-and-forget actions and long-lived launches, both in the closed
+  // environment with fixed executables (IslandModel.js). Readers use SafeProcess.
+  readonly property var childEnv: Model.childEnv(function(k) { return Quickshell.env(k) })
+  function fire(argv, seconds) {
+    Quickshell.execDetached({ command: Model.bounded(argv, seconds || 20, 0), environment: root.childEnv, clearEnvironment: true })
+  }
+  // Only for programs meant to outlive a deadline: the update terminal, a
+  // screen recording, a locker, a file the user opened.
+  function launch(argv) {
+    Quickshell.execDetached({ command: Model.direct(argv), environment: root.childEnv, clearEnvironment: true })
+  }
+  // A regular file (not a link, FIFO or device) printed to stdout; the caller
+  // caps the size. A path swapped for a FIFO after the check blocks until the
+  // deadline kills it.
+  readonly property string readFile: "[ -f \"$1\" ] && [ ! -L \"$1\" ] && exec /usr/bin/cat -- \"$1\""
+
   // ------------------------------------------------------------ settings
   // Settings live on the island's bar entry in shell.json, like every other
   // bar widget, so the Omarchy settings UI and `updateEntryInline` apply.
   // The shell's public barConfig snapshot only refreshes on plugin-registry
   // events, so the island reads shell.json itself to apply edits instantly.
   property var liveBarConfig: null
+  readonly property string shellConfigPath: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+  // The FileViews in this plugin only watch (preload: false); the bytes are
+  // read by a bounded helper that refuses anything but a regular file.
   FileView {
-    path: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+    path: root.shellConfigPath
+    preload: false
     watchChanges: true
     printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      try {
-        var parsed = JSON.parse(text() || "{}")
-        root.liveBarConfig = parsed && parsed.bar ? parsed.bar : null
-      } catch (e) {}
+    onFileChanged: configRead.running = true
+  }
+  SafeProcess {
+    id: configRead
+    running: true
+    command: Model.bounded(["bash", "-c", root.readFile, "read", root.shellConfigPath], 3, 1048576)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var t = Model.capped(text, 1048576)
+        if (t === null || t === "") return
+        try {
+          var parsed = JSON.parse(t)
+          root.liveBarConfig = parsed && parsed.bar ? parsed.bar : null
+        } catch (e) {}
+      }
     }
   }
   readonly property var settings: {
@@ -238,61 +268,66 @@ Item {
   }
   readonly property bool mediaLive: hasMedia && (isPlaying || pausedLinger)
 
-  // The quantizer only reads local files; streaming players (Spotify) hand
-  // out https artwork, so fetch it once into a small cache first. The URL comes
-  // from the player, so the fetch is bounded: 4 MB per image, 32 MB of cache.
+  // Album art never goes straight into an Image: the shell would fetch or
+  // decode whatever the player named. It is copied into a private directory
+  // first — /run/user/<uid> is root-created, per-user and 0700, and the island
+  // keeps exactly one image there — and only that copy is drawn and tinted.
+  // Remote art (Spotify and other streamers) is downloaded under the
+  // onlineExtras switch; local art (browsers, mpv) is copied the same way.
+  // Either way the file is capped at 4 MB by the kernel while it is written
+  // (ulimit -f, 512-byte blocks; XFSZ ignored so the write fails with EFBIG
+  // instead of dumping core), and the whole job has a 15 s deadline.
   readonly property int artMaxBytes: 4194304
-  readonly property int artCacheMaxBytes: 33554432
+  readonly property string artScript:
+    "d=\"/run/user/$UID/omarchy-dynamic-island\"; umask 077; " +
+    "/usr/bin/mkdir -p -m 700 -- \"$d\" 2>/dev/null; " +
+    "[ -d \"$d\" ] && [ ! -L \"$d\" ] && [ -O \"$d\" ] && [ \"$(/usr/bin/stat -c %a -- \"$d\")\" = 700 ] || exit 1; " +
+    "t=$(/usr/bin/mktemp -- \"$d/art.XXXXXX\") || exit 1; trap '/usr/bin/rm -f -- \"$t\"' EXIT; " +
+    "if [ \"$2\" = url ]; then " +
+    "( trap '' XFSZ; ulimit -f " + (root.artMaxBytes / 512) + " && exec /usr/bin/curl -q -fsL " +
+    "--proto =http,https --proto-redir =http,https --max-redirs 3 --max-time 10 " +
+    "--max-filesize " + root.artMaxBytes + " -o \"$t\" -- \"$1\" ) || exit 1; " +
+    "else [ -f \"$1\" ] && [ ! -L \"$1\" ] || exit 1; " +
+    "( trap '' XFSZ; ulimit -f " + (root.artMaxBytes / 512) + " && exec /usr/bin/head -c " + (root.artMaxBytes + 1) + " -- \"$1\" > \"$t\" ) || exit 1; fi; " +
+    "[ -s \"$t\" ] && [ \"$(/usr/bin/stat -c %s -- \"$t\")\" -le " + root.artMaxBytes + " ] || exit 1; " +
+    // A new name per track, so the Image and the quantizer see a new URL.
+    "f=\"$d/$(printf %s \"$1\" | /usr/bin/md5sum | /usr/bin/cut -c1-20).img\"; " +
+    "/usr/bin/mv -f -- \"$t\" \"$f\" || exit 1; " +
+    "/usr/bin/find \"$d\" -maxdepth 1 -type f ! -name \"${f##*/}\" -delete; printf %s \"$f\""
   property string artLocal: ""
   onTrackArtChanged: fetchArt()
-  onArtworkTintChanged: fetchArt()
   Component.onCompleted: fetchArt()
   function fetchArt() {
     artLocal = ""
-    if (trackArt === "" || !artworkTint) return
-    if (trackArt.indexOf("http") !== 0) { artLocal = trackArt; return }
-    // Remote artwork is the only download the island itself makes.
-    if (!onlineExtras) return
     artFetch.running = false
-    artFetch.command = ["sh", "-c",
-      "d=\"${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-dynamic-island\"; mkdir -p \"$d\" || exit 1; " +
-      "find \"$d\" -type f -mtime +7 -delete 2>/dev/null; " +
-      // A killed fetch leaves its scratch file behind; it is nobody's cache entry.
-      "rm -f \"$d\"/*.part; " +
-      "f=\"$d/$(printf %s \"$1\" | md5sum | cut -c1-20).img\"; " +
-      // Download to a scratch file: only a whole, small enough image is published.
-      // The kernel caps the file itself (ulimit -f, in 512-byte blocks), so a body
-      // with no Content-Length fails curl's write at the limit instead of filling
-      // the disk. XFSZ is ignored so that write fails with EFBIG, not a core dump.
-      "if [ ! -s \"$f\" ]; then p=\"$f.part\"; " +
-      "( trap '' XFSZ; ulimit -f " + (root.artMaxBytes / 512) + " && " +
-      "exec curl -fsL --proto '=http,https' --proto-redir '=http,https' --max-redirs 3 " +
-      "--max-time 8 --max-filesize " + root.artMaxBytes + " -o \"$p\" \"$1\" ) " +
-      "|| { rm -f \"$p\"; exit 1; }; " +
-      // Content-Length can lie, so weigh what actually landed.
-      "[ \"$(wc -c < \"$p\")\" -le " + root.artMaxBytes + " ] || { rm -f \"$p\"; exit 1; }; " +
-      "mv -f \"$p\" \"$f\" || { rm -f \"$p\"; exit 1; }; fi; " +
-      // Newest first; once the running total passes the cap, the rest goes.
-      "touch \"$f\"; s=0; for g in $(ls -1t \"$d\"/* 2>/dev/null); do " +
-      "[ -f \"$g\" ] || continue; s=$((s + $(wc -c < \"$g\"))); " +
-      "[ \"$s\" -gt " + root.artCacheMaxBytes + " ] && rm -f \"$g\"; " +
-      "done; printf %s \"$f\"",
-      "sh", trackArt]
+    if (trackArt === "") return
+    var remote = /^https?:\/\//i.test(trackArt)
+    var arg = ""
+    if (remote) {
+      // Remote artwork is the only download the island itself makes.
+      if (!onlineExtras || trackArt.length > 2048) return
+      arg = trackArt
+    } else {
+      var local = Model.localImage(trackArt)
+      if (local.indexOf("file://") !== 0) return
+      try { arg = decodeURIComponent(local.slice(7)) } catch (e) { return }
+    }
+    artFetch.command = Model.bounded(["bash", "-c", root.artScript, "art", arg, remote ? "url" : "file"], 15, 4096)
     artFetch.running = true
   }
-  Process {
+  SafeProcess {
     id: artFetch
     stdout: StdioCollector {
       onStreamFinished: {
-        var p = String(text || "").trim()
-        if (p !== "") root.artLocal = "file://" + p
+        var p = String(Model.capped(text, 4096) || "").trim()
+        if (/^\/run\/user\/[0-9]+\/omarchy-dynamic-island\/[0-9a-f]{20}\.img$/.test(p)) root.artLocal = "file://" + p
       }
     }
   }
 
   ColorQuantizer {
     id: artQuantizer
-    source: root.artLocal
+    source: root.artworkTint ? root.artLocal : ""
     depth: 2
     rescaleSize: 48
   }
@@ -372,13 +407,9 @@ Item {
       if (Date.now() >= root.timerEnd) {
         root.cancelTimer()
         root.pushActivity({ kind: "alert", source: "timer-done", icon: root.glyphs.timer, tint: "orange", title: "Timer Done", value: "", duration: 6000 })
-        chime.running = true
+        root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/complete.oga"], 10)
       }
     }
-  }
-  Process {
-    id: chime
-    command: ["sh", "-c", "for f in /usr/share/sounds/freedesktop/stereo/complete.oga /usr/share/sounds/freedesktop/stereo/bell.oga; do [ -f \"$f\" ] && exec pw-play \"$f\"; done; exit 0"]
   }
 
   // ------------------------------------------------------------ recording
@@ -391,9 +422,9 @@ Item {
     triggeredOnStart: true
     onTriggered: if (!recProc.running) recProc.running = true
   }
-  Process {
+  SafeProcess {
     id: recProc
-    command: ["pgrep", "--quiet", "-f", "^gpu-screen-recorder"]
+    command: Model.bounded(["pgrep", "--quiet", "-f", "^gpu-screen-recorder"], 5, 0)
     onExited: function(code) {
       var on = code === 0
       if (on && !root.recording) root.recordingSince = Date.now()
@@ -401,7 +432,7 @@ Item {
     }
   }
   function stopRecording() {
-    Quickshell.execDetached(["omarchy-capture-screenrecording", "--stop-recording"])
+    root.fire(["omarchy-capture-screenrecording", "--stop-recording"], 30)
   }
 
   // ------------------------------------------------------------ microphone privacy dot
@@ -475,18 +506,37 @@ Item {
   // ------------------------------------------------------------ do not disturb
   property bool dnd: false
   property bool dndLoaded: false
+  // Omarchy's notification service owns the switch; ask it. Its settings file
+  // is only watched, as the cue that something else flipped it.
   FileView {
     path: Quickshell.env("HOME") + "/.local/state/omarchy/notifications.json"
+    preload: false
     watchChanges: true
     printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      var on = false
-      try { on = !!JSON.parse(text() || "{}").doNotDisturb } catch (e) {}
-      if (root.dndLoaded && root.settled && on !== root.dnd)
-        root.pushActivity({ kind: "alert", source: "dnd", icon: on ? root.glyphs.moon : root.glyphs.bell, tint: on ? "indigo" : "secondary", title: "Do Not Disturb", value: on ? "On" : "Off", duration: 1800 })
-      root.dnd = on
-      root.dndLoaded = true
+    onFileChanged: root.readDnd()
+  }
+  // The file only exists after the first toggle, so a slow poll covers what a
+  // watch on a missing path can't see.
+  Timer { interval: 20000; repeat: true; running: true; triggeredOnStart: true; onTriggered: root.readDnd() }
+  Timer { id: dndLater; interval: 400; onTriggered: root.readDnd() }
+  function readDnd() { if (!dndRead.running) dndRead.running = true }
+  function toggleDnd() {
+    root.fire(["omarchy-shell", "-q", "notifications", "toggleDnd"], 10)
+    dndLater.restart()
+  }
+  SafeProcess {
+    id: dndRead
+    command: Model.bounded(["omarchy-shell", "notifications", "dndState"], 5, 16)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var t = String(Model.capped(text, 16) || "").trim()
+        if (t !== "on" && t !== "off") return
+        var on = t === "on"
+        if (root.dndLoaded && root.settled && on !== root.dnd)
+          root.pushActivity({ kind: "alert", source: "dnd", icon: on ? root.glyphs.moon : root.glyphs.bell, tint: on ? "indigo" : "secondary", title: "Do Not Disturb", value: on ? "On" : "Off", duration: 1800 })
+        root.dnd = on
+        root.dndLoaded = true
+      }
     }
   }
 
@@ -525,37 +575,40 @@ Item {
     if (!notifPrimed) { notifPrimed = true; return }
     // A popup the user dismissed elsewhere shouldn't keep its island peek.
     if (activity && activity.kind === "notification" && !present[activity.file]) finishActivity()
-    if (fresh !== "" && showNotifications) {
-      notifFile = ""
+    if (fresh !== "" && showNotifications && /^[A-Za-z0-9._-]+\.json$/.test(fresh)) {
       notifFile = root.notifDir + "/" + fresh
+      notifReader.running = false
+      notifReader.running = true
     }
   }
-  FileView {
+  SafeProcess {
     id: notifReader
-    path: root.notifFile
-    printErrors: false
-    onLoaded: {
-      var d = null
-      try { d = JSON.parse(text() || "{}") } catch (e) { return }
-      var summary = Model.plainText(d.summary)
-      var body = Model.plainText(d.body)
-      if (summary === "" && body === "") return
-      var sms = root.lastSms.body.slice(0, 24)
-      if (sms !== "" && Date.now() - root.lastSms.time < 10000 && (body.indexOf(sms) !== -1 || summary.indexOf(sms) !== -1)) return
-      var iconUrl = root.notifIcon(d, summary)
-      var pn = root.relayed(d)
-      var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
-      root.pushActivity({
-        kind: "notification", source: "notification", file: file,
-        app: root.notifApp(d, summary),
-        title: pn ? String(pn.title) : (summary !== "" ? summary : body),
-        body: pn ? root.newestLine(pn.text) : (summary !== "" ? body : ""), image: iconUrl,
-        replyId: pn ? String(pn.replyId || "") : "",
-        phone: !!pn, fullText: pn ? String(pn.text) : "",
-        urgent: Number(d.urgency) === 2,
-        duration: Number(d.urgency) === 2 ? 8000 : 5000
-      })
-    }
+    command: Model.bounded(["bash", "-c", root.readFile, "read", root.notifFile], 3, 65536)
+    stdout: StdioCollector { onStreamFinished: root.notifLoaded(Model.capped(text, 65536)) }
+  }
+  function notifLoaded(t) {
+    if (t === null || t === "") return
+    var d = null
+    try { d = JSON.parse(t) } catch (e) { return }
+    if (!d || typeof d !== "object") return
+    var summary = Model.plainText(d.summary)
+    var body = Model.plainText(d.body)
+    if (summary === "" && body === "") return
+    var sms = root.lastSms.body.slice(0, 24)
+    if (sms !== "" && Date.now() - root.lastSms.time < 10000 && (body.indexOf(sms) !== -1 || summary.indexOf(sms) !== -1)) return
+    var iconUrl = root.notifIcon(d, summary)
+    var pn = root.relayed(d)
+    var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
+    root.pushActivity({
+      kind: "notification", source: "notification", file: file,
+      app: root.notifApp(d, summary),
+      title: pn ? String(pn.title) : (summary !== "" ? summary : body),
+      body: pn ? root.newestLine(pn.text) : (summary !== "" ? body : ""), image: iconUrl,
+      replyId: pn ? String(pn.replyId || "") : "",
+      phone: !!pn, fullText: pn ? String(pn.text) : "",
+      urgent: Number(d.urgency) === 2,
+      duration: Number(d.urgency) === 2 ? 8000 : 5000
+    })
   }
   // Every phone notification arrives as "KDE Connect" with the KDE Connect logo;
   // the Android app's own name is in the summary. Taildroid keeps that name
@@ -613,12 +666,22 @@ Item {
                  || (root.phone.pstate.phoneApps || {})[String(summary || "")] || "")
       if (icon !== "") return icon.indexOf("/") === 0 ? "file://" + icon : icon
     }
-    var image = String(d.image || "")
+    // Omarchy copies a notification's files under its images folder before it
+    // writes the JSON, so a path anywhere else (or a URL) is not one of those
+    // copies and is ignored; a bare name is a themed icon.
+    var image = root.notifImage(d.image)
     if (image !== "") return image
     var appIcon = String(d.appIcon || "")
-    if (appIcon.indexOf("/") !== -1 || appIcon.indexOf("file:") === 0) return appIcon
-    if (appIcon !== "") return Quickshell.iconPath(appIcon, true)
+    if (appIcon.indexOf("/") !== -1 || appIcon.indexOf(":") !== -1) {
+      var copy = root.notifImage(appIcon)
+      if (copy !== "") return copy
+    } else if (appIcon !== "" && appIcon.length <= 128) return Quickshell.iconPath(appIcon, true)
     return root.appIconFor(notifApp(d, summary))
+  }
+  readonly property string notifImages: root.notifDir + "/images/"
+  function notifImage(v) {
+    var u = Model.localImage(v)
+    return u.indexOf("file://" + root.notifImages) === 0 ? u : ""
   }
 
   // No reply handle (Gmail, GPay…): the next best thing is that app on this
@@ -627,9 +690,12 @@ Item {
     var name = String(app || "").trim()
     if (name === "") return false
     var entry = typeof DesktopEntries.heuristicLookup === "function" ? DesktopEntries.heuristicLookup(name) : null
-    if (!entry) return false
-    if (typeof entry.execute === "function") { entry.execute(); return true }
-    return false
+    var id = entry ? String(entry.id || "") : ""
+    if (!/^[A-Za-z0-9._-]{1,128}$/.test(id)) return false
+    // The way Omarchy's launcher starts apps: as a session unit, so the app
+    // gets the session's environment rather than the shell's.
+    root.launch(["uwsm-app", "--", "gtk-launch", id + ".desktop"])
+    return true
   }
 
   // Many apps send no icon at all; fall back to the app's own desktop-entry
@@ -667,11 +733,11 @@ Item {
       finishActivity()
       return
     }
-    Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "invokeLast"])
+    root.fire(["omarchy-shell", "-q", "notifications", "invokeLast"], 10)
     finishActivity()
   }
   function notificationDismiss() {
-    Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "dismissOne"])
+    root.fire(["omarchy-shell", "-q", "notifications", "dismissOne"], 10)
     finishActivity()
   }
 
@@ -685,6 +751,14 @@ Item {
 
   function pushActivity(t) {
     if (!t) return
+    // Every transient passes through here, whoever raised it (IPC, OSD,
+    // Bluetooth names, keyboard layouts, messages), so this is where their
+    // text is held to a sane length.
+    t = Object.assign({}, t, {
+      icon: Model.clip(t.icon, 16), app: Model.clip(t.app, 80), title: Model.clip(t.title, 200),
+      value: Model.clip(t.value, 60), body: Model.clip(t.body, 2000),
+      duration: Model.clamp(Number(t.duration) || 2500, 500, 30000)
+    })
     if (activity && activity.source === t.source && t.kind === activity.kind) {
       activity = t
       activityTimer.interval = t.duration
@@ -766,7 +840,7 @@ Item {
   // ------------------------------------------------------------ volume by scroll
   function scrollVolumeBy(delta) {
     if (!root.scrollVolume) return
-    Quickshell.execDetached(["omarchy-audio-output-volume", delta > 0 ? "+2" : "-2"])
+    root.fire(["omarchy-audio-output-volume", delta > 0 ? "+2" : "-2"], 5)
   }
 
   // ------------------------------------------------------------ earbuds
@@ -774,10 +848,15 @@ Item {
   // installed, so the Control Center drives the buds through the same code
   // path as that plugin's panel.
   readonly property string budsServicePath: Quickshell.env("HOME") + "/.config/omarchy/plugins/io.github.buildscript-dev.oneplus-experience/Service.qml"
-  FileView { id: budsProbe; path: root.budsServicePath; printErrors: false }
+  property bool budsInstalled: false
+  SafeProcess {
+    running: true
+    command: Model.bounded(["test", "-f", root.budsServicePath], 3, 0)
+    onExited: function(code) { root.budsInstalled = code === 0 }
+  }
   Loader {
     id: budsLoader
-    active: budsProbe.loaded
+    active: root.budsInstalled
     source: active ? "file://" + root.budsServicePath : ""
   }
   readonly property var buds: budsLoader.item
@@ -811,10 +890,15 @@ Item {
   // ------------------------------------------------------------ phone (Taildroid)
   // Taildroid's own service, so mirroring works with its bar widget removed.
   readonly property string phoneServicePath: Quickshell.env("HOME") + "/.config/omarchy/plugins/io.github.buildscript-dev.taildroid/Service.qml"
-  FileView { id: phoneProbe; path: root.phoneServicePath; printErrors: false }
+  property bool phoneInstalled: false
+  SafeProcess {
+    running: true
+    command: Model.bounded(["test", "-f", root.phoneServicePath], 3, 0)
+    onExited: function(code) { root.phoneInstalled = code === 0 }
+  }
   Loader {
     id: phoneLoader
-    active: phoneProbe.loaded
+    active: root.phoneInstalled
     source: active ? "file://" + root.phoneServicePath : ""
     onLoaded: item.refresh()
   }
@@ -882,14 +966,14 @@ Item {
 
   // ------------------------------------------------------------ system update
   property bool updateAvailable: false
-  Process {
+  SafeProcess {
     id: updateCheck
-    command: ["omarchy-update-available"]
+    command: Model.bounded(["omarchy-update-available"], 120, 0)
     onExited: function(code) { root.updateAvailable = code === 0 }
   }
   Timer { interval: 21600000; running: root.onlineExtras; repeat: true; triggeredOnStart: true; onTriggered: updateCheck.running = true }
   function checkUpdates() { if (root.onlineExtras && !updateCheck.running) updateCheck.running = true }
-  function runUpdate() { Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"]) }
+  function runUpdate() { root.launch(["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"]) }
 
   // ------------------------------------------------------------ keyboard layout
   // The bar's layout widget is gone, so the island announces layout switches.
@@ -938,12 +1022,12 @@ Item {
   property string weatherText: ""
   property string weatherPlace: ""
   property string weatherTemp: ""
-  Process {
+  SafeProcess {
     id: weatherRead
-    command: ["omarchy-weather-status"]
+    command: Model.bounded(["omarchy-weather-status"], 30, 4096)
     stdout: StdioCollector {
       onStreamFinished: {
-        var t = String(text || "").trim()
+        var t = Model.clip(String(Model.capped(text, 4096) || "").trim(), 120)
         if (t === "" || t.indexOf("unavailable") !== -1) return
         var parts = t.split("·").map(function(x) { return x.trim() })
         root.weatherPlace = parts[0] || ""
@@ -953,7 +1037,10 @@ Item {
     }
   }
   Timer { interval: 1800000; running: root.onlineExtras; repeat: true; triggeredOnStart: true; onTriggered: if (!weatherRead.running) weatherRead.running = true }
-  onOnlineExtrasChanged: if (!onlineExtras) { weatherText = ""; weatherPlace = ""; weatherTemp = ""; updateAvailable = false }
+  onOnlineExtrasChanged: {
+    fetchArt()
+    if (!onlineExtras) { weatherText = ""; weatherPlace = ""; weatherTemp = ""; updateAvailable = false }
+  }
 
   // ------------------------------------------------------------ notification history
   readonly property string historyDir: root.notifDir + "/history"
@@ -975,13 +1062,19 @@ Item {
     historyRead.running = true
   }
   property bool historyAgain: false
-  Process {
+  // The newest 50 entries (Omarchy keeps 10), 32 KB each at most — a longer
+  // one is cut off, fails to parse and is skipped — and 2 MB in all.
+  SafeProcess {
     id: historyRead
-    command: ["bash", "-c", "for f in \"$1\"/*.json; do [ -e \"$f\" ] || continue; printf '%s\\t' \"${f##*/}\"; tr -d '\\n' < \"$f\"; echo; done", "--", root.historyDir]
+    command: Model.bounded(["bash", "-c",
+      "/usr/bin/ls -1r -- \"$1\" 2>/dev/null | /usr/bin/grep -E '^[A-Za-z0-9._-]+\\.json$' | /usr/bin/head -n 50 | " +
+      "while IFS= read -r n; do f=\"$1/$n\"; [ -f \"$f\" ] && [ ! -L \"$f\" ] || continue; " +
+      "printf '%s\\t' \"$n\"; /usr/bin/head -c 32768 -- \"$f\" | /usr/bin/tr -d '\\n'; echo; done",
+      "history", root.historyDir], 5, 2097152)
     stdout: StdioCollector {
       onStreamFinished: {
         var out = []
-        var lines = String(text || "").split("\n")
+        var lines = String(Model.capped(text, 2097152) || "").split("\n")
         for (var i = 0; i < lines.length; i++) {
           var tab = lines[i].indexOf("\t")
           if (tab < 0) continue
@@ -1005,12 +1098,12 @@ Item {
     onExited: if (root.historyAgain) { root.historyAgain = false; root.readHistory() }
   }
   function clearHistory() {
-    Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "clear"])
+    root.fire(["omarchy-shell", "-q", "notifications", "clear"], 10)
     history = []
   }
   function removeHistory(file) {
     if (!/^[A-Za-z0-9._-]+\.json$/.test(file)) return
-    Quickshell.execDetached(["bash", "-c", "rm -f \"$1/$3\" \"$2/${3%.json}\"-*", "--", root.historyDir, root.notifDir + "/images", file])
+    root.fire(["bash", "-c", "/usr/bin/rm -f -- \"$1/$3\" \"$2/${3%.json}\"-*", "rm", root.historyDir, root.notifDir + "/images", file], 5)
     history = history.filter(function(n) { return n.file !== file })
   }
   function timeAgo(ms) {
@@ -1029,6 +1122,8 @@ Item {
 
   // ------------------------------------------------------------ control center
   signal controlsRequested(string page)
+  // A number handed over by `island dial`, for the keypad to pick up.
+  property string pendingDial: ""
   property bool controlsShown: false
 
   // ------------------------------------------------------------ expanded (shared across windows)
@@ -1050,8 +1145,10 @@ Item {
     // stock OSD plugin must be disabled for this (see README).
     target: root.replaceOsd ? "osd" : "dynamic-island-osd"
     function show(payloadJson: string): string {
+      if (String(payloadJson || "").length > 4096) return "too-long"
       var p = {}
       try { p = JSON.parse(payloadJson || "{}") } catch (e) { return "bad-json" }
+      if (!p || typeof p !== "object") return "bad-json"
       root.pushActivity(Model.osdTransient(p))
       return "ok"
     }
@@ -1063,12 +1160,19 @@ Item {
     function ping(): string { return "ok" }
   }
 
+  // Anything in this session can call these, so they only change what the
+  // island shows. Nothing here places a call, sends a message or reads one
+  // out: `state` reports what kind of thing is showing, never its text, and
+  // `dial` only fills in the keypad — the call still takes a click.
+  readonly property var ipcPages: ["main", "wifi", "bluetooth", "audio", "buds", "phone", "call", "messages", "thread", "notifications", "calendar", "power"]
   IpcHandler {
     target: "island"
     function state(): string {
       return JSON.stringify({
-        live: root.live, second: root.secondLive, controls: root.controlsShown, activity: root.activity, queued: root.queue.length,
-        media: { title: root.trackTitle, artist: root.trackArtist, playing: root.isPlaying, player: root.playerName },
+        live: root.live, second: root.secondLive, controls: root.controlsShown,
+        activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
+        queued: root.queue.length,
+        media: { playing: root.isPlaying, player: root.playerName },
         timerLeft: Math.round(root.timerLeft), recording: root.recording, micInUse: root.micInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         shape: root.shape, monitor: root.monitor, style: root.style, palette: root.palette, font: root.textFont, notchHeight: root.notchHeight
@@ -1078,28 +1182,54 @@ Item {
     function expand(): string { root.expandRequested(); return "ok" }
     // Open the Control Center, optionally on a page: wifi, bluetooth, audio,
     // buds, phone, notifications, calendar, power.
-    function controls(page: string): string { root.controlsRequested(page || "main"); return "ok" }
+    function controls(page: string): string {
+      var p = String(page || "main")
+      if (root.ipcPages.indexOf(p) === -1) return "unknown-page"
+      root.controlsRequested(p)
+      return "ok"
+    }
     // Taildroid mirroring on/off (Super+Shift+I).
     function phoneToggle(): string { if (!root.phone) return "no-taildroid"; root.phone.toggleControl(); return "ok" }
     function collapse(): string { root.collapseAll(); return "ok" }
-    // Phone continuity: answer/decline from the keyboard, dial, open messages.
-    function answer(): string { if (!root.phone) return "no-taildroid"; root.phone.answer(""); return "ok" }
+    // Phone continuity from the keyboard. `answer` only picks up a call that
+    // is ringing on screen right now; `hangup` ends one; `dial` opens the
+    // keypad with the number in it and leaves the call button to the user.
+    function answer(): string {
+      if (!root.phone) return "no-taildroid"
+      if (!root.ringingCall) return "not-ringing"
+      root.phone.answer(String(root.ringingCall.path || ""))
+      return "ok"
+    }
     function hangup(): string { if (!root.phone) return "no-taildroid"; root.phone.hangup(""); return "ok" }
-    function dial(number: string): string { if (!root.phone) return "no-taildroid"; root.phone.dial(number); return "ok" }
+    function dial(number: string): string {
+      if (!root.phone) return "no-taildroid"
+      var n = String(number || "")
+      if (!/^[0-9*#+]{1,32}$/.test(n)) return "bad-number"
+      root.pendingDial = n
+      root.controlsRequested("call")
+      return "ok"
+    }
     function messages(): string { root.controlsRequested("messages"); return "ok" }
     function phoneDex(): string { if (!root.phone) return "no-taildroid"; root.phone.openDex(); return "ok" }
-    function timer(seconds: string): string { root.startTimer(Number(seconds)); return "ok" }
+    function timer(seconds: string): string {
+      var n = Number(seconds)
+      if (!isFinite(n) || n < 1 || n > 86400) return "bad-seconds"
+      root.startTimer(n)
+      return "ok"
+    }
     function timerCancel(): string { root.cancelTimer(); return "ok" }
     function alert(icon: string, title: string, value: string): string {
-      root.pushActivity({ kind: "alert", source: "ipc-" + title, icon: icon, tint: "white", title: title, value: value, duration: 2500 })
+      root.pushActivity({ kind: "alert", source: "ipc-alert", icon: Model.clip(icon, 4), tint: "white",
+        title: Model.clip(title, 60), value: Model.clip(value, 24), duration: 2500 })
       return "ok"
     }
     function hud(icon: string, percent: string): string {
-      root.pushActivity(Model.osdTransient({ icon: icon, value: percent }))
+      root.pushActivity(Model.osdTransient({ icon: Model.clip(icon, 32), value: Model.clip(percent, 8) }))
       return "ok"
     }
     function notify(title: string, body: string): string {
-      root.pushActivity({ kind: "notification", source: "ipc-notify", file: "", app: "Dynamic Island", title: title, body: body, image: "", urgent: false, duration: 5000 })
+      root.pushActivity({ kind: "notification", source: "ipc-notify", file: "", app: "Dynamic Island",
+        title: Model.clip(title, 120), body: Model.clip(body, 400), image: "", urgent: false, duration: 5000 })
       return "ok"
     }
   }

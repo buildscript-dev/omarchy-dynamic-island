@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.buildscript-dev.dynamic-island",
   "name": "Dynamic Island",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "author": "buildscript-dev",
   "license": "MIT",
   "description": "An iPhone-style Dynamic Island for Omarchy: a floating bubble in the bar that springs open for music, volume and brightness, notifications, charging, Bluetooth, timers and screen recording, with a built-in Control Center for Wi-Fi, Bluetooth, sound, earbuds, tray and power.",

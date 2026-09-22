@@ -37,6 +37,7 @@ Item {
         fallbackColor: "transparent"
       }
       Text {
+        textFormat: Text.PlainText
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.hasMedia ? (root.s.playerName || "Now Playing") : Qt.formatDateTime(root.s.now, "ddd d MMM")
         font.family: root.s.textFont
@@ -45,6 +46,7 @@ Item {
         color: root.s.secondaryText
       }
       Text {
+        textFormat: Text.PlainText
         visible: root.s.timerActive && root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
         text: "  " + root.s.glyphs.timer + " " + Model.formatTime(Math.ceil(root.s.timerLeft))
@@ -68,6 +70,7 @@ Item {
         color: root.s.tint("orange")
       }
       Text {
+        textFormat: Text.PlainText
         visible: root.s.dnd
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.glyphs.moon
@@ -76,6 +79,7 @@ Item {
         color: root.s.tint("indigo")
       }
       Text {
+        textFormat: Text.PlainText
         visible: root.s.hasBattery
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.batteryPercent + "%"
@@ -85,6 +89,7 @@ Item {
         color: root.s.secondaryText
       }
       Text {
+        textFormat: Text.PlainText
         visible: root.s.hasBattery
         anchors.verticalCenter: parent.verticalCenter
         text: Model.batteryGlyph(root.s.batteryPercent, root.s.charging)
@@ -118,7 +123,7 @@ Item {
       width: 72
       height: 72
       radius: 14
-      source: root.s.trackArt
+      source: root.s.artLocal
       fallbackGlyph: root.s.glyphs.music
       glyphFont: root.s.iconFont
       glyphColor: root.s.mediaAccent
@@ -141,6 +146,7 @@ Item {
       spacing: 2
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         text: root.s.trackTitle || "Unknown"
         font.family: root.s.textFont
@@ -150,6 +156,7 @@ Item {
         elide: Text.ElideRight
       }
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         text: root.s.trackArtist
         visible: text !== ""
@@ -159,6 +166,7 @@ Item {
         elide: Text.ElideRight
       }
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         text: root.s.trackAlbum
         visible: text !== ""
@@ -194,6 +202,7 @@ Item {
       readonly property real fraction: root.s.trackLength > 0 ? Model.clamp(root.s.trackPosition / root.s.trackLength, 0, 1) : 0
 
       Text {
+        textFormat: Text.PlainText
         id: elapsed
         anchors.verticalCenter: parent.verticalCenter
         width: 40
@@ -204,6 +213,7 @@ Item {
         color: root.s.secondaryText
       }
       Text {
+        textFormat: Text.PlainText
         id: remaining
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
@@ -308,6 +318,7 @@ Item {
       anchors.topMargin: 4
       spacing: 0
       Text {
+        textFormat: Text.PlainText
         text: Qt.formatDateTime(root.s.now, "HH:mm")
         font.family: root.s.textFont
         font.pixelSize: 46
@@ -316,6 +327,7 @@ Item {
         color: root.s.textColor
       }
       Text {
+        textFormat: Text.PlainText
         text: Qt.formatDateTime(root.s.now, "dddd, d MMMM")
         font.family: root.s.textFont
         font.pixelSize: 13
@@ -336,6 +348,7 @@ Item {
           spacing: 3
           width: 30
           Text {
+            textFormat: Text.PlainText
             anchors.horizontalCenter: parent.horizontalCenter
             text: modelData.label
             font.family: root.s.textFont
@@ -350,6 +363,7 @@ Item {
             radius: 13
             color: modelData.today ? (root.s.palette === "theme" ? root.s.tint("accent") : root.s.tint("red")) : "transparent"
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: modelData.day
               font.family: root.s.textFont
@@ -370,6 +384,7 @@ Item {
       visible: !root.s.timerActive
 
       Text {
+        textFormat: Text.PlainText
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.glyphs.timer
         font.family: root.s.iconFont
@@ -388,6 +403,7 @@ Item {
           scale: pillMouse.pressed ? 0.92 : 1
           Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
           Text {
+            textFormat: Text.PlainText
             id: pillLabel
             anchors.centerIn: parent
             text: modelData + " min"
@@ -414,6 +430,7 @@ Item {
       visible: root.s.timerActive
 
       Text {
+        textFormat: Text.PlainText
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.glyphs.timer + "  " + Model.formatTime(Math.ceil(root.s.timerLeft))
         font.family: root.s.iconFont
@@ -438,6 +455,7 @@ Item {
         radius: 14
         color: cancelMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.1)
         Text {
+          textFormat: Text.PlainText
           id: cancelLabel
           anchors.centerIn: parent
           text: "Cancel"
@@ -469,6 +487,7 @@ Item {
         radius: 14
         color: recMouse.containsMouse ? Qt.rgba(1, 0.27, 0.23, 0.32) : Qt.rgba(1, 0.27, 0.23, 0.2)
         Text {
+          textFormat: Text.PlainText
           id: recLabel
           anchors.centerIn: parent
           text: "● Stop recording"
@@ -492,6 +511,7 @@ Item {
         color: root.s.dnd ? Qt.rgba(0.37, 0.36, 0.9, dndMouse.containsMouse ? 0.4 : 0.28) : (dndMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
         Behavior on color { ColorAnimation { duration: 160 } }
         Text {
+          textFormat: Text.PlainText
           id: dndLabel
           anchors.centerIn: parent
           text: root.s.glyphs.moon + "  Focus"
@@ -504,7 +524,7 @@ Item {
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "toggleDnd"])
+          onClicked: root.s.toggleDnd()
         }
       }
     }

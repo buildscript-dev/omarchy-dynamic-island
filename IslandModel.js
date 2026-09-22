@@ -243,6 +243,94 @@ function plainText(s) {
     .trim()
 }
 
+// ------------------------------------------------------------ child processes
+// The island lives inside the long-running shell, so every program it starts
+// is held to the same rules: a fixed executable in a root-owned directory
+// (never a name looked up on the inherited PATH), a closed environment, a hard
+// deadline that takes the whole process group down (GNU timeout signals its
+// group, then KILLs it), and output capped while it is written.
+var OMARCHY_BIN = "/usr/share/omarchy/bin/"
+var SYSTEM_BIN = "/usr/bin/"
+var SAFE_PATH = "/usr/share/omarchy/bin:/usr/bin"
+
+function exe(name) {
+  var n = String(name || "")
+  if (n.indexOf("/") === 0) return n
+  return (n.indexOf("omarchy-") === 0 ? OMARCHY_BIN : SYSTEM_BIN) + n
+}
+
+// The session variables the Omarchy helpers need to reach Hyprland, PipeWire,
+// D-Bus and the shell, plus the user's chosen folders for screenshots and
+// recordings. Nothing that names a program to run (EDITOR, BROWSER,
+// OMARCHY_SCREENSHOT_EDITOR…) is passed on, and PATH is fixed.
+var ENV_KEYS = ["HOME", "USER", "LOGNAME", "LANG", "XDG_RUNTIME_DIR", "WAYLAND_DISPLAY",
+  "HYPRLAND_INSTANCE_SIGNATURE", "DBUS_SESSION_BUS_ADDRESS", "XDG_CURRENT_DESKTOP",
+  "XDG_SESSION_TYPE", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME",
+  "XDG_PICTURES_DIR", "XDG_VIDEOS_DIR", "OMARCHY_SCREENSHOT_DIR", "OMARCHY_SCREENRECORD_DIR"]
+
+function childEnv(get) {
+  var env = { PATH: SAFE_PATH, OMARCHY_PATH: "/usr/share/omarchy" }
+  for (var i = 0; i < ENV_KEYS.length; i++) {
+    var v = String(get(ENV_KEYS[i]) || "")
+    if (v !== "" && v.length <= 4096 && !/[\u0000-\u001f]/.test(v)) env[ENV_KEYS[i]] = v
+  }
+  return env
+}
+
+// argv run with a deadline; stdout capped at maxBytes + 1 so an overflow is
+// visible to capped(), stderr dropped. maxBytes 0 means no output at all.
+function bounded(argv, seconds, maxBytes) {
+  var cmd = [exe(argv[0])].concat(argv.slice(1).map(String))
+  var sink = maxBytes > 0 ? "2>/dev/null | " + SYSTEM_BIN + "head -c " + (maxBytes + 1) : ">/dev/null 2>&1"
+  return [SYSTEM_BIN + "timeout", "-k", "2", String(seconds), SYSTEM_BIN + "bash", "-c",
+          "set -o pipefail; \"$@\" " + sink, "bounded"].concat(cmd)
+}
+
+// A long-lived program the user started on purpose (a screen recording, the
+// update terminal): fixed executable and closed environment, no deadline.
+function direct(argv) {
+  return [exe(argv[0])].concat(argv.slice(1).map(String))
+}
+
+// Upper bound on the UTF-8 size of s (invalid bytes decode to U+FFFD, three
+// bytes, so this never undercounts).
+function utf8Length(s) {
+  var t = String(s || "")
+  var n = 0
+  for (var i = 0; i < t.length; i++) {
+    var c = t.charCodeAt(i)
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : (c >= 0xd800 && c <= 0xdbff) ? (i++, 4) : 3
+  }
+  return n
+}
+
+// Collected output, or null when the producer went past its cap.
+function capped(text, maxBytes) {
+  var t = String(text || "")
+  return utf8Length(t) > maxBytes ? null : t
+}
+
+// Strings that reach the island from outside (IPC, device names, messages)
+// are shortened before they are laid out.
+function clip(s, n) {
+  var t = String(s === undefined || s === null ? "" : s).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "")
+  return t.length > n ? t.slice(0, n - 1) + "…" : t
+}
+
+// Image sources the island will load: local files, and the shell's own
+// in-process image providers (themed icons, tray pixmaps). Anything else
+// (http, https, data:, qrc:) would make the shell fetch or decode something
+// the island never checked, so it falls back to the glyph.
+function localImage(u) {
+  var s = String(u || "")
+  if (s === "") return ""
+  if (/^image:\/\/[A-Za-z]+\//.test(s)) return s
+  var path = s.indexOf("file://") === 0 ? s.slice(7) : s
+  if (path.indexOf("/") !== 0 || /(^|\/)\.\.(\/|$)/.test(path) || /[\u0000-\u001f]/.test(path)) return ""
+  if (/^\/(dev|proc|sys)\//.test(path)) return ""
+  return "file://" + path
+}
+
 function weekStrip(now) {
   var d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   var dow = (d.getDay() + 6) % 7 // Monday first
