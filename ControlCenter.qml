@@ -44,7 +44,6 @@ Item {
     : powerPage.implicitHeight
 
   // A password field is the only thing that needs the keyboard.
-  readonly property bool wantsKeyboard: active && page === "wifi" && passwordSsid !== ""
 
   onActiveChanged: {
     if (!active) { page = "main"; cancelPassword(); return }
@@ -1772,6 +1771,7 @@ Item {
               Repeater {
                 model: msg.atts
                 delegate: Column {
+                  id: att
                   required property int index
                   required property var modelData
                   readonly property string file: String(msg.paths[index] || "")
@@ -1779,8 +1779,8 @@ Item {
                   width: bubbleCol.width
                   spacing: 4
                   Image {
-                    visible: parent.file !== "" && parent.mime.indexOf("image/") === 0
-                    source: visible ? "file://" + parent.file : ""
+                    visible: att.file !== "" && att.mime.indexOf("image/") === 0
+                    source: visible ? "file://" + att.file : ""
                     width: bubbleCol.width
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
@@ -1788,7 +1788,7 @@ Item {
                   }
                   // Voice notes, video, anything else: hand it to the desktop.
                   Rectangle {
-                    visible: parent.file !== "" && parent.mime.indexOf("image/") !== 0
+                    visible: att.file !== "" && att.mime.indexOf("image/") !== 0
                     width: bubbleCol.width
                     height: visible ? 34 : 0
                     radius: 17
@@ -1797,7 +1797,7 @@ Item {
                       id: playGlyph
                       x: 10
                       anchors.verticalCenter: parent.verticalCenter
-                      text: parent.parent.mime.indexOf("audio/") === 0 ? "\U000f040a" : "\U000f0220"
+                      text: att.mime.indexOf("audio/") === 0 ? "\U000f040a" : "\U000f0220"
                       font.pixelSize: 14
                       color: msg.out ? "#ffffff" : root.fg
                     }
@@ -1807,7 +1807,7 @@ Item {
                       anchors.right: parent.right
                       anchors.rightMargin: 10
                       anchors.verticalCenter: parent.verticalCenter
-                      text: parent.parent.mime.indexOf("audio/") === 0 ? "Voice message" : parent.parent.mime
+                      text: att.mime.indexOf("audio/") === 0 ? "Voice message" : att.mime
                       elide: Text.ElideRight
                       font.pixelSize: 12
                       color: msg.out ? "#ffffff" : root.fg
@@ -1815,7 +1815,7 @@ Item {
                     MouseArea {
                       anchors.fill: parent
                       cursorShape: Qt.PointingHandCursor
-                      onClicked: Quickshell.execDetached(["xdg-open", parent.parent.file])
+                      onClicked: Quickshell.execDetached(["xdg-open", att.file])
                     }
                   }
                 }

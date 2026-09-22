@@ -356,7 +356,7 @@ Item {
             width: 26
             height: 26
             radius: 13
-            color: modelData.today ? (root.s.palette === "theme" ? root.s.tint("accent") : root.s.tint("red")) : "transparent"
+            color: modelData.today ? (root.s.paletteName === "theme" ? root.s.tint("accent") : root.s.tint("red")) : "transparent"
             Text {
               anchors.centerIn: parent
               text: modelData.day

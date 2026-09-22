@@ -57,7 +57,7 @@ Item {
   }
 
   readonly property string style: String(setting("style", "black"))           // black | bar | glass
-  readonly property string palette: String(setting("palette", "apple"))       // apple | theme
+  readonly property string paletteName: String(setting("palette", "apple"))   // apple | theme (QQuickItem already owns "palette")
   // pill: a floating iPhone-style bubble inside the bar · notch: a MacBook
   // notch hanging from the top edge.
   readonly property string shape: String(setting("shape", "pill"))
@@ -122,7 +122,7 @@ Item {
   readonly property color controlFill: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1)
 
   function tint(name) {
-    if (palette === "theme") {
+    if (paletteName === "theme") {
       if (name === "red") return Color.urgent
       if (name === "white" || name === "") return root.textColor
       return Color.accent
@@ -170,7 +170,6 @@ Item {
   // Plain JS object: remembering the last player must not re-trigger the
   // bindings that read it (that was a binding loop).
   readonly property var playerMemory: ({ key: "" })
-  readonly property string lastPlayerKey: playerMemory.key
   readonly property var playingPlayer: {
     var first = null
     for (var i = 0; i < players.length; i++) {
@@ -299,7 +298,7 @@ Item {
   }
   readonly property color mediaAccent: artworkTint && trackArt !== ""
     ? Model.vividColor(artQuantizer.colors, tint("white"))
-    : (palette === "theme" ? Color.accent : tint("white"))
+    : (paletteName === "theme" ? Color.accent : tint("white"))
 
   function mediaToggle() {
     var p = root.player
@@ -667,9 +666,6 @@ Item {
   property var recentMessages: []
   readonly property int duplicateWindow: 12000
   property var pendingThread: null
-  // A chat you can answer opens its reply box; anything else opens the app it
-  // came from, so clicking a notification always lands somewhere useful.
-  property var replyTarget: null
   property var pendingNotif: null
   function notificationActivate() {
     if (activity && activity.sms) {
@@ -1119,7 +1115,7 @@ Item {
         timerLeft: Math.round(root.timerLeft), recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
-        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.palette, font: root.textFont, notchHeight: root.notchHeight
+        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, font: root.textFont, notchHeight: root.notchHeight
       })
     }
     function ping(): string { return "ok" }

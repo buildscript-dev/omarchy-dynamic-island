@@ -290,12 +290,3 @@ function weekStrip(now) {
   }
   return out
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    G: G, APPLE: APPLE, clamp: clamp, volumeGlyph: volumeGlyph, batteryGlyph: batteryGlyph,
-    osdTransient: osdTransient, geometry: geometry, pillGeometry: pillGeometry, formatTime: formatTime,
-    validLength: validLength, vividColor: vividColor, playerKey: playerKey,
-    plainText: plainText, weekStrip: weekStrip
-  }
-}
