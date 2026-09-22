@@ -196,7 +196,11 @@ The island itself makes exactly one kind of request: downloading album
 artwork for players that publish it as an `https` URL (Spotify and other
 streaming clients), cached under
 `${XDG_CACHE_HOME:-~/.cache}/omarchy-dynamic-island` and cleaned after 7
-days. It also runs Omarchy's own `omarchy-weather-status` and
+days. The URL comes from the player, so the download is bounded: plain HTTP
+and HTTPS only (including redirects), at most 4 MB per image, discarded
+rather than cached if the body turns out larger than the server claimed, and
+the whole cache is held under 32 MB by evicting the least recently used
+files. It also runs Omarchy's own `omarchy-weather-status` and
 `omarchy-update-available` helpers, which reach the network themselves.
 
 Set `"onlineExtras": false` and all three stop. Nothing else in the plugin

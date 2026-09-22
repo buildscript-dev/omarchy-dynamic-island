@@ -239,7 +239,10 @@ Item {
   readonly property bool mediaLive: hasMedia && (isPlaying || pausedLinger)
 
   // The quantizer only reads local files; streaming players (Spotify) hand
-  // out https artwork, so fetch it once into a small cache first.
+  // out https artwork, so fetch it once into a small cache first. The URL comes
+  // from the player, so the fetch is bounded: 4 MB per image, 32 MB of cache.
+  readonly property int artMaxBytes: 4194304
+  readonly property int artCacheMaxBytes: 33554432
   property string artLocal: ""
   onTrackArtChanged: fetchArt()
   onArtworkTintChanged: fetchArt()
@@ -252,10 +255,21 @@ Item {
     if (!onlineExtras) return
     artFetch.running = false
     artFetch.command = ["sh", "-c",
-      "d=\"${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-dynamic-island\"; mkdir -p \"$d\"; " +
+      "d=\"${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-dynamic-island\"; mkdir -p \"$d\" || exit 1; " +
       "find \"$d\" -type f -mtime +7 -delete 2>/dev/null; " +
       "f=\"$d/$(printf %s \"$1\" | md5sum | cut -c1-20).img\"; " +
-      "[ -s \"$f\" ] || curl -fsL --max-time 8 -o \"$f\" \"$1\" || exit 1; printf %s \"$f\"",
+      // Download to a scratch file: only a whole, small enough image is published.
+      "if [ ! -s \"$f\" ]; then p=\"$f.part\"; " +
+      "curl -fsL --proto '=http,https' --proto-redir '=http,https' --max-redirs 3 " +
+      "--max-time 8 --max-filesize " + root.artMaxBytes + " -o \"$p\" \"$1\" " +
+      "|| { rm -f \"$p\"; exit 1; }; " +
+      // Content-Length can lie, so weigh what actually landed.
+      "[ \"$(wc -c < \"$p\")\" -le " + root.artMaxBytes + " ] || { rm -f \"$p\"; exit 1; }; " +
+      "mv -f \"$p\" \"$f\" || { rm -f \"$p\"; exit 1; }; fi; " +
+      // Newest first; once the running total passes the cap, the rest goes.
+      "touch \"$f\"; s=0; for g in $(ls -1t \"$d\"/*.img 2>/dev/null); do " +
+      "s=$((s + $(wc -c < \"$g\"))); [ \"$s\" -gt " + root.artCacheMaxBytes + " ] && rm -f \"$g\"; " +
+      "done; printf %s \"$f\"",
       "sh", trackArt]
     artFetch.running = true
   }
