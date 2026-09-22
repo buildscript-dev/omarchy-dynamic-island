@@ -844,7 +844,7 @@ Item {
     if (c.state === "held") return "On Hold"
     return c.activeSince > 0 ? Model.formatTime(Date.now() / 1000 - c.activeSince) : ""
   }
-  readonly property string phoneName: phone && phone.pstate && phone.pstate.phone && phone.pstate.phone.model ? phone.pstate.phone.model : "Galaxy S24"
+  readonly property string phoneName: phone && phone.pstate && phone.pstate.phone && phone.pstate.phone.model ? phone.pstate.phone.model : "Phone"
   Connections {
     target: root.phone
     ignoreUnknownSignals: true
