@@ -37,6 +37,9 @@ Two optional steps:
 - To let the island show volume, brightness and keyboard OSDs, add
   `"omarchy.osd"` to `disabledPlugins` (otherwise both appear). Set
   `"replaceOsd": false` on the island entry if you prefer the stock OSD.
+  While `replaceOsd` is on the island answers the `osd` IPC target itself,
+  so `omarchy osd` lands in the island; with it off the island answers on
+  `dynamic-island-osd` instead and the stock OSD keeps its own target.
 - For blur on the `glass` and `bar` styles, add a layer rule in
   `~/.config/hypr/looknfeel.lua` (or your Hyprland config) for the layer
   namespace `omarchy-dynamic-island`.
@@ -258,15 +261,23 @@ one in wins, and a repeat of the same text within twelve seconds is dropped.
 
 ```sh
 omarchy-shell island state               # JSON snapshot
+omarchy-shell island ping
 omarchy-shell island expand | collapse
-omarchy-shell island controls [main|wifi|bluetooth|audio|buds|phone|notifications|calendar|power]
-omarchy-shell island phoneToggle         # Taildroid mirroring on/off
+omarchy-shell island controls [main|wifi|bluetooth|audio|buds|phone|messages|call|thread|notifications|calendar|power]
 omarchy-shell island timer 300           # start a 5-minute timer
 omarchy-shell island timerCancel
 omarchy-shell island alert "<glyph>" "Title" "Value"
 omarchy-shell island hud volume 40
 omarchy-shell island notify "Title" "Body"
 omarchy osd -i brightness -p 50          # the stock OSD command, now shown in the island
+
+# Phone continuity. Every one of these needs the Taildroid fork below;
+# without it they change nothing and answer "no-taildroid".
+omarchy-shell island phoneToggle         # mirroring on/off
+omarchy-shell island messages            # open the Messages page
+omarchy-shell island answer | hangup     # the call that is ringing now
+omarchy-shell island dial "+15551234"    # place a call from the phone
+omarchy-shell island phoneDex            # open the phone's desktop mode
 ```
 
 ## Removal

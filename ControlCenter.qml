@@ -1410,7 +1410,7 @@ Item {
       Row2 {
         visible: root.hasPhone
         glyph: "󰄜"
-        title: root.psPhone.model || root.psKde.name || root.psBt.name || "Galaxy S24"
+        title: root.psPhone.model || root.psKde.name || root.psBt.name || "Phone"
         subtitle: root.phoneLinkText()
         selected: !!root.psPhone.serial || !!root.psKde.reachable
         trailing: root.phoneRunning ? "Mirroring" : ""
