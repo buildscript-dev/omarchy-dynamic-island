@@ -120,6 +120,7 @@ PanelWindow {
     inDelay: 60
 
     Text {
+      textFormat: Text.PlainText
       id: lead
       visible: act.glyph !== ""
       x: win.edge + 1
@@ -148,6 +149,7 @@ PanelWindow {
       NumberAnimation { targets: [lead, leadDot]; property: "opacity"; to: 1; duration: act.pulseMs; easing.type: Easing.InOutSine }
     }
     Text {
+      textFormat: Text.PlainText
       anchors.right: parent.right
       anchors.rightMargin: win.edge + 4
       anchors.verticalCenter: parent.verticalCenter
@@ -418,6 +420,7 @@ PanelWindow {
         color: win.s.tint("red")
       }
       Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "call"
         anchors.centerIn: parent
         text: "󰏲"
@@ -426,6 +429,7 @@ PanelWindow {
         color: win.s.tint("green")
       }
       Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "phone"
         anchors.centerIn: parent
         text: "󰄜"
@@ -439,7 +443,7 @@ PanelWindow {
         width: parent.width - 6
         height: width
         radius: width / 2
-        source: win.s.trackArt
+        source: win.s.artLocal
         fallbackGlyph: win.s.glyphs.music
         glyphFont: win.s.iconFont
         glyphColor: win.s.mediaAccent
@@ -530,7 +534,7 @@ PanelWindow {
             width: win.artSize
             height: width
             radius: win.s.pill ? width / 2 : 5
-            source: win.s.trackArt
+            source: win.s.artLocal
             fallbackGlyph: win.s.glyphs.music
             glyphFont: win.s.iconFont
             glyphColor: win.s.mediaAccent
@@ -587,6 +591,7 @@ PanelWindow {
             radius: width / 2
             color: Qt.rgba(1, 1, 1, 0.16)
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: {
                 var n = String(incoming.call.name || "")
@@ -606,6 +611,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 1
             Text {
+              textFormat: Text.PlainText
               width: parent.width
               text: win.s.phoneName + (incoming.call.state === "waiting" ? " · Call Waiting" : "")
               font.family: win.s.textFont
@@ -614,6 +620,7 @@ PanelWindow {
               elide: Text.ElideRight
             }
             Text {
+              textFormat: Text.PlainText
               width: parent.width
               text: win.s.callTitle(incoming.call)
               font.family: win.s.textFont
@@ -643,6 +650,7 @@ PanelWindow {
                 scale: callTap.pressed ? 0.88 : callTap.containsMouse ? 1.06 : 1
                 Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
                 Text {
+                  textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: modelData.glyph
                   font.family: win.s.iconFont
@@ -675,6 +683,7 @@ PanelWindow {
         // The clock lives in the island now: centered in the bare pill and
         // between the leading/trailing views of a live activity.
         Text {
+          textFormat: Text.PlainText
           anchors.horizontalCenter: parent.horizontalCenter
           y: Math.round((win.s.notchHeight - height) / 2)
           text: win.s.clockText
@@ -696,6 +705,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
             Text {
+              textFormat: Text.PlainText
               width: 20
               horizontalAlignment: Text.AlignHCenter
               anchors.verticalCenter: parent.verticalCenter
@@ -705,6 +715,7 @@ PanelWindow {
               color: win.s.tint(win.lastAlert.tint)
             }
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               text: win.lastAlert.title || ""
               font: alertTitleMetrics.font
@@ -714,6 +725,7 @@ PanelWindow {
             }
           }
           Text {
+            textFormat: Text.PlainText
             anchors.right: parent.right
             anchors.rightMargin: 20
             anchors.verticalCenter: parent.verticalCenter
@@ -739,6 +751,7 @@ PanelWindow {
             height: win.s.pill ? parent.height : parent.height - win.s.notchHeight - 12
 
             Text {
+              textFormat: Text.PlainText
               id: hudIcon
               width: 22
               anchors.verticalCenter: parent.verticalCenter
@@ -749,6 +762,7 @@ PanelWindow {
               color: win.s.tint(win.lastHud.tint)
             }
             Text {
+              textFormat: Text.PlainText
               id: hudValue
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
@@ -811,6 +825,7 @@ PanelWindow {
               width: parent.width
               height: appLabel.implicitHeight
               Text {
+                textFormat: Text.PlainText
                 id: appLabel
                 anchors.left: parent.left
                 anchors.right: nowLabel.left
@@ -823,6 +838,7 @@ PanelWindow {
                 elide: Text.ElideRight
               }
               Text {
+                textFormat: Text.PlainText
                 id: nowLabel
                 anchors.right: parent.right
                 text: "now"
@@ -832,6 +848,7 @@ PanelWindow {
               }
             }
             Text {
+              textFormat: Text.PlainText
               width: parent.width
               text: win.lastNotif.title || ""
               font.family: win.s.textFont
@@ -842,6 +859,7 @@ PanelWindow {
               maximumLineCount: 1
             }
             Text {
+              textFormat: Text.PlainText
               width: parent.width
               visible: text !== ""
               text: win.lastNotif.body || ""

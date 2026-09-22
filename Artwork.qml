@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import "IslandModel.js" as Model
 
 // Rounded album art (or any image) with a glyph fallback.
 Item {
@@ -21,6 +22,7 @@ Item {
     visible: !root.ready
 
     Text {
+      textFormat: Text.PlainText
       anchors.centerIn: parent
       text: root.fallbackGlyph
       font.family: root.glyphFont
@@ -33,7 +35,8 @@ Item {
   Image {
     id: image
     anchors.fill: parent
-    source: root.source
+    // Local files and themed icons only (see Model.localImage).
+    source: Model.localImage(root.source)
     fillMode: Image.PreserveAspectCrop
     asynchronous: true
     cache: true

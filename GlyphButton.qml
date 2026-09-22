@@ -28,6 +28,7 @@ Item {
   }
 
   Text {
+    textFormat: Text.PlainText
     anchors.centerIn: parent
     text: root.glyph
     font.family: root.glyphFont

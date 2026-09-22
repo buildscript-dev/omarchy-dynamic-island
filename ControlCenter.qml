@@ -253,19 +253,19 @@ Item {
     if (btPending[row.address]) return
     if (row.connected) {
       btSetPending(row.address, "disconnecting")
-      Quickshell.execDetached(["omarchy-bluetooth-device", "disconnect", row.address])
+      root.s.fire(["omarchy-bluetooth-device", "disconnect", row.address], 30)
     } else {
       btSetPending(row.address, "connecting")
-      Quickshell.execDetached(["omarchy-bluetooth-device", row.known ? "connect" : "pair", row.address])
+      root.s.fire(["omarchy-bluetooth-device", row.known ? "connect" : "pair", row.address], 90)
     }
   }
   function btForget(row) {
     btSetPending(row.address, "forgetting")
-    Quickshell.execDetached(["omarchy-bluetooth-device", "forget", row.address])
+    root.s.fire(["omarchy-bluetooth-device", "forget", row.address], 30)
   }
   function toggleBluetooth() {
     if (!btAdapter) return
-    Quickshell.execDetached(["omarchy-bluetooth-power", btAdapter.enabled ? "off" : "on"])
+    root.s.fire(["omarchy-bluetooth-power", btAdapter.enabled ? "off" : "on"], 30)
   }
   function btGlyph(icon) {
     if (icon.indexOf("headset") !== -1 || icon.indexOf("headphone") !== -1 || icon.indexOf("audio") !== -1) return "󰋋"
@@ -311,23 +311,23 @@ Item {
   function toggleMic() { if (source && source.audio) source.audio.muted = !source.audio.muted }
   function setSink(n) {
     Pipewire.preferredDefaultAudioSink = n
-    if (n && n.id !== undefined && n.name) Quickshell.execDetached(["omarchy-audio-output-set-default", String(n.id), String(n.name)])
+    if (n && n.id !== undefined && n.name) root.s.fire(["omarchy-audio-output-set-default", String(n.id), String(n.name)], 10)
   }
   function setSource(n) {
     Pipewire.preferredDefaultAudioSource = n
-    if (n && n.id !== undefined && n.name) Quickshell.execDetached(["omarchy-audio-input-set-default", String(n.id), String(n.name)])
+    if (n && n.id !== undefined && n.name) root.s.fire(["omarchy-audio-input-set-default", String(n.id), String(n.name)], 10)
   }
 
   // ================================================================ brightness
   property real brightness: -1
   readonly property string monitorName: win && win.screenName ? win.screenName : ""
-  Process {
+  SafeProcess {
     id: brightRead
     // Always the island's own screen, not wherever the pointer happens to be.
-    command: ["omarchy-brightness-display", "--no-osd", "--monitor", root.monitorName]
+    command: Model.bounded(["omarchy-brightness-display", "--no-osd", "--monitor", root.monitorName], 5, 64)
     stdout: StdioCollector {
       onStreamFinished: {
-        var v = parseInt(String(text || "").trim(), 10)
+        var v = parseInt(String(Model.capped(text, 64) || "").trim(), 10)
         if (isNaN(v) || v <= 0) { if (!brightDebounce.running && !brightSet.running) root.brightness = -1; return }
         if (!brightSet.running && !brightDebounce.running) root.brightness = Model.clamp(v / 100, 0, 1)
       }
@@ -340,37 +340,37 @@ Item {
     interval: 90
     onTriggered: {
       if (brightSet.running) { restart(); return }
-      brightSet.command = ["omarchy-brightness-display", "--no-osd", "--monitor", root.monitorName, Math.round(root.brightTarget * 100) + "%"]
+      brightSet.command = Model.bounded(["omarchy-brightness-display", "--no-osd", "--monitor", root.monitorName, Math.round(root.brightTarget * 100) + "%"], 5, 0)
       brightSet.running = true
     }
   }
-  Process { id: brightSet }
+  SafeProcess { id: brightSet }
 
   // ================================================================ toggles
   property bool nightLight: false
   property bool stayAwake: false
   property string powerProfile: ""
   property var powerProfiles: []
-  Process {
+  SafeProcess {
     id: nightRead
-    command: ["omarchy-toggle-nightlight", "--status"]
-    stdout: StdioCollector { onStreamFinished: { try { root.nightLight = !!JSON.parse(text).enabled } catch (e) {} } }
+    command: Model.bounded(["omarchy-toggle-nightlight", "--status"], 5, 4096)
+    stdout: StdioCollector { onStreamFinished: { try { root.nightLight = !!JSON.parse(Model.capped(text, 4096)).enabled } catch (e) {} } }
   }
-  Process {
+  SafeProcess {
     id: awakeRead
-    command: ["omarchy-toggle-idle", "status"]
-    stdout: StdioCollector { onStreamFinished: { try { root.stayAwake = !!JSON.parse(text).enabled } catch (e) {} } }
+    command: Model.bounded(["omarchy-toggle-idle", "status"], 5, 4096)
+    stdout: StdioCollector { onStreamFinished: { try { root.stayAwake = !!JSON.parse(Model.capped(text, 4096)).enabled } catch (e) {} } }
   }
-  Process {
+  SafeProcess {
     id: profileRead
-    command: ["omarchy-powerprofiles-list", "--active-state"]
+    command: Model.bounded(["omarchy-powerprofiles-list", "--active-state"], 5, 4096)
     stdout: StdioCollector {
       onStreamFinished: {
         var list = [], cur = ""
-        var lines = String(text || "").split("\n")
-        for (var i = 0; i < lines.length; i++) {
+        var lines = String(Model.capped(text, 4096) || "").split("\n")
+        for (var i = 0; i < lines.length && list.length < 8; i++) {
           var p = lines[i].split("\t")
-          if (!p[0]) continue
+          if (!/^[a-z-]{1,32}$/.test(p[0] || "")) continue
           list.push(p[0])
           if (p[1] === "1") cur = p[0]
         }
@@ -380,15 +380,15 @@ Item {
     }
   }
   function refreshToggles() {
-    nightRead.running = true
-    awakeRead.running = true
-    profileRead.running = true
-    brightRead.running = true
+    if (!nightRead.running) nightRead.running = true
+    if (!awakeRead.running) awakeRead.running = true
+    if (!profileRead.running) profileRead.running = true
+    if (!brightRead.running) brightRead.running = true
   }
   onVisibleChanged: if (visible) refreshToggles()
   Timer { interval: 3000; repeat: true; running: root.active; onTriggered: root.refreshToggles() }
   function run(cmd, after) {
-    Quickshell.execDetached(cmd)
+    root.s.fire(cmd, 30)
     if (after) refreshSoon.restart()
   }
   Timer { id: refreshSoon; interval: 700; onTriggered: root.refreshToggles() }
@@ -402,7 +402,7 @@ Item {
   }
   function profileGlyph(p) { return p === "performance" ? "󰓅" : p === "power-saver" ? "󰾆" : "󰾅" }
   function profileLabel(p) { return p === "performance" ? "Performance" : p === "power-saver" ? "Power Saver" : "Balanced" }
-  function toggleDnd() { run(["omarchy-shell", "-q", "notifications", "toggleDnd"], false) }
+  function toggleDnd() { root.s.toggleDnd() }
 
   // Phone mirroring (Taildroid) — driven through its own service.
   readonly property var phone: s.phone
@@ -454,10 +454,19 @@ Item {
     if (root.call && root.call.state === "active") root.phone.tones(k)
     else dialNumber += k
   }
-  Process {
+  SafeProcess {
     id: pasteNumber
-    command: ["wl-paste", "--no-newline"]
-    stdout: StdioCollector { onStreamFinished: root.dialNumber += String(text || "").replace(/[^0-9*#+]/g, "") }
+    command: Model.bounded(["wl-paste", "--no-newline", "--type", "text/plain"], 3, 256)
+    stdout: StdioCollector { onStreamFinished: root.dialNumber = (root.dialNumber + String(Model.capped(text, 256) || "").replace(/[^0-9*#+]/g, "")).slice(0, 32) }
+  }
+  // `island dial <number>` fills the keypad; the call itself takes a click.
+  Connections {
+    target: root.s
+    function onPendingDialChanged() {
+      if (root.s.pendingDial === "" || !root.win.isTarget()) return
+      root.dialNumber = root.s.pendingDial
+      Qt.callLater(function() { root.s.pendingDial = "" })
+    }
   }
   // A phone notification is just the newest line of a chat, so open the chat.
   function activateNotif(n) {
@@ -466,7 +475,7 @@ Item {
       if (c) { root.openThread({ kind: "chat", key: c.key, app: c.app, replyId: c.replyId,
                                  name: c.title, face: c.icon, body: "", date: c.date }); return }
     }
-    if (!root.s.openForApp(n.app)) Quickshell.execDetached(["omarchy-shell", "-q", "notifications", "invokeLast"])
+    if (!root.s.openForApp(n.app)) root.s.fire(["omarchy-shell", "-q", "notifications", "invokeLast"], 10)
   }
   // Every conversation the phone knows about, newest first: real SMS threads,
   // and the chats that only reach this machine as notifications.
@@ -564,6 +573,7 @@ Item {
     textFormat: Text.PlainText
   }
   component Glyph: Text {
+    textFormat: Text.PlainText
     font.family: root.s.iconFont
     font.pixelSize: 16
     color: root.fg
@@ -988,8 +998,9 @@ Item {
         Round { glyph: "󰌵"; on: root.nightLight; accent: root.onColor("orange"); onClicked: root.toggleNight() }
         Round { glyph: "󰅶"; on: root.stayAwake; accent: root.onColor("yellow"); onClicked: root.toggleAwake() }
         Round { glyph: root.profileGlyph(root.powerProfile); visible: root.hasBuds && root.hasPhone; on: root.powerProfile !== "balanced" && root.powerProfile !== ""; accent: root.onColor("orange"); onClicked: root.cycleProfile() }
-        Round { glyph: "󰄀"; onClicked: { root.win.closeControls(); root.run(["omarchy-capture-screenshot"], false) } }
-        Round { glyph: root.s.glyphs.record; on: root.s.recording; accent: root.onColor("red"); onClicked: { root.win.closeControls(); root.run(root.s.recording ? ["omarchy-capture-screenrecording", "--stop-recording"] : ["omarchy-capture-screenrecording"], false) } }
+        // Both run as long as the user takes over them, so no deadline.
+        Round { glyph: "󰄀"; onClicked: { root.win.closeControls(); root.s.launch(["omarchy-capture-screenshot"]) } }
+        Round { glyph: root.s.glyphs.record; on: root.s.recording; accent: root.onColor("red"); onClicked: { root.win.closeControls(); if (root.s.recording) root.s.stopRecording(); else root.s.launch(["omarchy-capture-screenrecording"]) } }
         Round { glyph: "󰐥"; accent: root.onColor("red"); onClicked: root.go("power") }
       }
 
@@ -1013,7 +1024,7 @@ Item {
               height: 18
               sourceSize.width: 36
               sourceSize.height: 36
-              source: trayCell.modelData.icon || ""
+              source: Model.localImage(trayCell.modelData.icon)
               smooth: true
             }
             QsMenuAnchor {
@@ -1119,6 +1130,7 @@ Item {
                     Keys.onEnterPressed: root.wifiConnectWithPassword(wifiCell.modelData.ssid, text)
                     Keys.onEscapePressed: root.cancelPassword()
                     Text {
+                      textFormat: Text.PlainText
                       anchors.verticalCenter: parent.verticalCenter
                       visible: pass.text === ""
                       text: "Password"
@@ -1530,7 +1542,7 @@ Item {
                   onTextEdited: root[modelData[0]] = text
                   Keys.onReturnPressed: root.phone.pair(root.pairAddress, root.pairCode)
                   Keys.onEscapePressed: root.back()
-                  Text { anchors.verticalCenter: parent.verticalCenter; visible: field.text === ""; text: modelData[1]; font: field.font; color: root.dim }
+                  Text { textFormat: Text.PlainText; anchors.verticalCenter: parent.verticalCenter; visible: field.text === ""; text: modelData[1]; font: field.font; color: root.dim }
                 }
               }
             }
@@ -1603,7 +1615,7 @@ Item {
         font.pixelSize: 24
         font.weight: Font.Medium
         Keys.onPressed: function(e) {
-          if (/^[0-9*#+]$/.test(e.text)) { root.keypadPress(e.text); e.accepted = true }
+          if (/^[0-9*#+]$/.test(e.text)) { if (root.dialNumber.length < 32 || root.call) root.keypadPress(e.text); e.accepted = true }
           else if (e.key === Qt.Key_Backspace) { root.dialNumber = root.dialNumber.slice(0, -1); e.accepted = true }
           else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { if (!root.call) root.phone.dial(root.dialNumber); e.accepted = true }
           else if (e.key === Qt.Key_V && (e.modifiers & Qt.ControlModifier)) { pasteNumber.running = true; e.accepted = true }
@@ -1730,7 +1742,7 @@ Item {
           text: root.newRecipient
           onTextEdited: root.newRecipient = text
           Keys.onEscapePressed: root.back()
-          Text { anchors.verticalCenter: parent.verticalCenter; visible: toField.text === ""; text: "To: phone number"; font: toField.font; color: root.dim }
+          Text { textFormat: Text.PlainText; anchors.verticalCenter: parent.verticalCenter; visible: toField.text === ""; text: "To: phone number"; font: toField.font; color: root.dim }
         }
       }
       ListView {
@@ -1780,7 +1792,7 @@ Item {
                   spacing: 4
                   Image {
                     visible: att.file !== "" && att.mime.indexOf("image/") === 0
-                    source: visible ? "file://" + att.file : ""
+                    source: visible ? Model.localImage(att.file) : ""
                     width: bubbleCol.width
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
@@ -1815,7 +1827,10 @@ Item {
                     MouseArea {
                       anchors.fill: parent
                       cursorShape: Qt.PointingHandCursor
-                      onClicked: Quickshell.execDetached(["xdg-open", att.file])
+                      // The handler runs as long as the user keeps it open, so
+                      // it is launched without a deadline — but only for a
+                      // plain local file Taildroid saved, never a URL.
+                      onClicked: { var u = Model.localImage(att.file); if (u !== "") root.s.launch(["xdg-open", u.slice(7)]) }
                     }
                   }
                 }
@@ -1867,6 +1882,7 @@ Item {
             readonly property bool canSend: root.threadInfo.kind !== "chat" || root.threadInfo.replyId !== ""
             enabled: draftField.canSend
             Text {
+              textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               visible: draftField.text === ""
               text: draftField.canSend
@@ -2110,7 +2126,7 @@ Item {
         Repeater {
           model: [
             ["󰌾", "Lock", ["omarchy-system-lock"], ""],
-            ["󰒲", "Sleep", ["systemctl", "suspend"], ""],
+            ["󰒲", "Sleep", ["/usr/bin/systemctl", "suspend"], ""],
             ["󰍃", "Log Out", ["omarchy-system-logout"], "confirm"],
             ["󰜉", "Restart", ["omarchy-system-reboot"], "confirm"],
             ["󰐥", "Shut Down", ["omarchy-system-shutdown"], "confirm"]
@@ -2140,7 +2156,8 @@ Item {
                 if (pw.modelData[3] === "confirm" && !pw.armed) { root.armedAction = pw.modelData[1]; armTimer.restart(); return }
                 root.armedAction = ""
                 root.win.closeControls()
-                root.run(pw.modelData[2], false)
+                if (pw.modelData[1] === "Sleep") root.run(pw.modelData[2], false)
+                else root.s.launch(pw.modelData[2])
               }
             }
           }
