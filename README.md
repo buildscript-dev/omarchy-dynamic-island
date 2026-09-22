@@ -232,12 +232,12 @@ hidden.
 | Plugin | Adds |
 |---|---|
 | [OnePlus Experience](https://github.com/buildscript-dev/omarchy-oneplus-experience) | earbuds page: battery, noise control, EQ · battery and noise-mode alerts |
-| Taildroid (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity |
+| [Taildroid](https://github.com/buildscript-dev/omarchy-taildroid) (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity |
 
-The phone page expects my own Taildroid fork, which adds calls and
-messages. That fork is not published yet, so for now the phone page stays
-hidden for everyone else — nothing breaks, the island simply doesn't show
-it.
+The phone page needs my Taildroid fork, which adds calls and messages to
+[raythurman2386/taildroid](https://github.com/raythurman2386/taildroid).
+Install it the same way, or leave it out: without it the page stays hidden,
+the phone IPC methods answer `no-taildroid`, and nothing else changes.
 
 ## IPC
 
