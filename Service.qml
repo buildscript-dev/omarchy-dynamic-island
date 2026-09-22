@@ -257,6 +257,8 @@ Item {
     artFetch.command = ["sh", "-c",
       "d=\"${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-dynamic-island\"; mkdir -p \"$d\" || exit 1; " +
       "find \"$d\" -type f -mtime +7 -delete 2>/dev/null; " +
+      // A killed fetch leaves its scratch file behind; it is nobody's cache entry.
+      "rm -f \"$d\"/*.part; " +
       "f=\"$d/$(printf %s \"$1\" | md5sum | cut -c1-20).img\"; " +
       // Download to a scratch file: only a whole, small enough image is published.
       "if [ ! -s \"$f\" ]; then p=\"$f.part\"; " +
@@ -267,8 +269,9 @@ Item {
       "[ \"$(wc -c < \"$p\")\" -le " + root.artMaxBytes + " ] || { rm -f \"$p\"; exit 1; }; " +
       "mv -f \"$p\" \"$f\" || { rm -f \"$p\"; exit 1; }; fi; " +
       // Newest first; once the running total passes the cap, the rest goes.
-      "touch \"$f\"; s=0; for g in $(ls -1t \"$d\"/*.img 2>/dev/null); do " +
-      "s=$((s + $(wc -c < \"$g\"))); [ \"$s\" -gt " + root.artCacheMaxBytes + " ] && rm -f \"$g\"; " +
+      "touch \"$f\"; s=0; for g in $(ls -1t \"$d\"/* 2>/dev/null); do " +
+      "[ -f \"$g\" ] || continue; s=$((s + $(wc -c < \"$g\"))); " +
+      "[ \"$s\" -gt " + root.artCacheMaxBytes + " ] && rm -f \"$g\"; " +
       "done; printf %s \"$f\"",
       "sh", trackArt]
     artFetch.running = true
