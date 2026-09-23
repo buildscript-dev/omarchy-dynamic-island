@@ -557,6 +557,11 @@ Item {
   readonly property var buds: s.buds
   readonly property bool hasBuds: !!buds && buds.daemonReachable
   readonly property var budsStatus: buds ? buds.status : null
+  // The lower bud's charge, which is the one that runs out first.
+  function budsLow(st) {
+    var l = [st.left, st.right].filter(function(p) { return p && p.level >= 0 }).map(function(p) { return p.level })
+    return l.length ? Math.min.apply(null, l) + "%" : ""
+  }
   function budsLevel(part) { return part && part.level >= 0 ? part.level + "%" : "–" }
   readonly property var modeNames: ({ smart: "Adaptive", anc: "Noise Cancel", transparency: "Transparency", vocal: "Conversation", off: "Off" })
   readonly property var modeGlyphs: ({ smart: "󰧑", anc: "󰟎", transparency: "󰈈", vocal: "󰗋", off: "󰋋" })
@@ -640,14 +645,20 @@ Item {
     property real value: 0
     property string glyph: ""
     property bool dimmed: false
+    property string trailing: ""
+    property bool trailingIsGlyph: false
     signal moved(real v)
     signal glyphClicked()
+    signal trailingClicked()
     height: 36
+    scale: drag.pressed ? 1.02 : 1
+    Behavior on scale { SpringAnimation { spring: 6; damping: 0.4; epsilon: 0.002 } }
     Rectangle {
       id: track
       anchors.fill: parent
       radius: height / 2
-      color: root.tileOff
+      color: drag.containsMouse ? root.tileHover : root.tileOff
+      Behavior on color { ColorAnimation { duration: 120 } }
       clip: true
       Rectangle {
         width: Math.max(track.height, track.width * Model.clamp(sl.value, 0, 1))
@@ -660,11 +671,13 @@ Item {
     MouseArea {
       id: drag
       anchors.fill: parent
+      hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      readonly property bool onTrailing: sl.trailingIsGlyph
       function apply(mx) { sl.moved(Model.clamp(mx / width, 0, 1)) }
-      onPressed: function(m) { if (m.x < 40) return; apply(m.x) }
+      onPressed: function(m) { if (m.x < 40 || (onTrailing && m.x > width - 40)) return; apply(m.x) }
       onPositionChanged: function(m) { if (pressed && m.x >= 0) apply(m.x) }
-      onClicked: function(m) { if (m.x < 40) sl.glyphClicked() }
+      onClicked: function(m) { if (m.x < 40) sl.glyphClicked(); else if (onTrailing && m.x > width - 40) sl.trailingClicked() }
       onWheel: function(w) { sl.moved(Model.clamp(sl.value + (w.angleDelta.y > 0 ? 0.05 : -0.05), 0, 1)) }
     }
     Glyph {
@@ -673,6 +686,20 @@ Item {
       text: sl.glyph
       font.pixelSize: 17
       color: sl.dimmed ? root.fg : "#000000"
+    }
+    // Right end: a percentage or a small button, in the same place on every slider.
+    Text {
+      textFormat: Text.PlainText
+      anchors.right: parent.right
+      anchors.rightMargin: 14
+      anchors.verticalCenter: parent.verticalCenter
+      text: sl.trailing
+      font.family: sl.trailingIsGlyph ? root.s.iconFont : root.s.textFont
+      font.pixelSize: sl.trailingIsGlyph ? 15 : 11
+      font.weight: Font.DemiBold
+      font.features: { "tnum": 1 }
+      // Dark once the white fill reaches it.
+      color: sl.value > 1 - 44 / Math.max(1, sl.width) ? "#000000" : root.dim
     }
   }
 
@@ -687,14 +714,31 @@ Item {
     width: 42
     height: 42
     Rectangle {
-      anchors.fill: parent
+      id: rbFace
+      width: rb.width
+      height: rb.width
       radius: width / 2
       color: rb.on ? rb.accent : rbMouse.containsMouse ? root.tileHover : root.tileOff
       Behavior on color { ColorAnimation { duration: 140 } }
       scale: rbMouse.pressed ? 0.88 : 1
       Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
     }
-    Glyph { anchors.centerIn: parent; text: rb.glyph; font.pixelSize: 18; color: rb.on ? "#ffffff" : root.fg }
+    Glyph { anchors.centerIn: rbFace; text: rb.glyph; font.pixelSize: 18; color: rb.on ? "#ffffff" : root.fg }
+    // Name on hover: a small pill above the button.
+    Rectangle {
+      visible: rb.hint !== "" && opacity > 0
+      opacity: rbMouse.containsMouse ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 140 } }
+      z: 10
+      anchors.horizontalCenter: rbFace.horizontalCenter
+      anchors.bottom: rbFace.top
+      anchors.bottomMargin: 6
+      width: hintText.implicitWidth + 16
+      height: 22
+      radius: 11
+      color: root.fg
+      Label { id: hintText; anchors.centerIn: parent; text: rb.hint; font.pixelSize: 11; font.weight: Font.Medium; color: "#000000" }
+    }
     MouseArea { id: rbMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: rb.clicked() }
   }
 
@@ -901,6 +945,47 @@ Item {
               Label { id: badge; anchors.centerIn: parent; text: root.s.history.length > 99 ? "99+" : root.s.history.length; font.pixelSize: 10; font.weight: Font.Bold; color: "#ffffff" }
             }
           }
+          // System tray: left click activates, right click opens the app's menu.
+          Repeater {
+            model: root.trayItems
+            delegate: Rectangle {
+              id: trayCell
+              required property var modelData
+              width: 34
+              height: 34
+              radius: 17
+              color: trayMouse.containsMouse ? root.tileHover : root.tileOff
+              Image {
+                anchors.centerIn: parent
+                width: 18
+                height: 18
+                sourceSize.width: 36
+                sourceSize.height: 36
+                source: Model.localImage(trayCell.modelData.icon)
+                smooth: true
+              }
+              QsMenuAnchor {
+                id: trayMenu
+                menu: trayCell.modelData.menu
+                anchor.item: trayCell
+                anchor.edges: Edges.Bottom
+                anchor.gravity: Edges.Bottom
+              }
+              MouseArea {
+                id: trayMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                cursorShape: Qt.PointingHandCursor
+                onClicked: function(m) {
+                  var it = trayCell.modelData
+                  if (m.button === Qt.MiddleButton) it.secondaryActivate()
+                  else if (m.button === Qt.RightButton || it.onlyMenu) { if (it.hasMenu) trayMenu.open() }
+                  else it.activate()
+                }
+              }
+            }
+          }
           Round { width: 34; height: 34; glyph: "󰃭"; onClicked: root.go("calendar") }
         }
       }
@@ -930,7 +1015,7 @@ Item {
           glyph: "󱡏"
           title: root.budsStatus && root.budsStatus.deviceName ? root.budsStatus.deviceName : "Earbuds"
           subtitle: !root.budsStatus || !root.budsStatus.connected ? "Not connected"
-            : "L " + root.budsLevel(root.budsStatus.left) + " · R " + root.budsLevel(root.budsStatus.right) + " · " + (root.modeNames[root.budsStatus.noiseMode] || "")
+            : [root.budsLow(root.budsStatus), root.modeNames[root.budsStatus.noiseMode] || ""].filter(function(x) { return x }).join(" · ")
           on: !!(root.budsStatus && root.budsStatus.connected)
           accent: root.onColor("blue")
           onToggled: root.buds.toggleConnection()
@@ -961,95 +1046,41 @@ Item {
         }
       }
 
-      Item {
+      FatSlider {
         width: parent.width
-        height: 36
-        FatSlider {
-          anchors.left: parent.left
-          anchors.right: audioBtn.left
-          anchors.rightMargin: 8
-          value: root.muted ? 0 : root.volume
-          glyph: root.muted || root.volume <= 0 ? "󰝟" : root.volume < 0.34 ? "󰕿" : root.volume < 0.67 ? "󰖀" : "󰕾"
-          onMoved: function(v) { root.setVolume(v) }
-          onGlyphClicked: root.toggleMute()
-        }
-        Rectangle {
-          id: audioBtn
-          anchors.right: parent.right
-          width: 36
-          height: 36
-          radius: 18
-          color: audioMouse.containsMouse ? root.tileHover : root.tileOff
-          Glyph { anchors.centerIn: parent; text: "󰓃"; font.pixelSize: 16 }
-          MouseArea { id: audioMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.go("audio") }
-        }
+        value: root.muted ? 0 : root.volume
+        glyph: root.muted || root.volume <= 0 ? "󰝟" : root.volume < 0.34 ? "󰕿" : root.volume < 0.67 ? "󰖀" : "󰕾"
+        trailing: "󰓃"
+        trailingIsGlyph: true
+        onMoved: function(v) { root.setVolume(v) }
+        onGlyphClicked: root.toggleMute()
+        onTrailingClicked: root.go("audio")
       }
       FatSlider {
         visible: root.brightness >= 0
         width: parent.width
         value: root.brightness
         glyph: root.brightness < 0.5 ? root.s.glyphs.brightLow : root.s.glyphs.brightHigh
+        trailing: Math.round(root.brightness * 100) + "%"
         onMoved: function(v) { root.setBrightness(v) }
       }
 
       Row {
         spacing: Math.floor((root.innerWidth - 42 * visibleChildren.length) / Math.max(1, visibleChildren.length - 1))
-        Round { glyph: root.s.glyphs.moon; on: root.s.dnd; accent: root.onColor("indigo"); onClicked: root.toggleDnd() }
-        Round { glyph: "󰌵"; on: root.nightLight; accent: root.onColor("orange"); onClicked: root.toggleNight() }
-        Round { glyph: "󰅶"; on: root.stayAwake; accent: root.onColor("yellow"); onClicked: root.toggleAwake() }
-        Round { glyph: root.profileGlyph(root.powerProfile); visible: root.hasBuds && root.hasPhone; on: root.powerProfile !== "balanced" && root.powerProfile !== ""; accent: root.onColor("orange"); onClicked: root.cycleProfile() }
+        Round { glyph: root.s.glyphs.moon; on: root.s.dnd; accent: root.onColor("indigo"); onClicked: root.toggleDnd(); hint: "Focus" }
+        Round { glyph: "󰌵"; on: root.nightLight; accent: root.onColor("orange"); onClicked: root.toggleNight(); hint: "Night" }
+        Round { glyph: "󰅶"; on: root.stayAwake; accent: root.onColor("yellow"); onClicked: root.toggleAwake(); hint: "Awake" }
+        Round { glyph: root.profileGlyph(root.powerProfile); visible: root.hasBuds && root.hasPhone; on: root.powerProfile !== "balanced" && root.powerProfile !== ""; accent: root.onColor("orange"); onClicked: root.cycleProfile(); hint: root.profileLabel(root.powerProfile) }
         // Both run as long as the user takes over them, so no deadline.
-        Round { glyph: "󰄀"; onClicked: { root.win.closeControls(); root.s.launch(["omarchy-capture-screenshot"]) } }
-        Round { glyph: root.s.glyphs.record; on: root.s.recording; accent: root.onColor("red"); onClicked: { root.win.closeControls(); if (root.s.recording) root.s.stopRecording(); else root.s.launch(["omarchy-capture-screenrecording"]) } }
-        Round { glyph: "󰐥"; accent: root.onColor("red"); onClicked: root.go("power") }
+        Round { glyph: "󰄀"; onClicked: { root.win.closeControls(); root.s.launch(["omarchy-capture-screenshot"]) }
+          hint: "Screenshot"
+        }
+        Round { glyph: root.s.glyphs.record; on: root.s.recording; accent: root.onColor("red"); onClicked: { root.win.closeControls(); if (root.s.recording) root.s.stopRecording(); else root.s.launch(["omarchy-capture-screenrecording"]) }
+          hint: "Record"
+        }
+        Round { glyph: "󰐥"; accent: root.onColor("red"); onClicked: root.go("power"); hint: "Power" }
       }
 
-      // System tray: left click activates, right click opens the app's menu.
-      Flow {
-        visible: root.trayItems.length > 0
-        width: parent.width
-        spacing: 6
-        Repeater {
-          model: root.trayItems
-          delegate: Rectangle {
-            id: trayCell
-            required property var modelData
-            width: 34
-            height: 34
-            radius: 12
-            color: trayMouse.containsMouse ? root.tileHover : root.tileOff
-            Image {
-              anchors.centerIn: parent
-              width: 18
-              height: 18
-              sourceSize.width: 36
-              sourceSize.height: 36
-              source: Model.localImage(trayCell.modelData.icon)
-              smooth: true
-            }
-            QsMenuAnchor {
-              id: trayMenu
-              menu: trayCell.modelData.menu
-              anchor.item: trayCell
-              anchor.edges: Edges.Bottom
-              anchor.gravity: Edges.Bottom
-            }
-            MouseArea {
-              id: trayMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-              cursorShape: Qt.PointingHandCursor
-              onClicked: function(m) {
-                var it = trayCell.modelData
-                if (m.button === Qt.MiddleButton) it.secondaryActivate()
-                else if (m.button === Qt.RightButton || it.onlyMenu) { if (it.hasMenu) trayMenu.open() }
-                else it.activate()
-              }
-            }
-          }
-        }
-      }
     }
 
     // ------------------------------------------------ Wi-Fi
@@ -1477,7 +1508,7 @@ Item {
         Round { glyph: "󰉏"; hint: "Photos"; onClicked: root.phone.photos() }
         Round { glyph: "󰍹"; hint: "DeX"; onClicked: root.phone.openDex() }
         Round { glyph: "󰄀"; hint: "Webcam"; onClicked: root.phone.webcam() }
-        Round { glyph: "󰅌"; hint: "Send clipboard"; onClicked: root.phone.sendClipboard() }
+        Round { glyph: "󰅌"; hint: "Clipboard"; onClicked: root.phone.sendClipboard() }
         Round { glyph: "󰀂"; hint: "Hotspot"; on: !!root.ps.hotspot; accent: root.onColor("green"); onClicked: root.phone.phonedSend({ cmd: "hotspot" }) }
         Round { glyph: "\u{F009E}"; hint: "Find phone"; accent: root.onColor("orange"); onClicked: root.phone.ring() }
       }
