@@ -1,9 +1,10 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import "IslandModel.js" as Model
 
 // The opened island. Top strip sits in the notch row (player / date on the
-// left, battery on the right, the "camera" gap in the middle). Below it: the
+// left, privacy dots + waveform on the right, the "camera" gap in the middle). Below it: the
 // Now Playing card when something plays, otherwise a glanceable home view
 // with the clock, this week, and quick timers.
 Item {
@@ -11,7 +12,7 @@ Item {
 
   property var s: null
   property bool active: false
-  signal controlsClicked()
+  signal outputClicked()
 
   readonly property int pad: 22
   readonly property int stripHeight: s.notchHeight
@@ -30,16 +31,17 @@ Item {
       Artwork {
         visible: root.s.hasMedia && root.s.playerIcon !== ""
         anchors.verticalCenter: parent.verticalCenter
-        width: 14
-        height: 14
-        radius: 3
+        width: 16
+        height: 16
+        radius: 4
         source: root.s.playerIcon
         fallbackColor: "transparent"
       }
       Text {
         textFormat: Text.PlainText
+        visible: !root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.hasMedia ? (root.s.playerName || "Now Playing") : Qt.formatDateTime(root.s.now, "ddd d MMM")
+        text: Qt.formatDateTime(root.s.now, "ddd d MMM")
         font.family: root.s.textFont
         font.pixelSize: 12
         font.weight: Font.Medium
@@ -86,33 +88,26 @@ Item {
         font.pixelSize: 12
         color: root.s.tint("indigo")
       }
-      Text {
-        textFormat: Text.PlainText
-        visible: root.s.hasBattery
+      Waveform {
+        visible: root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.batteryPercent + "%"
-        font.family: root.s.textFont
-        font.pixelSize: 12
-        font.weight: Font.Medium
-        color: root.s.secondaryText
-      }
-      Text {
-        textFormat: Text.PlainText
-        visible: root.s.hasBattery
-        anchors.verticalCenter: parent.verticalCenter
-        text: Model.batteryGlyph(root.s.batteryPercent, root.s.charging)
-        font.family: root.s.iconFont
-        font.pixelSize: 15
-        color: root.s.charging ? root.s.tint("green") : root.s.batteryPercent <= 20 ? root.s.tint("red") : root.s.textColor
-      }
-      // Opens the Control Center (Wi-Fi, Bluetooth, sound, power…).
-      GlyphButton {
-        anchors.verticalCenter: parent.verticalCenter
-        glyph: "󰕮"
-        glyphFont: root.s.iconFont
-        glyphSize: 13
-        color: root.s.textColor
-        onClicked: root.controlsClicked()
+        height: 16
+        bars: 6
+        barWidth: 2.6
+        spacing: 2.2
+        playing: root.s.isPlaying && root.active
+        color: root.s.mediaAccent
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          shadowEnabled: true
+          shadowColor: root.s.mediaAccent
+          shadowBlur: 0.9
+          shadowScale: 1.15
+          shadowHorizontalOffset: 0
+          shadowVerticalOffset: 0
+          shadowOpacity: root.s.isPlaying ? 1 : 0
+          Behavior on shadowOpacity { NumberAnimation { duration: 300 } }
+        }
       }
     }
   }
@@ -148,8 +143,7 @@ Item {
     Column {
       anchors.left: art.right
       anchors.leftMargin: 14
-      anchors.right: wave.left
-      anchors.rightMargin: 12
+      anchors.right: parent.right
       anchors.verticalCenter: art.verticalCenter
       spacing: 2
 
@@ -183,19 +177,6 @@ Item {
         color: Qt.rgba(root.s.textColor.r, root.s.textColor.g, root.s.textColor.b, 0.38)
         elide: Text.ElideRight
       }
-    }
-
-    Waveform {
-      id: wave
-      anchors.right: parent.right
-      anchors.top: art.top
-      anchors.topMargin: 4
-      height: 22
-      bars: 6
-      barWidth: 3
-      spacing: 2.5
-      playing: root.s.isPlaying && root.active
-      color: root.s.mediaAccent
     }
 
     // Progress: elapsed · scrubber · remaining.
@@ -273,6 +254,7 @@ Item {
     }
 
     Row {
+      id: transport
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.bottom: parent.bottom
       spacing: 26
@@ -306,6 +288,19 @@ Item {
         enabledState: root.s.player && root.s.player.canGoNext
         onClicked: root.s.mediaNext()
       }
+    }
+
+    // Sound output picker (and the earbuds' modes when they're connected).
+    GlyphButton {
+      anchors.right: parent.right
+      anchors.rightMargin: -8
+      anchors.verticalCenter: transport.verticalCenter
+      glyph: root.s.budsConnected ? "󱡏" : "󰓃"
+      glyphFont: root.s.iconFont
+      glyphSize: 16
+      color: root.s.budsConnected ? root.s.tint("blue") : root.s.secondaryText
+      hoverFill: root.s.controlFill
+      onClicked: root.outputClicked()
     }
   }
 

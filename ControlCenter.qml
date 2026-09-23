@@ -1241,6 +1241,14 @@ Item {
           id: audioList
           width: parent.width
           spacing: 2
+          Row2 {
+            visible: !!(root.budsStatus && root.budsStatus.connected)
+            glyph: "󱡏"
+            title: root.budsStatus && root.budsStatus.deviceName ? root.budsStatus.deviceName : "Earbuds"
+            subtitle: root.budsStatus ? (root.modeNames[root.budsStatus.noiseMode] || "Earbud settings") : ""
+            trailing: "󰅂"
+            onClicked: root.go("buds")
+          }
           SectionTitle { text: "OUTPUT" }
           Repeater {
             model: root.sinks

@@ -885,7 +885,7 @@ PanelWindow {
             anchors.fill: parent
             s: win.s
             active: win.mode === "expanded"
-            onControlsClicked: win.openControls("main")
+            onOutputClicked: win.openControls("audio")
           }
         }
 
