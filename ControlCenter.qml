@@ -558,8 +558,8 @@ Item {
   readonly property bool hasBuds: !!buds && buds.daemonReachable
   readonly property var budsStatus: buds ? buds.status : null
   function budsLevel(part) { return part && part.level >= 0 ? part.level + "%" : "–" }
-  readonly property var modeNames: ({ anc: "Noise Cancel", smart: "Smart ANC", transparency: "Transparency", off: "Off" })
-  readonly property var modeGlyphs: ({ anc: "󰟎", smart: "󰧑", transparency: "󰈈", off: "󰋋" })
+  readonly property var modeNames: ({ smart: "Adaptive", anc: "Noise Cancel", transparency: "Transparency", vocal: "Conversation", off: "Off" })
+  readonly property var modeGlyphs: ({ smart: "󰧑", anc: "󰟎", transparency: "󰈈", vocal: "󰗋", off: "󰋋" })
 
   // ================================================================ tray
   readonly property var trayItems: SystemTray.items ? SystemTray.items.values : []
@@ -1387,6 +1387,39 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             on: !!root.budsStatus.features[modelData]
             onToggled: root.buds.setFeature(modelData, !on)
+          }
+        }
+      }
+      // Transparency on calls and after music pauses (the buds' own daemon decides).
+      Item {
+        visible: !!(root.budsStatus && root.budsStatus.linked && root.buds.setAuto)
+        width: root.innerWidth
+        height: 32
+        Label { anchors.verticalCenter: parent.verticalCenter; text: "Automatic switching" }
+        Switch {
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          on: !!(root.budsStatus && root.budsStatus.auto)
+          onToggled: root.buds.setAuto(!on)
+        }
+      }
+      // Which modes "next mode" steps through; tap to add or drop one.
+      SectionTitle { text: "CYCLE"; visible: !!(root.budsStatus && root.budsStatus.linked && root.buds.toggleCycle) }
+      Flow {
+        visible: !!(root.budsStatus && root.budsStatus.linked && root.buds.toggleCycle)
+        width: root.innerWidth
+        spacing: 6
+        Repeater {
+          model: root.budsStatus ? root.budsStatus.modes : []
+          delegate: Rectangle {
+            required property var modelData
+            readonly property bool sel: (root.budsStatus.cycle || []).indexOf(modelData) >= 0
+            width: cycText.implicitWidth + 24
+            height: 30
+            radius: 15
+            color: sel ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.9) : root.tileOff
+            Label { id: cycText; anchors.centerIn: parent; text: root.modeNames[modelData] || modelData; font.pixelSize: 12; color: sel ? "#000000" : root.fg }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.buds.toggleCycle(modelData) }
           }
         }
       }

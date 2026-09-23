@@ -886,8 +886,8 @@ Item {
   readonly property var buds: budsLoader.item
   readonly property bool budsConnected: !!(buds && buds.status && buds.status.connected)
   readonly property string budsName: buds && buds.status && buds.status.deviceName ? buds.status.deviceName : "Earbuds"
-  readonly property var budsModeNames: ({ anc: "Noise Cancellation", smart: "Smart ANC", transparency: "Transparency", off: "Noise Control Off" })
-  readonly property var budsModeGlyphs: ({ anc: "󰟎", smart: "󰧑", transparency: "󰈈", off: "󰋋" })
+  readonly property var budsModeNames: ({ smart: "Adaptive", anc: "Noise Cancellation", transparency: "Transparency", vocal: "Conversation", off: "Noise Control Off" })
+  readonly property var budsModeGlyphs: ({ smart: "󰧑", anc: "󰟎", transparency: "󰈈", vocal: "󰗋", off: "󰋋" })
   function budsPart(p) { return p && p.level >= 0 ? p.level + "%" : "–" }
   // AirPods-style: a pill with both buds' battery when they connect, and a
   // quick confirmation when the noise mode changes (from here, the buds or the phone).
