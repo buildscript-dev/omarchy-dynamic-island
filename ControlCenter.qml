@@ -910,11 +910,69 @@ Item {
       // Date and time on the left; notifications, calendar and updates on the right.
       Item {
         width: parent.width
-        height: 40
+        height: 52
         Column {
           anchors.verticalCenter: parent.verticalCenter
-          Label { text: root.s.clockText; font.pixelSize: 22; font.weight: Font.Bold; font.features: { "tnum": 1 } }
-          Label { text: Qt.formatDateTime(root.s.now, "dddd, d MMMM") + (root.s.weatherText ? "  ·  " + root.s.weatherText : ""); font.pixelSize: 11; color: root.dim }
+          spacing: 0
+          // Lock-screen order: a small date line over a large, light time.
+          Label {
+            text: Qt.formatDateTime(root.s.now, "dddd d MMMM") + (root.s.weatherText ? "  ·  " + root.s.weatherText : "")
+            font.pixelSize: 10
+            font.weight: Font.DemiBold
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 0.8
+            color: root.dim
+          }
+          Row {
+            spacing: 12
+            Label {
+              id: ccClock
+              text: root.s.clockText
+              font.pixelSize: 30
+              font.weight: Font.Light
+              font.letterSpacing: -0.5
+              font.features: { "tnum": 1 }
+            }
+            // iOS battery: a capsule that fills with the charge, percentage beside it.
+            Row {
+              visible: root.s.hasBattery
+              anchors.verticalCenter: ccClock.verticalCenter
+              anchors.verticalCenterOffset: 2
+              spacing: 6
+              readonly property color level: root.s.charging ? root.onColor("green") : root.s.batteryPercent <= 20 ? root.onColor("red") : root.fg
+              Item {
+                width: 27
+                height: 13
+                anchors.verticalCenter: parent.verticalCenter
+                Rectangle {
+                  id: cell
+                  width: 24
+                  height: 13
+                  radius: 4
+                  color: "transparent"
+                  border.width: 1
+                  border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.4)
+                  Rectangle {
+                    x: 2; y: 2
+                    width: Math.max(2, (parent.width - 4) * Model.clamp(root.s.batteryPercent / 100, 0, 1))
+                    height: parent.height - 4
+                    radius: 2
+                    color: parent.parent.parent.level
+                  }
+                }
+                Rectangle { x: 25; anchors.verticalCenter: cell.verticalCenter; width: 2; height: 5; radius: 1; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.4) }
+              }
+              Glyph { visible: root.s.charging; anchors.verticalCenter: parent.verticalCenter; text: "󱐋"; font.pixelSize: 12; color: parent.level }
+              Label {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.s.batteryPercent + "%"
+                font.pixelSize: 12
+                font.weight: Font.DemiBold
+                font.features: { "tnum": 1 }
+                color: parent.level
+              }
+            }
+          }
         }
         Row {
           anchors.right: parent.right
