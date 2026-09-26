@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
@@ -515,14 +516,20 @@ PanelWindow {
         width: parent.width
         height: parent.height
 
-        // iPhone bubble: one rounded rectangle, fully round while it's small.
-        Rectangle {
+        // iPhone bubble: fully round while it's small; opened up, its corners
+        // are continuous-curvature (squircle) like iOS, not circular arcs.
+        Shape {
           visible: win.s.pill
           width: Math.max(0, win.bw)
           height: Math.max(0, win.bh)
-          radius: Math.min(win.brb, height / 2)
-          color: win.s.islandColor
-          Behavior on color { ColorAnimation { duration: 300 } }
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            id: bubblePath
+            strokeWidth: -1
+            fillColor: win.s.islandColor
+            Behavior on fillColor { ColorAnimation { duration: 300 } }
+            PathSvg { path: Model.squirclePath(win.bw, win.bh, win.brb, 0.6) }
+          }
         }
 
         NotchShape {

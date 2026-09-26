@@ -441,3 +441,44 @@ function lyricAt(lines, pos) {
   for (var i = 0; i < lines.length && lines[i].t <= pos; i++) cur = lines[i].text
   return cur
 }
+
+// SVG path of a w x h rectangle with continuous-curvature ("squircle")
+// corners, as iOS draws them: Figma's corner smoothing (0.6 is iOS). Where
+// the radius runs out of room the smoothing shrinks, so a capsule stays an
+// exact capsule.
+function squirclePath(w, h, r, smoothing) {
+  w = Math.max(0, w); h = Math.max(0, h)
+  var budget = Math.min(w, h) / 2
+  r = Math.max(0, Math.min(r, budget))
+  var s = Math.max(0, smoothing || 0)
+  var p = (1 + s) * r
+  if (p > budget) { s = r > 0 ? Math.max(0, Math.min(s, budget / r - 1)) : 0; p = Math.min(p, budget) }
+  var rad = Math.PI / 180
+  var arcMeasure = 90 * (1 - s)
+  var arc = Math.sin(arcMeasure / 2 * rad) * r * Math.SQRT2
+  var alpha = (90 - arcMeasure) / 2
+  var p34 = r * Math.tan(alpha / 2 * rad)
+  var beta = 45 * s
+  var c = p34 * Math.cos(beta * rad)
+  var d = c * Math.tan(beta * rad)
+  var b = Math.max(0, (p - arc - c - d) / 3)
+  var a = 2 * b
+  function n(v) { return (Math.round(v * 100) / 100).toString() }
+  var abc = a + b + c, bc = b + c
+  return "M " + n(w - p) + " 0" +
+    " c " + n(a) + " 0 " + n(a + b) + " 0 " + n(abc) + " " + n(d) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(arc) + " " + n(arc) +
+    " c " + n(d) + " " + n(c) + " " + n(d) + " " + n(bc) + " " + n(d) + " " + n(abc) +
+    " L " + n(w) + " " + n(h - p) +
+    " c 0 " + n(a) + " 0 " + n(a + b) + " " + n(-d) + " " + n(abc) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(-arc) + " " + n(arc) +
+    " c " + n(-c) + " " + n(d) + " " + n(-bc) + " " + n(d) + " " + n(-abc) + " " + n(d) +
+    " L " + n(p) + " " + n(h) +
+    " c " + n(-a) + " 0 " + n(-(a + b)) + " 0 " + n(-abc) + " " + n(-d) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(-arc) + " " + n(-arc) +
+    " c " + n(-d) + " " + n(-c) + " " + n(-d) + " " + n(-bc) + " " + n(-d) + " " + n(-abc) +
+    " L 0 " + n(p) +
+    " c 0 " + n(-a) + " 0 " + n(-(a + b)) + " " + n(d) + " " + n(-abc) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(arc) + " " + n(-arc) +
+    " c " + n(c) + " " + n(-d) + " " + n(bc) + " " + n(-d) + " " + n(abc) + " " + n(-d) + " Z"
+}
