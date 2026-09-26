@@ -341,6 +341,11 @@ PanelWindow {
           if (mouse.button === Qt.MiddleButton) { win.s.mediaToggle(); return }
           if (m === "controls" || m === "incoming") return
           if (m === "compact" && win.s.live === "call") { win.openControls("call"); return }
+          if (m === "alert" && win.t && win.t.source === "alarm-ring") {
+            if (mouse.button === Qt.RightButton) win.s.snoozeAlarm()
+            else win.s.stopAlarm()
+            return
+          }
           if (mouse.button === Qt.RightButton && m !== "notification") {
             if (win.t) win.s.finishActivity()
             win.openControls("main")

@@ -407,6 +407,14 @@ function nextAlarm(hhmm, nowMs) {
   return d.getTime()
 }
 
+// A saved alarm (epoch ms as text) if it is still ahead and within a day.
+function restoredAlarm(text, nowMs) {
+  var t = String(text || "").trim()
+  if (!/^\d{1,15}$/.test(t)) return 0
+  var at = Number(t)
+  return at > nowMs && at - nowMs <= 24 * 3600 * 1000 ? at : 0
+}
+
 function clockText(ms) {
   var d = new Date(ms)
   return (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()

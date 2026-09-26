@@ -266,7 +266,7 @@ Only the plugin folder. It declares:
    the island's width, so bar widgets flow around it like the macOS menu bar.
 
 It installs no systemd units and never edits your configuration. The only
-file it writes is the current album-art image in
+files it writes are the current album-art image and the alarm time, both in
 `/run/user/<uid>/omarchy-dynamic-island` (see [Network use](#network-use)).
 Removing an entry from the Control Center's notification list deletes that
 entry from Omarchy's own history folder, as Omarchy's panel does. Everything else is the two optional config
@@ -328,8 +328,10 @@ omarchy-shell island timer 300           # start a 5-minute timer
 omarchy-shell island timerCancel
 omarchy-shell island stopwatch           # start / pause the stopwatch
 omarchy-shell island stopwatchReset
-omarchy-shell island alarm 7:30          # next time the clock reads 7:30 (24-hour); kept until the shell restarts
+omarchy-shell island alarm 7:30          # next time the clock reads 7:30 (24-hour); survives a shell restart, not a reboot
 omarchy-shell island alarmCancel
+omarchy-shell island alarmStop           # a ringing alarm: stop (or click the pill)
+omarchy-shell island alarmSnooze         # a ringing alarm: 9 more minutes (or right-click the pill)
 omarchy-shell island alert "<glyph>" "Title" "Value"
 omarchy-shell island hud volume 40
 omarchy-shell island notify "Title" "Body"

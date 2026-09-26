@@ -300,7 +300,7 @@ Item {
   // Album art never goes straight into an Image: the shell would fetch or
   // decode whatever the player named. It is copied into a private directory
   // first — /run/user/<uid> is root-created, per-user and 0700, and the island
-  // keeps exactly one image there — and only that copy is drawn and tinted.
+  // keeps exactly one image there (plus the alarm time) — and only that copy is drawn and tinted.
   // Remote art (Spotify and other streamers) is downloaded under the
   // onlineExtras switch; local art (browsers, mpv) is copied the same way.
   // Either way the file is capped at 4 MB by the kernel while it is written
@@ -322,7 +322,7 @@ Item {
     // A new name per track, so the Image and the quantizer see a new URL.
     "f=\"$d/$(printf %s \"$1\" | /usr/bin/md5sum | /usr/bin/cut -c1-20).img\"; " +
     "/usr/bin/mv -f -- \"$t\" \"$f\" || exit 1; " +
-    "/usr/bin/find \"$d\" -maxdepth 1 -type f ! -name \"${f##*/}\" -delete; printf %s \"$f\""
+    "/usr/bin/find \"$d\" -maxdepth 1 -type f \\( -name \"*.img\" ! -name \"${f##*/}\" -o -name \"art.*\" -mmin +1 \\) -delete; printf %s \"$f\""
   property string artLocal: ""
   onTrackArtChanged: fetchArt()
   Component.onCompleted: fetchArt()
@@ -465,16 +465,42 @@ Item {
   function resetStopwatch() { stopwatchSince = 0; stopwatchHeld = -1 }
 
   // ------------------------------------------------------------ alarm
-  // ponytail: one alarm, kept in memory only; a shell restart forgets it. Persist it if people rely on it to wake up.
+  // One alarm. Its time is kept in the private run directory (the same 0700
+  // one as the album art), so it survives a shell restart. A reboot clears
+  // /run/user, and a sleeping laptop could not ring anyway.
+  // When it goes off it rings until stopped, like a phone: click the pill to
+  // stop, right-click to snooze 9 minutes. Other activities wait behind it
+  // (see pushActivity). It gives up after 5 minutes.
   property real alarmAt: 0          // epoch ms; 0 = none
+  property bool alarmRinging: false
+  property real alarmRingSince: 0
+  readonly property string alarmDir: "d=\"/run/user/$UID/omarchy-dynamic-island\"; f=\"$d/alarm\"; "
   function setAlarm(hhmm) {
     var at = Model.nextAlarm(hhmm, Date.now())
     if (!at) return false
-    alarmAt = at
+    armAlarm(at)
     pushActivity({ kind: "alert", source: "alarm", icon: glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 1600 })
     return true
   }
-  function cancelAlarm() { alarmAt = 0 }
+  function armAlarm(at) { alarmAt = at; saveAlarm() }
+  function cancelAlarm() { alarmAt = 0; saveAlarm() }
+  function saveAlarm() {
+    root.fire(["bash", "-c", root.alarmDir + "umask 077; /usr/bin/mkdir -p -m 700 -- \"$d\" 2>/dev/null; " +
+      "[ -d \"$d\" ] && [ ! -L \"$d\" ] && [ -O \"$d\" ] || exit 1; " +
+      "if [ \"$1\" = 0 ]; then /usr/bin/rm -f -- \"$f\"; else [ ! -L \"$f\" ] && printf %s \"$1\" > \"$f\"; fi",
+      "alarm", String(Math.round(root.alarmAt))], 5)
+  }
+  SafeProcess {
+    running: true
+    command: Model.bounded(["bash", "-c", root.alarmDir + "[ -f \"$f\" ] && [ ! -L \"$f\" ] && exec /usr/bin/cat -- \"$f\""], 3, 32)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var at = Model.restoredAlarm(Model.capped(text, 32), Date.now())
+        if (at) root.alarmAt = at
+        else if (text !== "") root.saveAlarm()   // stale: it went off while the shell was down
+      }
+    }
+  }
   Timer {
     interval: 1000
     repeat: true
@@ -482,8 +508,33 @@ Item {
     onTriggered: {
       if (Date.now() < root.alarmAt) return
       var at = root.alarmAt
-      root.alarmAt = 0
-      root.pushActivity({ kind: "alert", source: "alarm-done", icon: root.glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 10000 })
+      root.cancelAlarm()
+      root.pushActivity({ kind: "alert", source: "alarm-ring", icon: root.glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 30000 })
+      activityTimer.stop()          // held until stopped, snoozed or replaced
+      root.alarmRingSince = Date.now()
+      root.alarmRinging = true
+    }
+  }
+  function stopAlarm() {
+    if (!alarmRinging) return
+    alarmRinging = false
+    if (activity && activity.source === "alarm-ring") finishActivity()
+  }
+  function snoozeAlarm() {
+    if (!alarmRinging) return false
+    stopAlarm()
+    armAlarm(Date.now() + 9 * 60000)
+    return true
+  }
+  onActivityChanged: if (alarmRinging && (!activity || activity.source !== "alarm-ring")) alarmRinging = false
+  // ponytail: a stop lets the current 6 s sound finish; kill pw-play if that bothers anyone.
+  Timer {
+    interval: 6500
+    repeat: true
+    running: root.alarmRinging
+    triggeredOnStart: true
+    onTriggered: {
+      if (Date.now() - root.alarmRingSince > 5 * 60000) { root.stopAlarm(); return }
       root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"], 15)
     }
   }
@@ -853,6 +904,13 @@ Item {
       value: Model.clip(t.value, 60), body: Model.clip(t.body, 2000),
       duration: Model.clamp(Number(t.duration) || 2500, 500, 30000)
     })
+    // A ringing alarm keeps the island until someone acts on it: the rest
+    // waits behind it, and a volume or brightness pill is skipped (the key
+    // itself still works).
+    if (alarmRinging && t.source !== "alarm-ring") {
+      if (t.kind !== "hud") queue = queue.concat([t]).slice(-6)
+      return
+    }
     if (activity && activity.source === t.source && t.kind === activity.kind) {
       activity = t
       activityTimer.interval = t.duration
@@ -900,7 +958,7 @@ Item {
     }
   }
   function holdActivity(hold) {
-    if (!activity) return
+    if (!activity || activity.source === "alarm-ring") return
     if (hold) activityTimer.stop()
     else { activityTimer.interval = 1500; activityTimer.restart() }
   }
@@ -1321,7 +1379,7 @@ Item {
         activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
         queued: root.queue.length,
         media: { playing: root.isPlaying, player: root.playerName, lyrics: root.lyrics.length },
-        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
+        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", alarmRinging: root.alarmRinging, recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
         shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, font: root.textFont, notchHeight: root.notchHeight
@@ -1377,6 +1435,8 @@ Item {
     function stopwatchReset(): string { root.resetStopwatch(); return "ok" }
     function alarm(hhmm: string): string { return root.setAlarm(hhmm) ? "ok" : "bad-time" }
     function alarmCancel(): string { root.cancelAlarm(); return "ok" }
+    function alarmStop(): string { root.stopAlarm(); return "ok" }
+    function alarmSnooze(): string { return root.snoozeAlarm() ? "ok" : "not-ringing" }
     function alert(icon: string, title: string, value: string): string {
       root.pushActivity({ kind: "alert", source: "ipc-alert", icon: Model.clip(icon, 4), tint: "white",
         title: Model.clip(title, 60), value: Model.clip(value, 24), duration: 2500 })
