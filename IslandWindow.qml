@@ -140,9 +140,10 @@ PanelWindow {
       radius: 4.5
       color: win.s.tint(act.tone)
     }
-    // A waiting call and a running recording both blink their mark.
+    // A waiting call and a running recording both blink their mark. Only
+    // while shown: a running animation redraws the window every frame.
     SequentialAnimation {
-      running: act.pulsing
+      running: act.pulsing && act.shown
       loops: Animation.Infinite
       onStopped: { lead.opacity = 1; leadDot.opacity = 1 }
       NumberAnimation { targets: [lead, leadDot]; property: "opacity"; to: 0.35; duration: act.pulseMs; easing.type: Easing.InOutSine }
