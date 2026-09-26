@@ -97,6 +97,7 @@ Item {
         spacing: 2.2
         playing: root.s.isPlaying && root.active
         color: root.s.mediaAccent
+        levels: root.s.spectrum
         layer.enabled: true
         layer.effect: MultiEffect {
           shadowEnabled: true

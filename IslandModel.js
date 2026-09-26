@@ -378,3 +378,17 @@ function weekStrip(now) {
   }
   return out
 }
+
+// One cava frame ("12;40;7;...;") as levels in 0..1, or null when the line is
+// not a frame of exactly `bars` numbers.
+function parseSpectrum(line, bars) {
+  var parts = String(line || "").split(";")
+  if (parts.length && parts[parts.length - 1] === "") parts.pop()
+  if (parts.length !== bars) return null
+  var out = []
+  for (var i = 0; i < bars; i++) {
+    if (!/^\d{1,3}$/.test(parts[i])) return null
+    out.push(Math.min(100, Number(parts[i])) / 100)
+  }
+  return out
+}

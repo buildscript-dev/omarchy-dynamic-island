@@ -546,6 +546,7 @@ PanelWindow {
             height: win.s.notchHeight - 12
             playing: win.s.isPlaying
             color: win.s.mediaAccent
+            levels: win.s.spectrum
           }
         }
 

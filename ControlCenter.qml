@@ -301,7 +301,17 @@ Item {
     }
     return out
   }
-  PwObjectTracker { objects: [root.sink, root.source].concat(root.sinks).concat(root.sources) }
+  // Apps playing sound right now, for the per-app sliders on the Sound page.
+  readonly property var streams: {
+    var out = []
+    for (var i = 0; i < pwNodes.length; i++) { var n = pwNodes[i]; if (n && n.type === PwNodeType.AudioOutStream) out.push(n) }
+    return out
+  }
+  PwObjectTracker { objects: [root.sink, root.source].concat(root.sinks).concat(root.sources).concat(root.page === "audio" ? root.streams : []) }
+  function streamName(n) {
+    var p = n && n.properties ? n.properties : {}
+    return String(p["application.name"] || p["media.name"] || root.nodeName(n))
+  }
   function nodeName(n) { return n ? String(n.description || n.nickname || n.name || "Device") : "" }
   readonly property real volume: sink && sink.audio ? sink.audio.volume : 0
   readonly property bool muted: sink && sink.audio ? sink.audio.muted : false
@@ -1337,6 +1347,21 @@ Item {
             subtitle: root.budsStatus ? (root.modeNames[root.budsStatus.noiseMode] || "Earbud settings") : ""
             trailing: "󰅂"
             onClicked: root.go("buds")
+          }
+          SectionTitle { text: "APPS"; visible: root.streams.length > 0 }
+          Repeater {
+            model: root.streams
+            delegate: FatSlider {
+              required property var modelData
+              readonly property var a: modelData.audio
+              width: root.innerWidth
+              value: a && !a.muted ? a.volume : 0
+              dimmed: !a || a.muted
+              glyph: a && a.muted ? "󰝟" : "󰝚"
+              trailing: root.streamName(modelData)
+              onMoved: function(v) { if (a) { a.volume = v; if (v > 0) a.muted = false } }
+              onGlyphClicked: if (a) a.muted = !a.muted
+            }
           }
           SectionTitle { text: "OUTPUT" }
           Repeater {

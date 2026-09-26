@@ -224,6 +224,30 @@ Item {
   }
   readonly property bool hasMedia: player !== null && !!(player.trackTitle || player.trackArtist)
   readonly property bool isPlaying: player ? !!player.isPlaying : false
+
+  // Live spectrum from cava while music plays; [] means the waveform animates
+  // on its own (cava missing, or it keeps dying).
+  property var spectrum: []
+  property int cavaFails: 0
+  function syncCava() {
+    var want = isPlaying && cavaFails < 3
+    if (want !== cava.running) cava.running = want
+  }
+  SafeProcess {
+    id: cava
+    command: Model.direct(["cava", "-p", decodeURIComponent(Qt.resolvedUrl("cava.conf").toString().replace("file://", ""))])
+    stdout: SplitParser {
+      onRead: function(line) {
+        var v = Model.parseSpectrum(line, 6)
+        if (v) { root.spectrum = v; root.cavaFails = 0 }
+      }
+    }
+    onRunningChanged: if (!running) {
+      root.spectrum = []
+      if (root.isPlaying) { root.cavaFails++; cavaRetry.restart() }
+    }
+  }
+  Timer { id: cavaRetry; interval: 3000; onTriggered: root.syncCava() }
   readonly property string trackTitle: player ? String(player.trackTitle || "") : ""
   readonly property string trackArtist: player ? String(player.trackArtist || "") : ""
   readonly property string trackAlbum: player ? String(player.trackAlbum || "") : ""
@@ -257,6 +281,7 @@ Item {
   // settles back to the bare notch — like macOS notch apps do.
   property bool pausedLinger: false
   onIsPlayingChanged: {
+    syncCava()
     if (isPlaying) {
       pausedLingerTimer.stop()
       pausedLinger = false
