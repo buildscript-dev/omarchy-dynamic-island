@@ -441,6 +441,13 @@ Item {
     }
   }
 
+  // ------------------------------------------------------------ AI on the phone
+  // Taildroid's MCP server calls `island aiActivity` on every phone action, so
+  // it's always visible while an assistant is driving the phone.
+  property real aiUntil: 0
+  property string aiText: ""
+  readonly property bool aiActive: { root.now; return aiUntil > Date.now() }
+
   // ------------------------------------------------------------ stopwatch
   property real stopwatchSince: 0   // epoch ms the running count started from; 0 = stopped
   property real stopwatchHeld: -1   // seconds shown while paused
@@ -915,6 +922,7 @@ Item {
   readonly property var lives: {
     var out = []
     if (currentCall) out.push("call")
+    if (aiActive) out.push("ai")
     if (recording) out.push("recording")
     // The mirror's own window is the indicator; a second one on this desktop
     // counting how long the phone has been up says nothing the phone doesn't.
@@ -1359,6 +1367,12 @@ Item {
       return "ok"
     }
     function timerCancel(): string { root.cancelTimer(); return "ok" }
+    function aiActivity(text: string): string {
+      root.aiText = Model.clip(text, 48)
+      root.aiUntil = Date.now() + 8000
+      root.now = new Date()
+      return "ok"
+    }
     function stopwatch(): string { root.toggleStopwatch(); return "ok" }
     function stopwatchReset(): string { root.resetStopwatch(); return "ok" }
     function alarm(hhmm: string): string { return root.setAlarm(hhmm) ? "ok" : "bad-time" }

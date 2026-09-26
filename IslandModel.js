@@ -26,6 +26,7 @@ var G = {
   moon: glyph(0xF0594),
   timer: glyph(0xF051B),
   stopwatch: glyph(0xF13AB),
+  robot: glyph(0xF06A9),
   alarm: glyph(0xF0020),
   bell: glyph(0xF009A),
   bellOff: glyph(0xF009B),

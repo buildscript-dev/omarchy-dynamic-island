@@ -165,6 +165,7 @@ PanelWindow {
   readonly property string trailText: s.live === "call" ? s.callElapsed(s.currentCall)
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
     : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
+    : s.live === "ai" ? "Phone"
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
@@ -422,6 +423,15 @@ PanelWindow {
       }
       Text {
         textFormat: Text.PlainText
+        visible: win.s.secondLive === "ai"
+        anchors.centerIn: parent
+        text: win.s.glyphs.robot
+        font.family: win.s.iconFont
+        font.pixelSize: 13
+        color: win.s.tint("purple")
+      }
+      Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "stopwatch"
         anchors.centerIn: parent
         text: win.s.glyphs.stopwatch
@@ -566,6 +576,14 @@ PanelWindow {
           glyph: win.s.glyphs.timer
           trail: Model.formatTime(Math.ceil(win.s.timerLeft))
           trailOpacity: win.s.timerPausedLeft >= 0 ? 0.55 : 1
+        }
+
+        CompactActivity {
+          kind: "ai"
+          tone: "purple"
+          glyph: win.s.glyphs.robot
+          trail: "Phone"
+          pulsing: true
         }
 
         CompactActivity {
