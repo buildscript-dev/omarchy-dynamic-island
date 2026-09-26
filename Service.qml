@@ -178,7 +178,9 @@ Item {
     if (textFont.indexOf("Inter") === 0 && have.indexOf("Inter Display") !== -1) return "Inter Display"
     return textFont
   }
+  FontLoader { id: phosphorFont; source: Qt.resolvedUrl("fonts/Phosphor-Fill.ttf") }
   readonly property string iconFont: {
+    if (phosphorFont.status === FontLoader.Ready) return phosphorFont.name
     var have = Qt.fontFamilies()
     if (have.indexOf("JetBrainsMono Nerd Font") !== -1) return "JetBrainsMono Nerd Font"
     if (have.indexOf("Symbols Nerd Font") !== -1) return "Symbols Nerd Font"

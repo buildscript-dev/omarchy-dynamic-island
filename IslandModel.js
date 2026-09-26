@@ -6,37 +6,40 @@ function glyph(cp) {
   return String.fromCodePoint(cp)
 }
 
-// Nerd Font (Material Design) glyphs. Omarchy ships JetBrainsMono Nerd Font.
+// Phosphor Fill glyphs (MIT, bundled in fonts/), drawn in iconFont. The
+// Material Design glyphs still written inline elsewhere come from
+// JetBrainsMono Nerd Font through Qt's font fallback; they sit in plane 15,
+// clear of Phosphor's codepoints.
 var G = {
-  volHigh: glyph(0xF057E),
-  volMed: glyph(0xF0580),
-  volLow: glyph(0xF057F),
-  volMute: glyph(0xF075F),
-  brightLow: glyph(0xF00DE),
-  brightHigh: glyph(0xF00E0),
-  play: glyph(0xF040A),
-  pause: glyph(0xF03E4),
-  next: glyph(0xF04AD),
-  prev: glyph(0xF04AE),
-  battery: glyph(0xF0079),
-  charging: glyph(0xF0084),
-  batteryAlert: glyph(0xF0083),
-  bluetooth: glyph(0xF00AF),
-  headphones: glyph(0xF02CB),
-  moon: glyph(0xF0594),
-  timer: glyph(0xF051B),
-  stopwatch: glyph(0xF13AB),
-  robot: glyph(0xF06A9),
-  alarm: glyph(0xF0020),
-  bell: glyph(0xF009A),
-  bellOff: glyph(0xF009B),
-  music: glyph(0xF075A),
-  mic: glyph(0xF036C),
-  micOff: glyph(0xF036D),
-  keyboard: glyph(0xF030C),
-  record: glyph(0xF044A),
-  wifi: glyph(0xF05A9),
-  power: glyph(0xF0425)
+  volHigh: glyph(0xE44A),
+  volMed: glyph(0xE44C),
+  volLow: glyph(0xE44E),
+  volMute: glyph(0xE45C),
+  brightLow: glyph(0xE474),
+  brightHigh: glyph(0xE472),
+  play: glyph(0xE3D0),
+  pause: glyph(0xE39E),
+  next: glyph(0xE5A6),
+  prev: glyph(0xE5A4),
+  battery: glyph(0xE0C0),
+  charging: glyph(0xE0BA),
+  batteryAlert: glyph(0xE0C8),
+  bluetooth: glyph(0xE0DA),
+  headphones: glyph(0xE2A6),
+  moon: glyph(0xE330),
+  timer: glyph(0xED2C),
+  stopwatch: glyph(0xE492),
+  robot: glyph(0xE762),
+  alarm: glyph(0xE006),
+  bell: glyph(0xE0CE),
+  bellOff: glyph(0xE0D4),
+  music: glyph(0xE33C),
+  mic: glyph(0xE326),
+  micOff: glyph(0xE328),
+  keyboard: glyph(0xE2D8),
+  record: glyph(0xE3EE),
+  wifi: glyph(0xE4EA),
+  power: glyph(0xE3DA)
 }
 
 // Apple's system colors (dark appearance). Used by the "apple" palette so the

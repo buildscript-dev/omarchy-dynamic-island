@@ -47,21 +47,21 @@ Item {
         font.weight: Font.Medium
         color: root.s.secondaryText
       }
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.timer
+        label: Model.formatTime(Math.ceil(root.s.timerLeft))
+        leftPadding: 8
         visible: root.s.timerActive && root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        text: "  " + root.s.glyphs.timer + " " + Model.formatTime(Math.ceil(root.s.timerLeft))
-        font.family: root.s.iconFont
         font.pixelSize: 12
         color: root.s.tint("orange")
       }
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.stopwatch
+        label: Model.formatTime(root.s.stopwatchElapsed)
+        leftPadding: 8
         visible: root.s.stopwatchActive && root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        text: "  " + root.s.glyphs.stopwatch + " " + Model.formatTime(root.s.stopwatchElapsed)
-        font.family: root.s.iconFont
         font.pixelSize: 12
         color: root.s.tint("orange")
       }
@@ -444,12 +444,11 @@ Item {
         hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
         onClicked: root.s.toggleStopwatch()
       }
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.alarm
+        label: Model.clockText(root.s.alarmAt)
         visible: root.s.alarmAt > 0
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.glyphs.alarm + " " + Model.clockText(root.s.alarmAt)
-        font.family: root.s.iconFont
         font.pixelSize: 12
         color: root.s.tint("orange")
       }
@@ -462,13 +461,11 @@ Item {
       spacing: 10
       visible: root.s.stopwatchActive && !root.s.timerActive
 
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.stopwatch
+        label: Model.formatTime(root.s.stopwatchElapsed)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.glyphs.stopwatch + "  " + Model.formatTime(root.s.stopwatchElapsed)
-        font.family: root.s.iconFont
         font.pixelSize: 22
-        font.features: { "tnum": 1 }
         color: root.s.tint("orange")
         opacity: root.s.stopwatchHeld >= 0 ? 0.6 : 1
       }
@@ -513,13 +510,11 @@ Item {
       spacing: 10
       visible: root.s.timerActive
 
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.timer
+        label: Model.formatTime(Math.ceil(root.s.timerLeft))
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.glyphs.timer + "  " + Model.formatTime(Math.ceil(root.s.timerLeft))
-        font.family: root.s.iconFont
         font.pixelSize: 22
-        font.features: { "tnum": 1 }
         color: root.s.tint("orange")
         opacity: root.s.timerPausedLeft >= 0 ? 0.6 : 1
       }
@@ -594,12 +589,11 @@ Item {
         radius: 14
         color: root.s.dnd ? Qt.rgba(0.37, 0.36, 0.9, dndMouse.containsMouse ? 0.4 : 0.28) : (dndMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
         Behavior on color { ColorAnimation { duration: 160 } }
-        Text {
-          textFormat: Text.PlainText
+        IconLabel {
+          glyph: root.s.glyphs.moon
+          label: "Focus"
           id: dndLabel
           anchors.centerIn: parent
-          text: root.s.glyphs.moon + "  Focus"
-          font.family: root.s.iconFont
           font.pixelSize: 12
           color: root.s.dnd ? root.s.tint("indigo") : root.s.secondaryText
         }
@@ -613,4 +607,32 @@ Item {
       }
     }
   }
+  // A glyph and its label: the glyph in the icon font, the words and digits
+  // in the text font, so neither falls back to some other family.
+  component IconLabel: Row {
+    id: il
+    property string glyph: ""
+    property string label: ""
+    property color color: root.s.textColor
+    property alias font: word.font
+    spacing: Math.round(word.font.pixelSize * 0.4)
+    Text {
+      textFormat: Text.PlainText
+      anchors.verticalCenter: parent.verticalCenter
+      text: il.glyph
+      font.family: root.s.iconFont
+      font.pixelSize: word.font.pixelSize
+      color: il.color
+    }
+    Text {
+      id: word
+      textFormat: Text.PlainText
+      anchors.verticalCenter: parent.verticalCenter
+      text: il.label
+      font.family: root.s.textFont
+      font.features: { "tnum": 1 }
+      color: il.color
+    }
+  }
+
 }
