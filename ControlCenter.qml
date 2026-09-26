@@ -938,6 +938,7 @@ Item {
             Label {
               id: ccClock
               text: root.s.clockText
+              font.family: root.s.displayFont
               font.pixelSize: 30
               font.weight: Font.Light
               font.letterSpacing: -0.5

@@ -162,11 +162,20 @@ Item {
   }
 
   readonly property string textFont: {
-    var want = ["SF Pro Display", "SF Pro Text", "SF Pro", "Inter Display", "Inter", "Inter Variable", "Noto Sans", "Cantarell"]
+    // Text cuts first: the island's text is 13-14 px, where Apple uses SF Pro
+    // Text; the Display cuts are drawn for 20 px and up.
+    var want = ["SF Pro Text", "SF Pro", "SF Pro Display", "Inter", "Inter Variable", "Inter Display", "Noto Sans", "Cantarell"]
     var have = Qt.fontFamilies()
     for (var i = 0; i < want.length; i++)
       if (have.indexOf(want[i]) !== -1) return want[i]
     return Style.font.family
+  }
+  // For the big clocks (20 px and up): the Display cut when there is one.
+  readonly property string displayFont: {
+    var have = Qt.fontFamilies()
+    if (textFont.indexOf("SF Pro") === 0 && have.indexOf("SF Pro Display") !== -1) return "SF Pro Display"
+    if (textFont.indexOf("Inter") === 0 && have.indexOf("Inter Display") !== -1) return "Inter Display"
+    return textFont
   }
   readonly property string iconFont: {
     var have = Qt.fontFamilies()

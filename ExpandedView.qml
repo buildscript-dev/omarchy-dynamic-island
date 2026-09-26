@@ -334,7 +334,7 @@ Item {
       Text {
         textFormat: Text.PlainText
         text: Qt.formatDateTime(root.s.now, "HH:mm")
-        font.family: root.s.textFont
+        font.family: root.s.displayFont
         font.pixelSize: 46
         font.weight: Font.Light
         font.features: { "tnum": 1 }
