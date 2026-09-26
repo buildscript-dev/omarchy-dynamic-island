@@ -989,7 +989,7 @@ Item {
   // Every live activity at once, most important first. The first one owns
   // the island; the second sits beside it as a detached bubble (iOS's
   // "minimal" presentation when two activities run together).
-  readonly property var lives: {
+  readonly property var activeLives: {
     var out = []
     if (currentCall) out.push("call")
     if (aiActive) out.push("ai")
@@ -1001,6 +1001,25 @@ Item {
     if (stopwatchActive) out.push("stopwatch")
     if (mediaLive) out.push("media")
     return out
+  }
+  // Swiping the island sideways tucks its activity away, as on iOS: the
+  // timer keeps running and the expanded view still shows it; the pill
+  // returns the next time that activity starts. A call, a recording and an
+  // assistant driving the phone always stay in view.
+  property var tucked: ({})
+  readonly property var tuckable: ["timer", "stopwatch", "media", "phone"]
+  readonly property var lives: activeLives.filter(function(k) { return !tucked[k] })
+  onActiveLivesChanged: {
+    var t = {}, changed = false
+    for (var k in tucked) { if (activeLives.indexOf(k) !== -1) t[k] = true; else changed = true }
+    if (changed) tucked = t
+  }
+  function tuckLive() {
+    if (tuckable.indexOf(live) === -1) return false
+    var t = Object.assign({}, tucked)
+    t[live] = true
+    tucked = t
+    return true
   }
   readonly property string live: lives.length > 0 ? lives[0] : ""
   readonly property string secondLive: lives.length > 1 ? lives[1] : ""
@@ -1391,7 +1410,7 @@ Item {
         activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
         queued: root.queue.length,
         media: { playing: root.isPlaying, player: root.playerName, lyrics: root.lyrics.length },
-        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", alarmRinging: root.alarmRinging, recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
+        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", alarmRinging: root.alarmRinging, tucked: Object.keys(root.tucked), recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
         shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, reduceMotion: root.reduceMotion, font: root.textFont, notchHeight: root.notchHeight
@@ -1448,6 +1467,7 @@ Item {
     function alarm(hhmm: string): string { return root.setAlarm(hhmm) ? "ok" : "bad-time" }
     function alarmCancel(): string { root.cancelAlarm(); return "ok" }
     function alarmStop(): string { root.stopAlarm(); return "ok" }
+    function tuck(): string { return root.tuckLive() ? "ok" : "not-tuckable" }
     function alarmSnooze(): string { return root.snoozeAlarm() ? "ok" : "not-ringing" }
     function alert(icon: string, title: string, value: string): string {
       root.pushActivity({ kind: "alert", source: "ipc-alert", icon: Model.clip(icon, 4), tint: "white",

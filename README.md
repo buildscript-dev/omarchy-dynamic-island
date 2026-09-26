@@ -160,6 +160,8 @@ Bluetooth, Pipewire and the `omarchy-*` helpers), so actions behave the same.
 - **Right click** on a notification: dismisses it. Anywhere else: opens the Control Center.
 - **Middle click**: play / pause.
 - **Scroll** on the closed notch: volume ±2 %.
+- **Swipe sideways** (drag, or two fingers on a touchpad) on a live activity: tuck it away. It keeps running and still shows in the expanded island; the pill comes back the next time it starts. Calls, recordings and the AI indicator can't be tucked.
+- **Swipe up** (drag) on a notification, alert or HUD: send it away early.
 - Click the artwork in the expanded player to raise the player window.
 
 ## Settings
@@ -331,6 +333,7 @@ omarchy-shell island stopwatch           # start / pause the stopwatch
 omarchy-shell island stopwatchReset
 omarchy-shell island alarm 7:30          # next time the clock reads 7:30 (24-hour); survives a shell restart, not a reboot
 omarchy-shell island alarmCancel
+omarchy-shell island tuck                # tuck the current live activity away (as swiping it sideways does)
 omarchy-shell island alarmStop           # a ringing alarm: stop (or click the pill)
 omarchy-shell island alarmSnooze         # a ringing alarm: 9 more minutes (or right-click the pill)
 omarchy-shell island alert "<glyph>" "Title" "Value"

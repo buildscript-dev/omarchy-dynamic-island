@@ -482,3 +482,15 @@ function squirclePath(w, h, r, smoothing) {
     " a " + n(r) + " " + n(r) + " 0 0 1 " + n(arc) + " " + n(-arc) +
     " c " + n(c) + " " + n(-d) + " " + n(bc) + " " + n(-d) + " " + n(abc) + " " + n(-d) + " Z"
 }
+
+// What a drag or two-finger swipe on the island means. dx/dy in pixels
+// (touchpad: accumulated angle delta / 4). Sideways on a live activity
+// tucks it; upward on a transient sends it away. Short or diagonal moves
+// are clicks and scrolls, not swipes.
+var SWIPE_MIN = 36
+function swipeAction(dx, dy, mode) {
+  var ax = Math.abs(dx), ay = Math.abs(dy)
+  if (mode === "compact" && ax >= SWIPE_MIN && ax > 2 * ay) return "tuck"
+  if ((mode === "notification" || mode === "alert" || mode === "hud") && dy <= -SWIPE_MIN && ay > 2 * ax) return "dismiss"
+  return ""
+}

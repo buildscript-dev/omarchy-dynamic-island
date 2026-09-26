@@ -339,8 +339,26 @@ PanelWindow {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
         property real wheelAccum: 0
+        // Swipes: a drag with the button held, or a two-finger touchpad
+        // swipe (horizontal wheel), classified by Model.swipeAction.
+        property point pressAt: Qt.point(0, 0)
+        property bool swiped: false
+        property real swipeX: 0
+        function swipe(dx, dy) {
+          var act = Model.swipeAction(dx, dy, win.mode)
+          if (act === "tuck") win.s.tuckLive()
+          else if (act === "dismiss") win.s.finishActivity()
+          return act !== ""
+        }
+        onPressed: function(mouse) { pressAt = Qt.point(mouse.x, mouse.y); swiped = false }
+        onPositionChanged: function(mouse) {
+          if (pressed && !swiped && mouse.buttons & Qt.LeftButton)
+            swiped = swipe(mouse.x - pressAt.x, mouse.y - pressAt.y)
+        }
+        Timer { id: swipeReset; interval: 300; onTriggered: parent.swipeX = 0 }
         cursorShape: win.mode === "hidden" ? Qt.ArrowCursor : Qt.PointingHandCursor
         onClicked: function(mouse) {
+          if (swiped) return
           var m = win.mode
           if (mouse.button === Qt.MiddleButton) { win.s.mediaToggle(); return }
           if (m === "controls" || m === "incoming") return
@@ -369,6 +387,15 @@ PanelWindow {
           win.setExpanded(!win.expanded)
         }
         onWheel: function(wheel) {
+          // Two-finger sideways swipe: one gesture, then a short cooldown.
+          if (Math.abs(wheel.angleDelta.x) > Math.abs(wheel.angleDelta.y)) {
+            // After a swipe, the rest of that gesture (and its inertia) is spent.
+            if (swipeReset.running && swipeX === 0) { swipeReset.restart(); return }
+            swipeX += wheel.angleDelta.x / 4
+            if (swipe(swipeX, 0)) swipeX = 0
+            swipeReset.restart()
+            return
+          }
           if (win.mode === "expanded" || win.mode === "controls" || win.mode === "hidden" || wheel.angleDelta.y === 0) return
           // Scrolling says "adjust", not "open": hold off the hover-open.
           if (dwellTimer.running) dwellTimer.restart()
