@@ -31,8 +31,12 @@ PanelWindow {
   WlrLayershell.namespace: "omarchy-dynamic-island"
   WlrLayershell.layer: WlrLayer.Overlay
   // The Control Center takes the keyboard while it's open (Esc, the Wi-Fi
-  // password, Taildroid pairing); every other mode leaves typing alone.
-  WlrLayershell.keyboardFocus: controlsOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+  // password, Taildroid pairing), and so does the expanded island when it
+  // was opened from the keyboard (`island expand`). Opened by hover it
+  // leaves typing alone.
+  property bool keyExpanded: false
+  readonly property bool keyHeld: controlsOpen || (expanded && keyExpanded)
+  WlrLayershell.keyboardFocus: keyHeld ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
   mask: Region {
     item: hit
     regions: [ Region { item: bubbleHit } ]
@@ -250,19 +254,20 @@ PanelWindow {
   // The grab starts a beat after opening: the surface first takes keyboard
   // focus, and a grab raced against that change is cleared immediately.
   property bool grabReady: false
-  onControlsOpenChanged: {
-    s.controlsShown = controlsOpen
+  onControlsOpenChanged: s.controlsShown = controlsOpen
+  onKeyHeldChanged: {
     grabReady = false
-    if (controlsOpen) grabDelay.restart()
+    if (keyHeld) grabDelay.restart()
   }
-  Timer { id: grabDelay; interval: 250; onTriggered: win.grabReady = win.controlsOpen }
+  Timer { id: grabDelay; interval: 250; onTriggered: win.grabReady = win.keyHeld }
   HyprlandFocusGrab {
-    active: win.controlsOpen && win.grabReady && win.visible
+    active: win.keyHeld && win.grabReady && win.visible
     windows: [win]
-    onCleared: win.closeControls()
+    onCleared: { win.closeControls(); win.setExpanded(false) }
   }
 
   function setExpanded(on) {
+    if (!on) keyExpanded = false
     if (on === expanded) return
     expanded = on
     if (on) {
@@ -282,7 +287,7 @@ PanelWindow {
         else win.openControls(page)
       }
     }
-    function onExpandRequested() { if (win.isTarget()) win.setExpanded(true) }
+    function onExpandRequested() { if (win.isTarget()) { win.keyExpanded = true; win.setExpanded(true) } }
     function onRingingCallChanged() { if (win.s.ringingCall) win.setExpanded(false) }
   }
   Component.onDestruction: if (expanded) s.positionWatchers = Math.max(0, s.positionWatchers - 1)
@@ -970,7 +975,9 @@ PanelWindow {
             anchors.fill: parent
             s: win.s
             active: win.mode === "expanded"
+            keyboard: win.keyHeld && !win.controlsOpen
             onOutputClicked: win.openControls("audio")
+            onCloseRequested: win.setExpanded(false)
           }
         }
 

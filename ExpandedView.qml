@@ -12,7 +12,17 @@ Item {
 
   property var s: null
   property bool active: false
+  // Opened from the keyboard: Tab walks the buttons, Space plays or pauses,
+  // Left / Right skip, Esc closes.
+  property bool keyboard: false
   signal outputClicked()
+  signal closeRequested()
+  focus: true
+  onKeyboardChanged: if (keyboard) Qt.callLater(function() { root.forceActiveFocus() })
+  Keys.onEscapePressed: root.closeRequested()
+  Keys.onSpacePressed: if (root.s.hasMedia) root.s.mediaToggle()
+  Keys.onLeftPressed: if (root.s.hasMedia) root.s.mediaPrev()
+  Keys.onRightPressed: if (root.s.hasMedia) root.s.mediaNext()
 
   readonly property int pad: 22
   readonly property int stripHeight: s.notchHeight
@@ -278,6 +288,7 @@ Item {
         color: root.s.textColor
         hoverFill: root.s.controlFill
         enabledState: root.s.player && (root.s.player.canGoPrevious || root.s.player.canSeek)
+        label: "Previous"
         onClicked: root.s.mediaPrev()
       }
       GlyphButton {
@@ -287,6 +298,7 @@ Item {
         glyphSize: 28
         color: root.s.textColor
         hoverFill: root.s.controlFill
+        label: "Play or pause"
         onClicked: root.s.mediaToggle()
       }
       GlyphButton {
@@ -297,6 +309,7 @@ Item {
         color: root.s.textColor
         hoverFill: root.s.controlFill
         enabledState: root.s.player && root.s.player.canGoNext
+        label: "Next"
         onClicked: root.s.mediaNext()
       }
     }
@@ -311,6 +324,7 @@ Item {
       glyphSize: 16
       color: root.s.budsConnected ? root.s.tint("blue") : root.s.secondaryText
       hoverFill: root.s.controlFill
+      label: "Sound output"
       onClicked: root.outputClicked()
     }
   }
@@ -442,6 +456,7 @@ Item {
         glyphSize: 15
         color: root.s.tint("orange")
         hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        label: "Start or pause stopwatch"
         onClicked: root.s.toggleStopwatch()
       }
       IconLabel {
@@ -476,6 +491,7 @@ Item {
         glyphSize: 16
         color: root.s.tint("orange")
         hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        label: "Start or pause stopwatch"
         onClicked: root.s.toggleStopwatch()
       }
       Rectangle {
@@ -525,6 +541,7 @@ Item {
         glyphSize: 16
         color: root.s.tint("orange")
         hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        label: "Pause timer"
         onClicked: root.s.toggleTimerPause()
       }
       Rectangle {

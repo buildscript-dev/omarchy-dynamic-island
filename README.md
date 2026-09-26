@@ -375,6 +375,11 @@ the `island` IPC target.
 | Super + Shift + Alt + , | Notifications |
 | Super + Shift + I | Taildroid mirroring on/off |
 
+Opened with `omarchy-shell island expand` (bind it to a key), the expanded
+island takes the keyboard: Tab walks its buttons, Space plays or pauses,
+Left / Right skip tracks, Esc closes, and a click outside gives the keyboard
+back. Opened by hovering, it never takes the keyboard.
+
 Bind whichever you want; none are set up for you. The island can replace the
 bar's right-side widgets entirely, since it hosts the clock, the Control
 Center and the tray itself.
