@@ -597,6 +597,18 @@ Item {
   }
 
   // Wide iOS tile: round icon (tap = toggle) + title/subtitle (tap = open page).
+  // Keyboard focus, drawn only while a control has it (Tab), like macOS.
+  component FocusRing: Rectangle {
+    property Item target: parent
+    anchors.fill: target
+    anchors.margins: -3
+    radius: target.radius !== undefined ? target.radius + 3 : height / 2
+    color: "transparent"
+    border.width: 2
+    border.color: root.onColor("blue")
+    visible: target.parent.activeFocus || target.activeFocus
+  }
+
   component Tile: Rectangle {
     id: tile
     property string glyph: ""
@@ -610,6 +622,17 @@ Item {
     width: (root.innerWidth - 10) / 2
     height: 58
     radius: 20
+    activeFocusOnTab: true
+    Keys.onReturnPressed: tile.opened()
+    Keys.onEnterPressed: tile.opened()
+    Keys.onSpacePressed: tile.toggled()
+    Accessible.role: Accessible.Button
+    Accessible.name: tile.title + (tile.subtitle !== "" ? ", " + tile.subtitle : "")
+    Accessible.checkable: true
+    Accessible.checked: tile.on
+    Accessible.onPressAction: tile.opened()
+    Accessible.onToggleAction: tile.toggled()
+    FocusRing {}
     color: tileMouse.containsMouse ? root.tileHover : root.tileOff
     Behavior on color { ColorAnimation { duration: 120 } }
     scale: tileMouse.pressed ? 0.97 : 1
@@ -657,16 +680,25 @@ Item {
     property bool dimmed: false
     property string trailing: ""
     property bool trailingIsGlyph: false
+    property string label: ""
     signal moved(real v)
     signal glyphClicked()
     signal trailingClicked()
     height: 36
+    activeFocusOnTab: true
+    Keys.onLeftPressed: sl.moved(Model.clamp(sl.value - 0.05, 0, 1))
+    Keys.onRightPressed: sl.moved(Model.clamp(sl.value + 0.05, 0, 1))
+    Keys.onSpacePressed: sl.glyphClicked()
+    Accessible.role: Accessible.Slider
+    Accessible.name: sl.label
+    Accessible.description: Math.round(sl.value * 100) + " percent"
     scale: drag.pressed ? 1.02 : 1
     Behavior on scale { SpringAnimation { spring: 6; damping: 0.4; epsilon: 0.002 } }
     Rectangle {
       id: track
       anchors.fill: parent
       radius: height / 2
+      FocusRing { target: track; visible: sl.activeFocus }
       color: drag.containsMouse ? root.tileHover : root.tileOff
       Behavior on color { ColorAnimation { duration: 120 } }
       clip: true
@@ -723,6 +755,15 @@ Item {
     signal clicked()
     width: 42
     height: 42
+    activeFocusOnTab: true
+    Keys.onReturnPressed: rb.clicked()
+    Keys.onEnterPressed: rb.clicked()
+    Keys.onSpacePressed: rb.clicked()
+    Accessible.role: Accessible.Button
+    Accessible.name: rb.hint
+    Accessible.checkable: true
+    Accessible.checked: rb.on
+    Accessible.onPressAction: rb.clicked()
     Rectangle {
       id: rbFace
       width: rb.width
@@ -732,12 +773,13 @@ Item {
       Behavior on color { ColorAnimation { duration: 140 } }
       scale: rbMouse.pressed ? 0.88 : 1
       Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
+      FocusRing { target: rbFace; visible: rb.activeFocus }
     }
     Glyph { anchors.centerIn: rbFace; text: rb.glyph; font.pixelSize: 18; color: rb.on ? "#ffffff" : root.fg }
     // Name on hover: a small pill above the button.
     Rectangle {
       visible: rb.hint !== "" && opacity > 0
-      opacity: rbMouse.containsMouse ? 1 : 0
+      opacity: rbMouse.containsMouse || rb.activeFocus ? 1 : 0
       Behavior on opacity { NumberAnimation { duration: 140 } }
       z: 10
       anchors.horizontalCenter: rbFace.horizontalCenter
@@ -847,6 +889,15 @@ Item {
     width: root.innerWidth
     height: 44
     radius: 14
+    activeFocusOnTab: true
+    Keys.onReturnPressed: row.clicked()
+    Keys.onEnterPressed: row.clicked()
+    Keys.onSpacePressed: row.clicked()
+    Keys.onDeletePressed: if (row.canRemove) row.removed()
+    Accessible.role: Accessible.Button
+    Accessible.name: row.title + (row.subtitle !== "" ? ", " + row.subtitle : "")
+    Accessible.onPressAction: row.clicked()
+    FocusRing {}
     color: rowMouse.containsMouse ? root.tileOff : "transparent"
     MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: row.clicked() }
     Artwork {
@@ -1116,6 +1167,7 @@ Item {
       }
 
       FatSlider {
+        label: "Volume"
         width: parent.width
         value: root.muted ? 0 : root.volume
         glyph: root.muted || root.volume <= 0 ? "󰝟" : root.volume < 0.34 ? "󰕿" : root.volume < 0.67 ? "󰖀" : "󰕾"
@@ -1126,6 +1178,7 @@ Item {
         onTrailingClicked: root.go("audio")
       }
       FatSlider {
+        label: "Brightness"
         visible: root.brightness >= 0
         width: parent.width
         value: root.brightness
@@ -1328,6 +1381,7 @@ Item {
 
       Header { title: "Sound" }
       FatSlider {
+        label: "Output volume"
         width: parent.width
         value: root.muted ? 0 : root.volume
         glyph: root.muted ? "󰝟" : "󰕾"
@@ -1355,6 +1409,7 @@ Item {
             delegate: FatSlider {
               required property var modelData
               readonly property var a: modelData.audio
+              label: root.streamName(modelData)
               width: root.innerWidth
               value: a && !a.muted ? a.volume : 0
               dimmed: !a || a.muted
