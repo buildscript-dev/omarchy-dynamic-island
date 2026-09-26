@@ -410,3 +410,22 @@ function clockText(ms) {
   var d = new Date(ms)
   return (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
 }
+
+// LRC text ("[01:23.45] words") as [{ t: seconds, text }] sorted by time.
+function parseLrc(lrc) {
+  var out = []
+  var lines = String(lrc || "").split(/\r?\n/)
+  for (var i = 0; i < lines.length && out.length < 2000; i++) {
+    var m = /^\[(\d{1,3}):(\d{2}(?:\.\d{1,3})?)\]\s*(.*)$/.exec(lines[i])
+    if (m) out.push({ t: Number(m[1]) * 60 + Number(m[2]), text: clip(m[3], 200).trim() })
+  }
+  out.sort(function(a, b) { return a.t - b.t })
+  return out
+}
+
+// The line being sung at pos seconds; "" before the first line or between verses.
+function lyricAt(lines, pos) {
+  var cur = ""
+  for (var i = 0; i < lines.length && lines[i].t <= pos; i++) cur = lines[i].text
+  return cur
+}

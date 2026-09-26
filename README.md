@@ -141,7 +141,8 @@ outside it or press Esc to close (Esc on a sub-page goes back first).
 - **OnePlus Buds** (when OnePlus Experience is installed): per-bud and case
   battery, noise control, ANC strength, EQ and switches.
 - **Sound**: volume slider (click the icon to mute) and the  button for
-  output and input devices plus mic mute.
+  output and input devices plus mic mute, and a volume slider for each app
+  playing sound (click its icon to mute just that app).
 - **Brightness** slider (hidden on displays that can't be dimmed).
 - Quick buttons: night light, stay awake, power mode, screenshot, screen
   recording, phone mirroring (Taildroid) and the power page (power mode, lock,
@@ -177,7 +178,7 @@ Changes apply as soon as you save the file — no restart:
 | `palette` | `apple` | `apple` = Apple's colors (green charging, orange timer, red recording) · `theme` = your Omarchy theme's colors |
 | `showWhenIdle` | `true` | keep the island on screen with nothing happening. Turn it **off** for the standalone look: it hides itself and comes back for music, alerts and notifications, or when you touch the top edge |
 | `monitor` | `focused` | `focused` = follows the monitor you are working on · `external` = the external monitor, or the built-in one when nothing is plugged in · `all` = one per monitor · or a connector name such as `HDMI-A-1` |
-| `onlineExtras` | `true` | let the island use the internet: album artwork for streaming players, the weather line, the Omarchy update check. Off = no network requests at all |
+| `onlineExtras` | `true` | let the island use the internet: album artwork for streaming players, synced lyrics, the weather line, the Omarchy update check. Off = no network requests at all |
 | `showNotifications` | `true` | show new notifications in the island |
 | `muteWhileMirrored` | `true` | with the phone's screen mirrored on this desktop, leave its notifications, messages and status to the mirror. Calls still come through. Needs Taildroid |
 | `replaceOsd` | `true` | show volume and brightness in the island instead of Omarchy's pop-up |
@@ -196,7 +197,7 @@ the plugin's settings panel instead of editing JSON.
 
 ## Network use
 
-The island itself makes exactly one kind of request: downloading album
+The island itself makes two kinds of request. The first is downloading album
 artwork for players that publish it as an `http(s)` URL (Spotify and other
 streaming clients). Because that URL comes from the player, the download is
 held to fixed limits:
@@ -212,11 +213,17 @@ The one image kept is the current track's, in
 `/run/user/<uid>/omarchy-dynamic-island` (per-user, mode 0700, in memory,
 gone at logout). The island draws and tints only that copy, never the URL.
 
+The second is looking up synced lyrics for the playing track at
+[lrclib.net](https://lrclib.net): one HTTPS `GET` per track, which sends the
+track's artist, title and length to lrclib.net. The answer is capped at
+256 KB and 12 seconds, and only the line being sung is drawn, as plain text.
+
 It also runs Omarchy's own `omarchy-weather-status` and
 `omarchy-update-available` helpers, which reach the network themselves.
 
-Set `"onlineExtras": false` and all three stop. Nothing else in the plugin
-opens a connection, and nothing is ever sent anywhere.
+Set `"onlineExtras": false` and all of these stop. Nothing else in the plugin
+opens a connection, and nothing besides the lyrics lookup above is sent
+anywhere.
 
 ## What it runs
 
@@ -278,6 +285,10 @@ same code Omarchy loads for that plugin. It is never downloaded.
 | [OnePlus Experience](https://github.com/buildscript-dev/omarchy-oneplus-experience) | earbuds page: battery, noise control, EQ · battery and noise-mode alerts |
 | [Taildroid](https://github.com/buildscript-dev/omarchy-taildroid) (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity · quiet island while the phone is mirrored |
 
+If [`cava`](https://github.com/karlstav/cava) is installed
+(`sudo pacman -S cava`), the music waveform follows the real audio while
+something plays. Without it the bars keep their made-up dance.
+
 The phone page needs my Taildroid fork, which adds calls and messages to
 [raythurman2386/taildroid](https://github.com/raythurman2386/taildroid).
 Install it the same way, or leave it out: without it the page stays hidden,
@@ -315,6 +326,10 @@ omarchy-shell island expand | collapse
 omarchy-shell island controls [main|wifi|bluetooth|audio|buds|phone|messages|call|thread|notifications|calendar|power]
 omarchy-shell island timer 300           # start a 5-minute timer
 omarchy-shell island timerCancel
+omarchy-shell island stopwatch           # start / pause the stopwatch
+omarchy-shell island stopwatchReset
+omarchy-shell island alarm 7:30          # next time the clock reads 7:30 (24-hour); kept until the shell restarts
+omarchy-shell island alarmCancel
 omarchy-shell island alert "<glyph>" "Title" "Value"
 omarchy-shell island hud volume 40
 omarchy-shell island notify "Title" "Body"

@@ -333,7 +333,7 @@ Item {
     var remote = /^https?:\/\//i.test(trackArt)
     var arg = ""
     if (remote) {
-      // Remote artwork is the only download the island itself makes.
+      // Remote artwork: downloaded only with onlineExtras on.
       if (!onlineExtras || trackArt.length > 2048) return
       arg = trackArt
     } else {
@@ -1131,6 +1131,33 @@ Item {
     lastWorkspace = ws.id
   }
 
+  // ------------------------------------------------------------ lyrics
+  // Synced lyrics for the playing track from lrclib.net (onlineExtras only).
+  property var lyrics: []
+  readonly property string lyricLine: lyrics.length ? Model.lyricAt(lyrics, trackPosition) : ""
+  readonly property string lyricsKey: onlineExtras && trackTitle !== "" && trackArtist !== "" ? trackArtist + "\u0000" + trackTitle : ""
+  onLyricsKeyChanged: {
+    lyrics = []
+    lyricsFetch.running = false
+    if (lyricsKey !== "") lyricsDelay.restart()
+  }
+  // Skipping through tracks shouldn't fire a lookup per track.
+  Timer { id: lyricsDelay; interval: 1500; onTriggered: if (root.lyricsKey !== "") lyricsFetch.running = true }
+  SafeProcess {
+    id: lyricsFetch
+    command: Model.bounded(["curl", "-q", "-fsG", "--proto", "=https", "--max-time", "8", "https://lrclib.net/api/get",
+      "--data-urlencode", "artist_name=" + Model.clip(root.trackArtist, 200),
+      "--data-urlencode", "track_name=" + Model.clip(root.trackTitle, 200)]
+      .concat(root.trackLength > 0 ? ["--data-urlencode", "duration=" + Math.round(root.trackLength)] : []), 12, 262144)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var t = Model.capped(text, 262144)
+        if (!t) return
+        try { root.lyrics = Model.parseLrc(JSON.parse(t).syncedLyrics) } catch (e) { root.lyrics = [] }
+      }
+    }
+  }
+
   // ------------------------------------------------------------ weather
   property string weatherText: ""
   property string weatherPlace: ""
@@ -1285,7 +1312,7 @@ Item {
         live: root.live, second: root.secondLive, controls: root.controlsShown,
         activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
         queued: root.queue.length,
-        media: { playing: root.isPlaying, player: root.playerName },
+        media: { playing: root.isPlaying, player: root.playerName, lyrics: root.lyrics.length },
         timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
