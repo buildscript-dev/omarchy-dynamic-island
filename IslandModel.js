@@ -25,6 +25,8 @@ var G = {
   headphones: glyph(0xF02CB),
   moon: glyph(0xF0594),
   timer: glyph(0xF051B),
+  stopwatch: glyph(0xF13AB),
+  alarm: glyph(0xF0020),
   bell: glyph(0xF009A),
   bellOff: glyph(0xF009B),
   music: glyph(0xF075A),
@@ -391,4 +393,20 @@ function parseSpectrum(line, bars) {
     out.push(Math.min(100, Number(parts[i])) / 100)
   }
   return out
+}
+
+// Next moment the wall clock reads "H:MM" (24-hour), as epoch ms after nowMs;
+// 0 when the text is not a time.
+function nextAlarm(hhmm, nowMs) {
+  var m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(hhmm || "").trim())
+  if (!m) return 0
+  var d = new Date(nowMs)
+  d.setHours(Number(m[1]), Number(m[2]), 0, 0)
+  if (d.getTime() <= nowMs) d.setDate(d.getDate() + 1)
+  return d.getTime()
+}
+
+function clockText(ms) {
+  var d = new Date(ms)
+  return (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
 }

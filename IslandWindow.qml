@@ -164,6 +164,7 @@ PanelWindow {
   readonly property int edge: s.pill ? Math.max(4, Math.round((s.notchHeight - 16) / 2)) : 10
   readonly property string trailText: s.live === "call" ? s.callElapsed(s.currentCall)
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
+    : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
@@ -421,6 +422,15 @@ PanelWindow {
       }
       Text {
         textFormat: Text.PlainText
+        visible: win.s.secondLive === "stopwatch"
+        anchors.centerIn: parent
+        text: win.s.glyphs.stopwatch
+        font.family: win.s.iconFont
+        font.pixelSize: 13
+        color: win.s.tint("orange")
+      }
+      Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "call"
         anchors.centerIn: parent
         text: "󰏲"
@@ -556,6 +566,14 @@ PanelWindow {
           glyph: win.s.glyphs.timer
           trail: Model.formatTime(Math.ceil(win.s.timerLeft))
           trailOpacity: win.s.timerPausedLeft >= 0 ? 0.55 : 1
+        }
+
+        CompactActivity {
+          kind: "stopwatch"
+          tone: "orange"
+          glyph: win.s.glyphs.stopwatch
+          trail: Model.formatTime(win.s.stopwatchElapsed)
+          trailOpacity: win.s.stopwatchHeld >= 0 ? 0.55 : 1
         }
 
         CompactActivity {

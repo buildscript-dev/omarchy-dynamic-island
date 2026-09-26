@@ -441,6 +441,46 @@ Item {
     }
   }
 
+  // ------------------------------------------------------------ stopwatch
+  property real stopwatchSince: 0   // epoch ms the running count started from; 0 = stopped
+  property real stopwatchHeld: -1   // seconds shown while paused
+  readonly property bool stopwatchActive: stopwatchSince > 0 || stopwatchHeld >= 0
+  readonly property real stopwatchElapsed: {
+    root.now
+    if (stopwatchHeld >= 0) return stopwatchHeld
+    return stopwatchSince > 0 ? (Date.now() - stopwatchSince) / 1000 : 0
+  }
+  function toggleStopwatch() {
+    if (stopwatchHeld >= 0) { stopwatchSince = Date.now() - stopwatchHeld * 1000; stopwatchHeld = -1 }
+    else if (stopwatchSince > 0) { stopwatchHeld = (Date.now() - stopwatchSince) / 1000; stopwatchSince = 0 }
+    else stopwatchSince = Date.now()
+  }
+  function resetStopwatch() { stopwatchSince = 0; stopwatchHeld = -1 }
+
+  // ------------------------------------------------------------ alarm
+  // ponytail: one alarm, kept in memory only; a shell restart forgets it. Persist it if people rely on it to wake up.
+  property real alarmAt: 0          // epoch ms; 0 = none
+  function setAlarm(hhmm) {
+    var at = Model.nextAlarm(hhmm, Date.now())
+    if (!at) return false
+    alarmAt = at
+    pushActivity({ kind: "alert", source: "alarm", icon: glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 1600 })
+    return true
+  }
+  function cancelAlarm() { alarmAt = 0 }
+  Timer {
+    interval: 1000
+    repeat: true
+    running: root.alarmAt > 0
+    onTriggered: {
+      if (Date.now() < root.alarmAt) return
+      var at = root.alarmAt
+      root.alarmAt = 0
+      root.pushActivity({ kind: "alert", source: "alarm-done", icon: root.glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 10000 })
+      root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"], 15)
+    }
+  }
+
   // ------------------------------------------------------------ recording
   property bool recording: false
   property real recordingSince: 0
@@ -880,6 +920,7 @@ Item {
     // counting how long the phone has been up says nothing the phone doesn't.
     if (phoneMirroring && !phoneMuted) out.push("phone")
     if (timerActive) out.push("timer")
+    if (stopwatchActive) out.push("stopwatch")
     if (mediaLive) out.push("media")
     return out
   }
@@ -1245,7 +1286,7 @@ Item {
         activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
         queued: root.queue.length,
         media: { playing: root.isPlaying, player: root.playerName },
-        timerLeft: Math.round(root.timerLeft), recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
+        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
         shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, font: root.textFont, notchHeight: root.notchHeight
@@ -1291,6 +1332,10 @@ Item {
       return "ok"
     }
     function timerCancel(): string { root.cancelTimer(); return "ok" }
+    function stopwatch(): string { root.toggleStopwatch(); return "ok" }
+    function stopwatchReset(): string { root.resetStopwatch(); return "ok" }
+    function alarm(hhmm: string): string { return root.setAlarm(hhmm) ? "ok" : "bad-time" }
+    function alarmCancel(): string { root.cancelAlarm(); return "ok" }
     function alert(icon: string, title: string, value: string): string {
       root.pushActivity({ kind: "alert", source: "ipc-alert", icon: Model.clip(icon, 4), tint: "white",
         title: Model.clip(title, 60), value: Model.clip(value, 24), duration: 2500 })

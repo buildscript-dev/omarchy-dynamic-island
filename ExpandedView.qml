@@ -56,6 +56,15 @@ Item {
         font.pixelSize: 12
         color: root.s.tint("orange")
       }
+      Text {
+        textFormat: Text.PlainText
+        visible: root.s.stopwatchActive && root.s.hasMedia
+        anchors.verticalCenter: parent.verticalCenter
+        text: "  " + root.s.glyphs.stopwatch + " " + Model.formatTime(root.s.stopwatchElapsed)
+        font.family: root.s.iconFont
+        font.pixelSize: 12
+        color: root.s.tint("orange")
+      }
     }
 
     Row {
@@ -385,7 +394,7 @@ Item {
       anchors.left: parent.left
       anchors.bottom: parent.bottom
       spacing: 8
-      visible: !root.s.timerActive
+      visible: !root.s.timerActive && !root.s.stopwatchActive
 
       Text {
         textFormat: Text.PlainText
@@ -423,6 +432,76 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: root.s.startTimer(modelData * 60)
           }
+        }
+      }
+      GlyphButton {
+        anchors.verticalCenter: parent.verticalCenter
+        glyph: root.s.glyphs.stopwatch
+        glyphFont: root.s.iconFont
+        glyphSize: 15
+        color: root.s.tint("orange")
+        hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        onClicked: root.s.toggleStopwatch()
+      }
+      Text {
+        textFormat: Text.PlainText
+        visible: root.s.alarmAt > 0
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.s.glyphs.alarm + " " + Model.clockText(root.s.alarmAt)
+        font.family: root.s.iconFont
+        font.pixelSize: 12
+        color: root.s.tint("orange")
+      }
+    }
+
+    // Stopwatch: shown when running and no countdown is.
+    Row {
+      anchors.left: parent.left
+      anchors.bottom: parent.bottom
+      spacing: 10
+      visible: root.s.stopwatchActive && !root.s.timerActive
+
+      Text {
+        textFormat: Text.PlainText
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.s.glyphs.stopwatch + "  " + Model.formatTime(root.s.stopwatchElapsed)
+        font.family: root.s.iconFont
+        font.pixelSize: 22
+        font.features: { "tnum": 1 }
+        color: root.s.tint("orange")
+        opacity: root.s.stopwatchHeld >= 0 ? 0.6 : 1
+      }
+      GlyphButton {
+        anchors.verticalCenter: parent.verticalCenter
+        glyph: root.s.stopwatchHeld >= 0 ? root.s.glyphs.play : root.s.glyphs.pause
+        glyphFont: root.s.iconFont
+        glyphSize: 16
+        color: root.s.tint("orange")
+        hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        onClicked: root.s.toggleStopwatch()
+      }
+      Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        width: resetLabel.implicitWidth + 22
+        height: 28
+        radius: 14
+        color: resetMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.1)
+        Text {
+          textFormat: Text.PlainText
+          id: resetLabel
+          anchors.centerIn: parent
+          text: "Reset"
+          font.family: root.s.textFont
+          font.pixelSize: 12
+          font.weight: Font.DemiBold
+          color: root.s.textColor
+        }
+        MouseArea {
+          id: resetMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.s.resetStopwatch()
         }
       }
     }
