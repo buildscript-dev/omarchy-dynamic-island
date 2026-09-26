@@ -285,9 +285,9 @@ same code Omarchy loads for that plugin. It is never downloaded.
 | [OnePlus Experience](https://github.com/buildscript-dev/omarchy-oneplus-experience) | earbuds page: battery, noise control, EQ · battery and noise-mode alerts |
 | [Taildroid](https://github.com/buildscript-dev/omarchy-taildroid) (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity · quiet island while the phone is mirrored |
 
-If [`cava`](https://github.com/karlstav/cava) is installed
-(`sudo pacman -S cava`), the music waveform follows the real audio while
-something plays. Without it the bars keep their made-up dance.
+If the [`cava`](https://github.com/karlstav/cava) package is installed, the
+music waveform follows the real audio while something plays. Without it the
+bars keep their made-up dance.
 
 The phone page needs my Taildroid fork, which adds calls and messages to
 [raythurman2386/taildroid](https://github.com/raythurman2386/taildroid).
