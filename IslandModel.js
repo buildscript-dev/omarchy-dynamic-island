@@ -25,6 +25,8 @@ var G = {
   headphones: glyph(0xF02CB),
   moon: glyph(0xF0594),
   timer: glyph(0xF051B),
+  stopwatch: glyph(0xF13AB),
+  alarm: glyph(0xF0020),
   bell: glyph(0xF009A),
   bellOff: glyph(0xF009B),
   music: glyph(0xF075A),
@@ -230,6 +232,41 @@ function playerKey(p) {
 }
 
 // Notification bodies can carry markup; the island shows plain text.
+// The same message reaches this machine twice: phoned reads it off the phone,
+// and KDE Connect mirrors the phone's own popup. Either can land first, so
+// compare what they say rather than where they came from.
+function sameMessage(a, b) {
+  var x = plainText(a).toLowerCase()
+  var y = plainText(b).toLowerCase()
+  if (x === "" || y === "") return false
+  if (x === y) return true
+  // One side often truncates a long message, so a shared opening counts — but
+  // only once there is enough of it. "Hi" and "Hi, are you there?" are two
+  // different messages; sixty characters in, nobody says the same thing twice.
+  var n = Math.min(x.length, y.length, 60)
+  return n >= 24 && x.slice(0, n) === y.slice(0, n)
+}
+
+// True when one of the recent { body, time } entries says the same thing.
+function seenRecently(recent, text, now, windowMs) {
+  var list = recent || []
+  for (var i = 0; i < list.length; i++) {
+    if (now - list[i].time > windowMs) continue
+    if (sameMessage(list[i].body, text)) return true
+  }
+  return false
+}
+
+// Keep the ring short: only the last few messages, only while they're fresh.
+function rememberMessage(recent, text, now, windowMs) {
+  var out = []
+  var list = recent || []
+  for (var i = 0; i < list.length; i++)
+    if (now - list[i].time <= windowMs) out.push(list[i])
+  out.push({ body: String(text || ""), time: now })
+  return out.slice(-8)
+}
+
 function plainText(s) {
   return String(s || "")
     .replace(/<br\s*\/?>/gi, " ")
@@ -344,11 +381,51 @@ function weekStrip(now) {
   return out
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    G: G, APPLE: APPLE, clamp: clamp, volumeGlyph: volumeGlyph, batteryGlyph: batteryGlyph,
-    osdTransient: osdTransient, geometry: geometry, pillGeometry: pillGeometry, formatTime: formatTime,
-    validLength: validLength, vividColor: vividColor, playerKey: playerKey,
-    plainText: plainText, weekStrip: weekStrip
+// One cava frame ("12;40;7;...;") as levels in 0..1, or null when the line is
+// not a frame of exactly `bars` numbers.
+function parseSpectrum(line, bars) {
+  var parts = String(line || "").split(";")
+  if (parts.length && parts[parts.length - 1] === "") parts.pop()
+  if (parts.length !== bars) return null
+  var out = []
+  for (var i = 0; i < bars; i++) {
+    if (!/^\d{1,3}$/.test(parts[i])) return null
+    out.push(Math.min(100, Number(parts[i])) / 100)
   }
+  return out
+}
+
+// Next moment the wall clock reads "H:MM" (24-hour), as epoch ms after nowMs;
+// 0 when the text is not a time.
+function nextAlarm(hhmm, nowMs) {
+  var m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(hhmm || "").trim())
+  if (!m) return 0
+  var d = new Date(nowMs)
+  d.setHours(Number(m[1]), Number(m[2]), 0, 0)
+  if (d.getTime() <= nowMs) d.setDate(d.getDate() + 1)
+  return d.getTime()
+}
+
+function clockText(ms) {
+  var d = new Date(ms)
+  return (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
+}
+
+// LRC text ("[01:23.45] words") as [{ t: seconds, text }] sorted by time.
+function parseLrc(lrc) {
+  var out = []
+  var lines = String(lrc || "").split(/\r?\n/)
+  for (var i = 0; i < lines.length && out.length < 2000; i++) {
+    var m = /^\[(\d{1,3}):(\d{2}(?:\.\d{1,3})?)\]\s*(.*)$/.exec(lines[i])
+    if (m) out.push({ t: Number(m[1]) * 60 + Number(m[2]), text: clip(m[3], 200).trim() })
+  }
+  out.sort(function(a, b) { return a.t - b.t })
+  return out
+}
+
+// The line being sung at pos seconds; "" before the first line or between verses.
+function lyricAt(lines, pos) {
+  var cur = ""
+  for (var i = 0; i < lines.length && lines[i].t <= pos; i++) cur = lines[i].text
+  return cur
 }

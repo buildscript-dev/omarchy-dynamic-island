@@ -77,7 +77,9 @@ PanelWindow {
     if (t) return t.kind
     if (fullscreen && s.hideInFullscreen && !hovered) return "hidden"
     if (s.live !== "") return "compact"
-    return s.showWhenIdle || hovered ? "idle" : "hidden"
+    // A privacy dot nobody can see is not an indicator: mic or camera capture
+    // brings the pill back even when the island is set to hide while idle.
+    return s.showWhenIdle || hovered || s.micInUse || s.cameraInUse ? "idle" : "hidden"
   }
 
   // Views keep drawing the last payload of their kind while they fade out.
@@ -98,10 +100,71 @@ PanelWindow {
   // their slots are equal width, and the clock sits dead center — so the
   // island always reads as balanced whatever it shows.
   TextMetrics { id: clockMetrics; font.family: s.textFont; font.pixelSize: s.notchHeight >= 28 ? 14 : 13; font.weight: Font.DemiBold; font.features: { "tnum": 1 }; text: s.clockText }
+  // Timer, recording, call and phone all wear the same compact face: a tinted
+  // mark at the leading edge, a tinted read-out at the trailing one. Media is
+  // the exception - artwork and a waveform - so it stays written out below.
+  component CompactActivity: Reveal {
+    id: act
+    property string kind: ""
+    property string tone: ""
+    property string glyph: ""           // empty: the recording light, a plain dot
+    property string trail: ""
+    property real trailOpacity: 1
+    property bool pulsing: false
+    property int pulseMs: 700
+
+    shown: win.mode === "compact" && win.s.live === act.kind
+    width: win.geometryFor("compact").w
+    height: win.s.notchHeight
+    anchors.horizontalCenter: parent.horizontalCenter
+    inDelay: 60
+
+    Text {
+      textFormat: Text.PlainText
+      id: lead
+      visible: act.glyph !== ""
+      x: win.edge + 1
+      anchors.verticalCenter: parent.verticalCenter
+      text: act.glyph
+      font.family: win.s.iconFont
+      font.pixelSize: 15
+      color: win.s.tint(act.tone)
+    }
+    Rectangle {
+      id: leadDot
+      visible: act.glyph === ""
+      x: win.edge + 4
+      anchors.verticalCenter: parent.verticalCenter
+      width: 9
+      height: 9
+      radius: 4.5
+      color: win.s.tint(act.tone)
+    }
+    // A waiting call and a running recording both blink their mark.
+    SequentialAnimation {
+      running: act.pulsing
+      loops: Animation.Infinite
+      onStopped: { lead.opacity = 1; leadDot.opacity = 1 }
+      NumberAnimation { targets: [lead, leadDot]; property: "opacity"; to: 0.35; duration: act.pulseMs; easing.type: Easing.InOutSine }
+      NumberAnimation { targets: [lead, leadDot]; property: "opacity"; to: 1; duration: act.pulseMs; easing.type: Easing.InOutSine }
+    }
+    Text {
+      textFormat: Text.PlainText
+      anchors.right: parent.right
+      anchors.rightMargin: win.edge + 4
+      anchors.verticalCenter: parent.verticalCenter
+      text: act.trail
+      font: trailMetrics.font
+      color: win.s.tint(act.tone)
+      opacity: act.trailOpacity
+    }
+  }
+
   TextMetrics { id: trailMetrics; font.family: s.textFont; font.pixelSize: s.notchHeight >= 28 ? 14 : 13; font.weight: Font.DemiBold; font.features: { "tnum": 1 }; text: win.trailText }
   readonly property int edge: s.pill ? Math.max(4, Math.round((s.notchHeight - 16) / 2)) : 10
   readonly property string trailText: s.live === "call" ? s.callElapsed(s.currentCall)
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
+    : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
@@ -359,6 +422,15 @@ PanelWindow {
       }
       Text {
         textFormat: Text.PlainText
+        visible: win.s.secondLive === "stopwatch"
+        anchors.centerIn: parent
+        text: win.s.glyphs.stopwatch
+        font.family: win.s.iconFont
+        font.pixelSize: 13
+        color: win.s.tint("orange")
+      }
+      Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "call"
         anchors.centerIn: parent
         text: "󰏲"
@@ -484,105 +556,45 @@ PanelWindow {
             height: win.s.notchHeight - 12
             playing: win.s.isPlaying
             color: win.s.mediaAccent
+            levels: win.s.spectrum
           }
         }
 
-        Reveal {
-          shown: win.mode === "compact" && win.s.live === "timer"
-          width: win.geometryFor("compact").w
-          height: win.s.notchHeight
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 60
-
-          Text {
-            textFormat: Text.PlainText
-            x: win.edge + 1
-            anchors.verticalCenter: parent.verticalCenter
-            text: win.s.glyphs.timer
-            font.family: win.s.iconFont
-            font.pixelSize: 15
-            color: win.s.tint("orange")
-          }
-          Text {
-            textFormat: Text.PlainText
-            anchors.right: parent.right
-            anchors.rightMargin: win.edge + 4
-            anchors.verticalCenter: parent.verticalCenter
-            text: Model.formatTime(Math.ceil(win.s.timerLeft))
-            font: trailMetrics.font
-            color: win.s.tint("orange")
-            opacity: win.s.timerPausedLeft >= 0 ? 0.55 : 1
-          }
+        CompactActivity {
+          kind: "timer"
+          tone: "orange"
+          glyph: win.s.glyphs.timer
+          trail: Model.formatTime(Math.ceil(win.s.timerLeft))
+          trailOpacity: win.s.timerPausedLeft >= 0 ? 0.55 : 1
         }
 
-        Reveal {
-          shown: win.mode === "compact" && win.s.live === "recording"
-          width: win.geometryFor("compact").w
-          height: win.s.notchHeight
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 60
-
-          Rectangle {
-            x: win.edge + 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: 9
-            height: 9
-            radius: 4.5
-            color: win.s.tint("red")
-            SequentialAnimation on opacity {
-              running: win.s.recording
-              loops: Animation.Infinite
-              NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
-              NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
-            }
-          }
-          Text {
-            textFormat: Text.PlainText
-            anchors.right: parent.right
-            anchors.rightMargin: win.edge + 4
-            anchors.verticalCenter: parent.verticalCenter
-            text: { win.s.now; return Model.formatTime((Date.now() - win.s.recordingSince) / 1000) }
-            font: trailMetrics.font
-            color: win.s.tint("red")
-          }
+        CompactActivity {
+          kind: "stopwatch"
+          tone: "orange"
+          glyph: win.s.glyphs.stopwatch
+          trail: Model.formatTime(win.s.stopwatchElapsed)
+          trailOpacity: win.s.stopwatchHeld >= 0 ? 0.55 : 1
         }
 
-        Reveal {
-          shown: win.mode === "compact" && win.s.live === "call"
-          width: win.geometryFor("compact").w
-          height: win.s.notchHeight
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 60
+        CompactActivity {
+          kind: "recording"
+          tone: "red"
+          trail: { win.s.now; return Model.formatTime((Date.now() - win.s.recordingSince) / 1000) }
+          pulsing: win.s.recording
+        }
 
-          Text {
-            textFormat: Text.PlainText
-            x: win.edge + 1
-            anchors.verticalCenter: parent.verticalCenter
-            text: "󰏲"
-            font.family: win.s.iconFont
-            font.pixelSize: 15
-            color: win.s.tint("green")
-            SequentialAnimation on opacity {
-              running: !!win.s.currentCall && win.s.currentCall.state !== "active"
-              loops: Animation.Infinite
-              onStopped: parent.opacity = 1
-              NumberAnimation { to: 0.35; duration: 600; easing.type: Easing.InOutSine }
-              NumberAnimation { to: 1; duration: 600; easing.type: Easing.InOutSine }
-            }
-          }
-          Text {
-            textFormat: Text.PlainText
-            anchors.right: parent.right
-            anchors.rightMargin: win.edge + 4
-            anchors.verticalCenter: parent.verticalCenter
-            text: win.trailText
-            font: trailMetrics.font
-            color: win.s.tint("green")
-          }
+        CompactActivity {
+          kind: "call"
+          tone: "green"
+          glyph: "󰏲"
+          trail: win.trailText
+          pulsing: !!win.s.currentCall && win.s.currentCall.state !== "active"
+          pulseMs: 600
         }
 
         // ------------------------------------------------ incoming call
         Reveal {
+          id: incoming
           shown: win.mode === "incoming"
           width: win.geometryFor("incoming").w
           height: win.geometryFor("incoming").h
@@ -601,7 +613,7 @@ PanelWindow {
               textFormat: Text.PlainText
               anchors.centerIn: parent
               text: {
-                var n = String(parent.parent.call.name || "")
+                var n = String(incoming.call.name || "")
                 return n !== "" ? n.charAt(0).toUpperCase() : "󰀄"
               }
               font.family: text.length === 1 && /[A-Z0-9]/.test(text) ? win.s.textFont : win.s.iconFont
@@ -620,7 +632,7 @@ PanelWindow {
             Text {
               textFormat: Text.PlainText
               width: parent.width
-              text: win.s.phoneName + (parent.parent.call.state === "waiting" ? " · Call Waiting" : "")
+              text: win.s.phoneName + (incoming.call.state === "waiting" ? " · Call Waiting" : "")
               font.family: win.s.textFont
               font.pixelSize: 11
               color: win.s.secondaryText
@@ -629,7 +641,7 @@ PanelWindow {
             Text {
               textFormat: Text.PlainText
               width: parent.width
-              text: win.s.callTitle(parent.parent.call)
+              text: win.s.callTitle(incoming.call)
               font.family: win.s.textFont
               font.pixelSize: 15
               font.weight: Font.DemiBold
@@ -680,31 +692,11 @@ PanelWindow {
           }
         }
 
-        Reveal {
-          shown: win.mode === "compact" && win.s.live === "phone"
-          width: win.geometryFor("compact").w
-          height: win.s.notchHeight
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 60
-
-          Text {
-            textFormat: Text.PlainText
-            x: win.edge + 1
-            anchors.verticalCenter: parent.verticalCenter
-            text: "󰄜"
-            font.family: win.s.iconFont
-            font.pixelSize: 15
-            color: win.s.tint("green")
-          }
-          Text {
-            textFormat: Text.PlainText
-            anchors.right: parent.right
-            anchors.rightMargin: win.edge + 4
-            anchors.verticalCenter: parent.verticalCenter
-            text: win.trailText
-            font: trailMetrics.font
-            color: win.s.tint("green")
-          }
+        CompactActivity {
+          kind: "phone"
+          tone: "green"
+          glyph: "󰄜"
+          trail: win.trailText
         }
 
         // The clock lives in the island now: centered in the bare pill and
@@ -718,19 +710,6 @@ PanelWindow {
           color: win.s.textColor
           opacity: win.s.showClock && (win.mode === "idle" || win.mode === "compact") ? 1 : 0
           Behavior on opacity { NumberAnimation { duration: win.mode === "idle" || win.mode === "compact" ? 260 : 90 } }
-        }
-
-        // Privacy indicator: orange dot while any app is capturing the mic.
-        Rectangle {
-          width: 6
-          height: 6
-          radius: 3
-          anchors.verticalCenter: parent.top
-          anchors.verticalCenterOffset: win.s.notchHeight / 2
-          color: win.s.tint("orange")
-          x: win.edge + 4
-          opacity: win.s.micInUse && win.mode === "idle" ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: 250 } }
         }
 
         // ------------------------------------------------ alert (wide pill)
@@ -826,7 +805,7 @@ PanelWindow {
                 radius: parent.radius
                 width: Math.max(parent.height, parent.width * Model.clamp((win.lastHud.percent || 0) / 100, 0, 1))
                 opacity: (win.lastHud.percent || 0) > 0 ? 1 : 0.0
-                color: win.s.palette === "theme" ? win.s.tint("accent") : win.s.textColor
+                color: win.s.paletteName === "theme" ? win.s.tint("accent") : win.s.textColor
                 Behavior on width { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.3 } }
               }
             }
@@ -925,7 +904,7 @@ PanelWindow {
             anchors.fill: parent
             s: win.s
             active: win.mode === "expanded"
-            onControlsClicked: win.openControls("main")
+            onOutputClicked: win.openControls("audio")
           }
         }
 
@@ -946,6 +925,34 @@ PanelWindow {
             active: win.controlsOpen
           }
         }
+      }
+    }
+
+    // Privacy indicators: orange while an app captures the microphone, green
+    // while one holds the camera. They sit beside the island rather than in
+    // it — the pill's shadow layer clips its own children, and a live
+    // activity already fills the pill edge to edge.
+    Row {
+      spacing: 4
+      x: island.x + island.width + 6
+      y: win.s.islandTop + Math.round((win.bh - 6) / 2)
+      visible: win.mode === "idle" || win.mode === "compact"
+
+      Rectangle {
+        width: 6
+        height: 6
+        radius: 3
+        color: win.s.tint("orange")
+        opacity: win.s.micInUse ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 250 } }
+      }
+      Rectangle {
+        width: 6
+        height: 6
+        radius: 3
+        color: win.s.tint("green")
+        opacity: win.s.cameraInUse ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 250 } }
       }
     }
   }

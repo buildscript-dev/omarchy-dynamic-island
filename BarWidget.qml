@@ -1,5 +1,4 @@
 import QtQuick
-import qs.Commons
 import qs.Ui
 
 // The island's footprint in the bar. It draws nothing — the notch itself is

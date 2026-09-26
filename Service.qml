@@ -4,9 +4,9 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.UPower
-import Quickshell.Services.Pipewire
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
+import Quickshell.Wayland
 import qs.Commons
 import "IslandModel.js" as Model
 
@@ -87,7 +87,7 @@ Item {
   }
 
   readonly property string style: String(setting("style", "black"))           // black | bar | glass
-  readonly property string palette: String(setting("palette", "apple"))       // apple | theme
+  readonly property string paletteName: String(setting("palette", "apple"))   // apple | theme (QQuickItem already owns "palette")
   // pill: a floating iPhone-style bubble inside the bar · notch: a MacBook
   // notch hanging from the top edge.
   readonly property string shape: String(setting("shape", "pill"))
@@ -96,6 +96,10 @@ Item {
   readonly property bool openOnHover: setting("openOnHover", true) === true
   readonly property int hoverDelay: Number(setting("hoverDelay", 320))
   readonly property bool showNotifications: setting("showNotifications", true) === true
+  // The phone's own screen is on this desktop while it is mirrored, and it
+  // shows its notifications, its messages and its status itself. The island
+  // stays out of the way until the mirror closes.
+  readonly property bool muteWhileMirrored: setting("muteWhileMirrored", true) === true
   readonly property bool replaceOsd: setting("replaceOsd", true) === true
   readonly property bool hideInFullscreen: setting("hideInFullscreen", true) === true
   // On by default the island always sits there. Turn it off and it tucks
@@ -108,6 +112,7 @@ Item {
   readonly property bool showWorkspaces: setting("showWorkspaces", true) === true
   readonly property bool artworkTint: setting("artworkTint", true) === true
   readonly property bool showMicIndicator: setting("showMicIndicator", true) === true
+  readonly property bool showCameraIndicator: setting("showCameraIndicator", true) === true
   readonly property bool scrollVolume: setting("scrollVolume", true) === true
   // external: the external monitor when one is plugged in, otherwise the
   // built-in display · focused: follows the focused monitor · all: one per
@@ -147,7 +152,7 @@ Item {
   readonly property color controlFill: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1)
 
   function tint(name) {
-    if (palette === "theme") {
+    if (paletteName === "theme") {
       if (name === "red") return Color.urgent
       if (name === "white" || name === "") return root.textColor
       return Color.accent
@@ -195,7 +200,6 @@ Item {
   // Plain JS object: remembering the last player must not re-trigger the
   // bindings that read it (that was a binding loop).
   readonly property var playerMemory: ({ key: "" })
-  readonly property string lastPlayerKey: playerMemory.key
   readonly property var playingPlayer: {
     var first = null
     for (var i = 0; i < players.length; i++) {
@@ -220,6 +224,30 @@ Item {
   }
   readonly property bool hasMedia: player !== null && !!(player.trackTitle || player.trackArtist)
   readonly property bool isPlaying: player ? !!player.isPlaying : false
+
+  // Live spectrum from cava while music plays; [] means the waveform animates
+  // on its own (cava missing, or it keeps dying).
+  property var spectrum: []
+  property int cavaFails: 0
+  function syncCava() {
+    var want = isPlaying && cavaFails < 3
+    if (want !== cava.running) cava.running = want
+  }
+  SafeProcess {
+    id: cava
+    command: Model.direct(["cava", "-p", decodeURIComponent(Qt.resolvedUrl("cava.conf").toString().replace("file://", ""))])
+    stdout: SplitParser {
+      onRead: function(line) {
+        var v = Model.parseSpectrum(line, 6)
+        if (v) { root.spectrum = v; root.cavaFails = 0 }
+      }
+    }
+    onRunningChanged: if (!running) {
+      root.spectrum = []
+      if (root.isPlaying) { root.cavaFails++; cavaRetry.restart() }
+    }
+  }
+  Timer { id: cavaRetry; interval: 3000; onTriggered: root.syncCava() }
   readonly property string trackTitle: player ? String(player.trackTitle || "") : ""
   readonly property string trackArtist: player ? String(player.trackArtist || "") : ""
   readonly property string trackAlbum: player ? String(player.trackAlbum || "") : ""
@@ -253,6 +281,7 @@ Item {
   // settles back to the bare notch — like macOS notch apps do.
   property bool pausedLinger: false
   onIsPlayingChanged: {
+    syncCava()
     if (isPlaying) {
       pausedLingerTimer.stop()
       pausedLinger = false
@@ -304,7 +333,7 @@ Item {
     var remote = /^https?:\/\//i.test(trackArt)
     var arg = ""
     if (remote) {
-      // Remote artwork is the only download the island itself makes.
+      // Remote artwork: downloaded only with onlineExtras on.
       if (!onlineExtras || trackArt.length > 2048) return
       arg = trackArt
     } else {
@@ -333,7 +362,7 @@ Item {
   }
   readonly property color mediaAccent: artworkTint && trackArt !== ""
     ? Model.vividColor(artQuantizer.colors, tint("white"))
-    : (palette === "theme" ? Color.accent : tint("white"))
+    : (paletteName === "theme" ? Color.accent : tint("white"))
 
   function mediaToggle() {
     var p = root.player
@@ -412,6 +441,46 @@ Item {
     }
   }
 
+  // ------------------------------------------------------------ stopwatch
+  property real stopwatchSince: 0   // epoch ms the running count started from; 0 = stopped
+  property real stopwatchHeld: -1   // seconds shown while paused
+  readonly property bool stopwatchActive: stopwatchSince > 0 || stopwatchHeld >= 0
+  readonly property real stopwatchElapsed: {
+    root.now
+    if (stopwatchHeld >= 0) return stopwatchHeld
+    return stopwatchSince > 0 ? (Date.now() - stopwatchSince) / 1000 : 0
+  }
+  function toggleStopwatch() {
+    if (stopwatchHeld >= 0) { stopwatchSince = Date.now() - stopwatchHeld * 1000; stopwatchHeld = -1 }
+    else if (stopwatchSince > 0) { stopwatchHeld = (Date.now() - stopwatchSince) / 1000; stopwatchSince = 0 }
+    else stopwatchSince = Date.now()
+  }
+  function resetStopwatch() { stopwatchSince = 0; stopwatchHeld = -1 }
+
+  // ------------------------------------------------------------ alarm
+  // ponytail: one alarm, kept in memory only; a shell restart forgets it. Persist it if people rely on it to wake up.
+  property real alarmAt: 0          // epoch ms; 0 = none
+  function setAlarm(hhmm) {
+    var at = Model.nextAlarm(hhmm, Date.now())
+    if (!at) return false
+    alarmAt = at
+    pushActivity({ kind: "alert", source: "alarm", icon: glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 1600 })
+    return true
+  }
+  function cancelAlarm() { alarmAt = 0 }
+  Timer {
+    interval: 1000
+    repeat: true
+    running: root.alarmAt > 0
+    onTriggered: {
+      if (Date.now() < root.alarmAt) return
+      var at = root.alarmAt
+      root.alarmAt = 0
+      root.pushActivity({ kind: "alert", source: "alarm-done", icon: root.glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 10000 })
+      root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"], 15)
+    }
+  }
+
   // ------------------------------------------------------------ recording
   property bool recording: false
   property real recordingSince: 0
@@ -435,17 +504,30 @@ Item {
     root.fire(["omarchy-capture-screenrecording", "--stop-recording"], 30)
   }
 
-  // ------------------------------------------------------------ microphone privacy dot
-  readonly property bool micInUse: {
-    if (!root.showMicIndicator) return false
-    var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i]
-      if (!n || !n.isStream) continue
-      var props = n.properties || {}
-      if (props["media.class"] === "Stream/Input/Audio" && props["stream.monitor"] !== "true") return true
+  // ------------------------------------------------------------ privacy dots
+  // One poll answers for both. PipeWire only sees a camera that came through
+  // the portal, and most apps open /dev/video* themselves, so ask the kernel
+  // who holds the device. Capture off a monitor source is desktop audio, not
+  // the microphone, so those streams are skipped.
+  property bool micInUse: false
+  property bool cameraInUse: false
+  Timer {
+    interval: 2500
+    repeat: true
+    running: root.showMicIndicator || root.showCameraIndicator
+    triggeredOnStart: true
+    onTriggered: if (!privacyProc.running) privacyProc.running = true
+  }
+  SafeProcess {
+    id: privacyProc
+    command: Model.bounded(["bash", "-c", "c=0; m=0; /usr/bin/fuser -s /dev/video* 2>/dev/null && c=1; mons=\" $(/usr/bin/pactl list sources short | /usr/bin/grep '\\.monitor' | /usr/bin/cut -f1 | /usr/bin/tr '\\n' ' ')\"; for id in $(/usr/bin/pactl list source-outputs 2>/dev/null | /usr/bin/sed -n 's/^\\tSource: //p'); do case \"$mons\" in *\" $id \"*) ;; *) m=1 ;; esac; done; echo \"$m$c\""], 5, 16)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var t = String(Model.capped(text, 16) || "").trim()
+        root.micInUse = root.showMicIndicator && t.charAt(0) === "1"
+        root.cameraInUse = root.showCameraIndicator && t.charAt(1) === "1"
+      }
     }
-    return false
   }
 
   // ------------------------------------------------------------ battery
@@ -594,10 +676,15 @@ Item {
     var summary = Model.plainText(d.summary)
     var body = Model.plainText(d.body)
     if (summary === "" && body === "") return
-    var sms = root.lastSms.body.slice(0, 24)
-    if (sms !== "" && Date.now() - root.lastSms.time < 10000 && (body.indexOf(sms) !== -1 || summary.indexOf(sms) !== -1)) return
-    var iconUrl = root.notifIcon(d, summary)
     var pn = root.relayed(d)
+    // The phone is right there showing this itself.
+    if (pn && root.phoneMuted) return
+    // The same message can arrive from the phone and from this machine's own
+    // copy of the app (Signal, WhatsApp, Telegram): whichever lands first wins.
+    var line = pn ? root.newestLine(pn.text) : (body !== "" ? body : summary)
+    if (Model.seenRecently(root.recentMessages, line, Date.now(), root.duplicateWindow)) return
+    root.recentMessages = Model.rememberMessage(root.recentMessages, line, Date.now(), root.duplicateWindow)
+    var iconUrl = root.notifIcon(d, summary)
     var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
     root.pushActivity({
       kind: "notification", source: "notification", file: file,
@@ -708,12 +795,12 @@ Item {
     return Quickshell.iconPath(name.toLowerCase().replace(/\s+/g, "-"), true)
   }
 
-  // SMS arrive twice (phoned + KDE Connect's mirrored popup); keep ours.
-  property var lastSms: ({ body: "", time: 0 })
+  // What the island has shown lately, so the second copy of one message is
+  // dropped no matter which side it comes from: phoned reading the phone, KDE
+  // Connect mirroring the phone's popup, or the desktop app for the same chat.
+  property var recentMessages: []
+  readonly property int duplicateWindow: 12000
   property var pendingThread: null
-  // A chat you can answer opens its reply box; anything else opens the app it
-  // came from, so clicking a notification always lands somewhere useful.
-  property var replyTarget: null
   property var pendingNotif: null
   function notificationActivate() {
     if (activity && activity.sms) {
@@ -829,8 +916,11 @@ Item {
     var out = []
     if (currentCall) out.push("call")
     if (recording) out.push("recording")
-    if (phoneMirroring) out.push("phone")
+    // The mirror's own window is the indicator; a second one on this desktop
+    // counting how long the phone has been up says nothing the phone doesn't.
+    if (phoneMirroring && !phoneMuted) out.push("phone")
     if (timerActive) out.push("timer")
+    if (stopwatchActive) out.push("stopwatch")
     if (mediaLive) out.push("media")
     return out
   }
@@ -862,8 +952,8 @@ Item {
   readonly property var buds: budsLoader.item
   readonly property bool budsConnected: !!(buds && buds.status && buds.status.connected)
   readonly property string budsName: buds && buds.status && buds.status.deviceName ? buds.status.deviceName : "Earbuds"
-  readonly property var budsModeNames: ({ anc: "Noise Cancellation", smart: "Smart ANC", transparency: "Transparency", off: "Noise Control Off" })
-  readonly property var budsModeGlyphs: ({ anc: "󰟎", smart: "󰧑", transparency: "󰈈", off: "󰋋" })
+  readonly property var budsModeNames: ({ smart: "Adaptive", anc: "Noise Cancellation", transparency: "Transparency", vocal: "Conversation", off: "Noise Control Off" })
+  readonly property var budsModeGlyphs: ({ smart: "󰧑", anc: "󰟎", transparency: "󰈈", vocal: "󰗋", off: "󰋋" })
   function budsPart(p) { return p && p.level >= 0 ? p.level + "%" : "–" }
   // AirPods-style: a pill with both buds' battery when they connect, and a
   // quick confirmation when the noise mode changes (from here, the buds or the phone).
@@ -904,6 +994,22 @@ Item {
   }
   readonly property var phone: phoneLoader.item
   readonly property bool phoneMirroring: !!(phone && phone.sessionRunning)
+  // The mirror as the compositor sees it, so a window Taildroid did not start
+  // itself counts too: a DeX display, a single mirrored app, a bare scrcpy.
+  readonly property bool mirrorWindowOpen: {
+    var list = ToplevelManager.toplevels ? ToplevelManager.toplevels.values : []
+    for (var i = 0; i < list.length; i++) {
+      var id = String(list[i].appId || "").toLowerCase()
+      if (id.indexOf("taildroid") !== -1 || id.indexOf("scrcpy") !== -1) return true
+    }
+    return false
+  }
+  readonly property bool phoneOnScreen: phoneMirroring || mirrorWindowOpen
+  // ponytail: "on screen" means a mirror window exists, not that it is on the
+  // workspace you are looking at — park the mirror elsewhere and the island
+  // still holds its tongue. Per-workspace visibility needs the Hyprland client
+  // list; add it if parking the mirror turns out to be the normal way to work.
+  readonly property bool phoneMuted: muteWhileMirrored && phoneOnScreen
   property real phoneSince: 0
   onPhoneMirroringChanged: if (phoneMirroring) phoneSince = Date.now()
 
@@ -934,6 +1040,11 @@ Item {
     ignoreUnknownSignals: true
     function onPhoneEvent(ev) {
       if (!root.settled) return
+      // Connected, nearby, hotspot: the mirror shows the phone's own status
+      // bar, so these say nothing new while it is open. Calls and errors still
+      // come through — those are worth interrupting for.
+      if (root.phoneMuted && (ev.kind === "connected" || ev.kind === "disconnected"
+          || ev.kind === "nearby" || ev.kind === "hotspot")) return
       if (ev.kind === "connected")
         root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰄜", tint: "green", title: ev.model || root.phoneName,
           value: ev.transport === "usb" ? "USB" : "Wi-Fi", duration: 2400 })
@@ -953,10 +1064,12 @@ Item {
         root.pushActivity({ kind: "alert", source: "hotspot", icon: "󰀂", tint: ev.on ? "green" : "secondary", title: "Hotspot",
           value: ev.on ? "Connected" : "Off", duration: 2200 })
       else if (ev.kind === "sms") {
-        root.lastSms = { body: String(ev.body || ""), time: Date.now() }
-        if (root.showNotifications)
+        var text = String(ev.body || "")
+        var dup = Model.seenRecently(root.recentMessages, text, Date.now(), root.duplicateWindow)
+        root.recentMessages = Model.rememberMessage(root.recentMessages, text, Date.now(), root.duplicateWindow)
+        if (root.showNotifications && !root.phoneMuted && !dup)
           root.pushActivity({ kind: "notification", source: "sms", file: "", app: "Messages · " + root.phoneName,
-            title: ev.name || (ev.addresses || []).join(", "), body: String(ev.body || ""), image: "",
+            title: ev.name || (ev.addresses || []).join(", "), body: text, image: "",
             urgent: false, duration: 6000, sms: ev })
       }
       else if (ev.kind === "error")
@@ -1016,6 +1129,33 @@ Item {
       pushActivity({ kind: "alert", source: "workspace", icon: "󰍹", tint: "white", title: String(ws.name || ws.id), value: dots, duration: 1100 })
     }
     lastWorkspace = ws.id
+  }
+
+  // ------------------------------------------------------------ lyrics
+  // Synced lyrics for the playing track from lrclib.net (onlineExtras only).
+  property var lyrics: []
+  readonly property string lyricLine: lyrics.length ? Model.lyricAt(lyrics, trackPosition) : ""
+  readonly property string lyricsKey: onlineExtras && trackTitle !== "" && trackArtist !== "" ? trackArtist + "\u0000" + trackTitle : ""
+  onLyricsKeyChanged: {
+    lyrics = []
+    lyricsFetch.running = false
+    if (lyricsKey !== "") lyricsDelay.restart()
+  }
+  // Skipping through tracks shouldn't fire a lookup per track.
+  Timer { id: lyricsDelay; interval: 1500; onTriggered: if (root.lyricsKey !== "") lyricsFetch.running = true }
+  SafeProcess {
+    id: lyricsFetch
+    command: Model.bounded(["curl", "-q", "-fsG", "--proto", "=https", "--max-time", "8", "https://lrclib.net/api/get",
+      "--data-urlencode", "artist_name=" + Model.clip(root.trackArtist, 200),
+      "--data-urlencode", "track_name=" + Model.clip(root.trackTitle, 200)]
+      .concat(root.trackLength > 0 ? ["--data-urlencode", "duration=" + Math.round(root.trackLength)] : []), 12, 262144)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var t = Model.capped(text, 262144)
+        if (!t) return
+        try { root.lyrics = Model.parseLrc(JSON.parse(t).syncedLyrics) } catch (e) { root.lyrics = [] }
+      }
+    }
   }
 
   // ------------------------------------------------------------ weather
@@ -1172,10 +1312,11 @@ Item {
         live: root.live, second: root.secondLive, controls: root.controlsShown,
         activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
         queued: root.queue.length,
-        media: { playing: root.isPlaying, player: root.playerName },
-        timerLeft: Math.round(root.timerLeft), recording: root.recording, micInUse: root.micInUse,
+        media: { playing: root.isPlaying, player: root.playerName, lyrics: root.lyrics.length },
+        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
-        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.palette, font: root.textFont, notchHeight: root.notchHeight
+        phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
+        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, font: root.textFont, notchHeight: root.notchHeight
       })
     }
     function ping(): string { return "ok" }
@@ -1218,6 +1359,10 @@ Item {
       return "ok"
     }
     function timerCancel(): string { root.cancelTimer(); return "ok" }
+    function stopwatch(): string { root.toggleStopwatch(); return "ok" }
+    function stopwatchReset(): string { root.resetStopwatch(); return "ok" }
+    function alarm(hhmm: string): string { return root.setAlarm(hhmm) ? "ok" : "bad-time" }
+    function alarmCancel(): string { root.cancelAlarm(); return "ok" }
     function alert(icon: string, title: string, value: string): string {
       root.pushActivity({ kind: "alert", source: "ipc-alert", icon: Model.clip(icon, 4), tint: "white",
         title: Model.clip(title, 60), value: Model.clip(value, 24), duration: 2500 })

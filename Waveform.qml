@@ -11,6 +11,8 @@ Item {
   property int bars: 5
   property real barWidth: 2.6
   property real spacing: 2.2
+  // Real levels (0..1) from cava; empty means make up a dance.
+  property var levels: []
 
   implicitWidth: bars * barWidth + (bars - 1) * spacing
   implicitHeight: 16
@@ -31,7 +33,11 @@ Item {
         property real level: 0.25
 
         width: root.barWidth
-        height: Math.max(root.barWidth, root.height * (root.playing ? level : 0.18))
+        // Live: bass drives the middle bars, treble the edges, shaped by the
+        // same envelope as the made-up dance so the wave keeps its look.
+        readonly property real band: root.levels.length ? root.levels[Math.min(root.levels.length - 1, Math.floor(Math.abs(index - (root.bars - 1) / 2) / ((root.bars) / 2) * root.levels.length))] : 0
+        readonly property real live: root.levels.length ? 0.22 + band * 0.78 * envelope + 0.1 * band : -1
+        height: Math.max(root.barWidth, root.height * (!root.playing ? 0.18 : live >= 0 ? live : level))
         radius: width / 2
         anchors.verticalCenter: parent.verticalCenter
         color: root.color
@@ -42,7 +48,7 @@ Item {
         Behavior on color { ColorAnimation { duration: 500 } }
 
         Timer {
-          running: root.playing && root.visible
+          running: root.playing && root.visible && !root.levels.length
           repeat: true
           interval: 150 + bar.index * 37
           onTriggered: bar.level = 0.22 + Math.random() * 0.78 * bar.envelope + 0.1
