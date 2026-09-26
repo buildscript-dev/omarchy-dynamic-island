@@ -104,6 +104,7 @@ PanelWindow {
   // mark at the leading edge, a tinted read-out at the trailing one. Media is
   // the exception - artwork and a waveform - so it stays written out below.
   component CompactActivity: Reveal {
+    reduced: win.s.reduceMotion
     id: act
     property string kind: ""
     property string tone: ""
@@ -223,12 +224,13 @@ PanelWindow {
   onGeomChanged: applyGeometry(true)
   Component.onCompleted: applyGeometry(false)
 
-  readonly property real springK: growing ? 3.3 : 4.4
-  readonly property real springD: growing ? 0.25 : 0.42
+  // Reduce motion: the shape still morphs, but settles without a bounce.
+  readonly property real springK: s.reduceMotion ? 7 : growing ? 3.3 : 4.4
+  readonly property real springD: s.reduceMotion ? 1 : growing ? 0.25 : 0.42
   Behavior on bw { id: bwBehavior; SpringAnimation { spring: win.springK; damping: win.springD; epsilon: 0.25 } }
   Behavior on bh { id: bhBehavior; SpringAnimation { spring: win.springK * 1.08; damping: win.springD; epsilon: 0.25 } }
-  Behavior on brb { id: brbBehavior; SpringAnimation { spring: win.springK; damping: 0.5; epsilon: 0.1 } }
-  Behavior on brt { id: brtBehavior; SpringAnimation { spring: win.springK; damping: 0.5; epsilon: 0.1 } }
+  Behavior on brb { id: brbBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
+  Behavior on brt { id: brtBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
 
   // How far the island has grown past the bare notch; drives the shadow.
   readonly property real lift: Model.clamp((bh - s.notchHeight) / 60, 0, 1)
@@ -393,7 +395,7 @@ PanelWindow {
       opacity: stage.bubbleShown ? 1 : 0
       scale: stage.bubbleShown ? 1 : 0.3
       Behavior on opacity { NumberAnimation { duration: stage.bubbleShown ? 240 : 120 } }
-      Behavior on scale { SpringAnimation { spring: 3.6; damping: 0.28; epsilon: 0.005 } }
+      Behavior on scale { SpringAnimation { spring: 3.6; damping: win.s.reduceMotion ? 1 : 0.28; epsilon: 0.005 } }
       visible: opacity > 0.01
 
       Rectangle {
@@ -546,6 +548,7 @@ PanelWindow {
 
         // ------------------------------------------------ compact live activities
         Reveal {
+          reduced: win.s.reduceMotion
           id: compactMedia
           shown: win.mode === "compact" && win.s.live === "media"
           width: win.geometryFor("compact").w
@@ -618,6 +621,7 @@ PanelWindow {
 
         // ------------------------------------------------ incoming call
         Reveal {
+          reduced: win.s.reduceMotion
           id: incoming
           shown: win.mode === "incoming"
           width: win.geometryFor("incoming").w
@@ -738,6 +742,7 @@ PanelWindow {
 
         // ------------------------------------------------ alert (wide pill)
         Reveal {
+          reduced: win.s.reduceMotion
           shown: win.mode === "alert"
           width: win.geometryFor("alert").w
           height: win.geometryFor("alert").h
@@ -780,6 +785,7 @@ PanelWindow {
 
         // ------------------------------------------------ HUD (volume, brightness…)
         Reveal {
+          reduced: win.s.reduceMotion
           shown: win.mode === "hud"
           width: win.geometryFor("hud").w
           height: win.geometryFor("hud").h
@@ -838,6 +844,7 @@ PanelWindow {
 
         // ------------------------------------------------ notification peek
         Reveal {
+          reduced: win.s.reduceMotion
           shown: win.mode === "notification"
           width: win.geometryFor("notification").w
           height: win.geometryFor("notification").h
@@ -917,6 +924,7 @@ PanelWindow {
 
         // ------------------------------------------------ expanded
         Reveal {
+          reduced: win.s.reduceMotion
           shown: win.mode === "expanded"
           width: win.geometryFor("expanded").w
           height: win.geometryFor("expanded").h
@@ -934,6 +942,7 @@ PanelWindow {
 
         // ------------------------------------------------ control center
         Reveal {
+          reduced: win.s.reduceMotion
           shown: win.mode === "controls"
           width: controlCenter.preferredWidth
           height: Math.max(0, win.bh)

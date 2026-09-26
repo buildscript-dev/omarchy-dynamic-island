@@ -106,6 +106,7 @@ Item {
   // away with nothing to show, sliding back in for anything live (or when
   // the pointer touches the top-center edge) — the standalone, no-bar look.
   readonly property bool showWhenIdle: setting("showWhenIdle", true) === true
+  readonly property bool reduceMotion: setting("reduceMotion", false) === true
   // One switch for everything that reaches the network: album artwork for
   // streaming players, the weather line, and the Omarchy update check.
   readonly property bool onlineExtras: setting("onlineExtras", true) === true
@@ -1391,7 +1392,7 @@ Item {
         timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", alarmRinging: root.alarmRinging, recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
-        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, font: root.textFont, notchHeight: root.notchHeight
+        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, reduceMotion: root.reduceMotion, font: root.textFont, notchHeight: root.notchHeight
       })
     }
     function ping(): string { return "ok" }

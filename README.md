@@ -185,6 +185,7 @@ Changes apply as soon as you save the file — no restart:
 | `hideInFullscreen` | `true` | get out of the way of fullscreen windows; a 3 px strip at the top edge brings it back |
 | `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on it, after this many ms |
 | `scrollVolume` | `true` | scroll on the island to change volume |
+| `reduceMotion` | `false` | the island still changes shape, but settles without bouncing, and content cross-fades instead of zooming and blurring in |
 | `showClock` / `clockFormat` | `true` / `HH:mm` | clock inside the island (Qt format: `HH:mm`, or `h:mm AP` for AM/PM) |
 | `showWorkspaces` | `true` | flash the workspace when you switch |
 | `artworkTint` | `true` | color the music view from the album art |

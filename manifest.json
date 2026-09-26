@@ -38,6 +38,7 @@
       "showMicIndicator": true,
       "showCameraIndicator": true,
       "scrollVolume": true,
+      "reduceMotion": false,
       "monitor": "focused",
       "showClock": true,
       "clockFormat": "HH:mm",
@@ -179,6 +180,12 @@
         "type": "boolean",
         "label": "Scroll on the island to change volume",
         "defaultValue": true
+      },
+      {
+        "key": "reduceMotion",
+        "type": "boolean",
+        "label": "Reduce motion: no bounce, zoom or blur",
+        "defaultValue": false
       },
       {
         "key": "monitor",
