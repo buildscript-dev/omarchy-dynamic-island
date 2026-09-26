@@ -119,7 +119,7 @@ Item {
   }
   readonly property bool wired: !!(wiredDevice && wiredDevice.connected)
   function wifiGlyph(signal) {
-    var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
+    var icons = ["", "", "", "", ""]
     return icons[Math.max(0, Math.min(4, Math.ceil(signal / 20) - 1))]
   }
   function networkFor(ssid) {
@@ -268,12 +268,12 @@ Item {
     root.s.fire(["omarchy-bluetooth-power", btAdapter.enabled ? "off" : "on"], 30)
   }
   function btGlyph(icon) {
-    if (icon.indexOf("headset") !== -1 || icon.indexOf("headphone") !== -1 || icon.indexOf("audio") !== -1) return "󰋋"
-    if (icon.indexOf("phone") !== -1) return "󰏲"
-    if (icon.indexOf("keyboard") !== -1) return "󰌌"
-    if (icon.indexOf("mouse") !== -1) return "󰍽"
-    if (icon.indexOf("computer") !== -1) return "󰟀"
-    return "󰂯"
+    if (icon.indexOf("headset") !== -1 || icon.indexOf("headphone") !== -1 || icon.indexOf("audio") !== -1) return ""
+    if (icon.indexOf("phone") !== -1) return ""
+    if (icon.indexOf("keyboard") !== -1) return ""
+    if (icon.indexOf("mouse") !== -1) return ""
+    if (icon.indexOf("computer") !== -1) return ""
+    return ""
   }
   // Discover new devices while the Bluetooth page is open.
   property bool discoveryMine: false
@@ -410,7 +410,7 @@ Item {
     powerProfile = next
     run(["omarchy-powerprofiles-set", s.onBattery ? "battery" : "ac", next], true)
   }
-  function profileGlyph(p) { return p === "performance" ? "󰓅" : p === "power-saver" ? "󰾆" : "󰾅" }
+  function profileGlyph(p) { return p === "performance" ? "" : p === "power-saver" ? "" : "" }
   function profileLabel(p) { return p === "performance" ? "Performance" : p === "power-saver" ? "Power Saver" : "Balanced" }
   function toggleDnd() { root.s.toggleDnd() }
 
@@ -574,7 +574,7 @@ Item {
   }
   function budsLevel(part) { return part && part.level >= 0 ? part.level + "%" : "–" }
   readonly property var modeNames: ({ smart: "Adaptive", anc: "Noise Cancel", transparency: "Transparency", vocal: "Conversation", off: "Off" })
-  readonly property var modeGlyphs: ({ smart: "󰧑", anc: "󰟎", transparency: "󰈈", vocal: "󰗋", off: "󰋋" })
+  readonly property var modeGlyphs: ({ smart: "", anc: "", transparency: "", vocal: "", off: "" })
 
   // ================================================================ tray
   readonly property var trayItems: SystemTray.items ? SystemTray.items.values : []
@@ -669,7 +669,7 @@ Item {
       Label { width: parent.width; text: tile.title; font.weight: Font.DemiBold }
       Label { width: parent.width; text: tile.subtitle; visible: text !== ""; font.pixelSize: 11; color: root.dim }
     }
-    Glyph { id: chev; visible: tile.chevron; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: "󰅂"; font.pixelSize: 14; color: root.dim }
+    Glyph { id: chev; visible: tile.chevron; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 14; color: root.dim }
   }
 
   // Fat iOS slider with its icon inside the track.
@@ -812,7 +812,7 @@ Item {
       radius: 15
       anchors.verticalCenter: parent.verticalCenter
       color: backMouse.containsMouse ? root.tileHover : root.tileOff
-      Glyph { anchors.centerIn: parent; text: "󰅁"; font.pixelSize: 16 }
+      Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: 16 }
       MouseArea { id: backMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.back() }
     }
     Artwork {
@@ -936,7 +936,7 @@ Item {
         height: 24
         radius: 12
         color: removeMouse.containsMouse ? Qt.rgba(1, 0.27, 0.23, 0.25) : root.tileOff
-        Glyph { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: root.dim }
+        Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: 12; color: root.dim }
         MouseArea { id: removeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: row.removed() }
       }
     }
@@ -1024,7 +1024,7 @@ Item {
                 }
                 Rectangle { x: 25; anchors.verticalCenter: cell.verticalCenter; width: 2; height: 5; radius: 1; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.4) }
               }
-              Glyph { visible: root.s.charging; anchors.verticalCenter: parent.verticalCenter; text: "󱐋"; font.pixelSize: 12; color: parent.level }
+              Glyph { visible: root.s.charging; anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 12; color: parent.level }
               Label {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.s.batteryPercent + "%"
@@ -1046,12 +1046,18 @@ Item {
             height: 30
             radius: 15
             color: root.onColor("blue")
-            Label { id: updText; anchors.centerIn: parent; text: "󰚰  Update"; color: "#ffffff"; font.pixelSize: 12; font.weight: Font.DemiBold; font.family: root.s.iconFont }
+            Row {
+              id: updText
+              anchors.centerIn: parent
+              spacing: 6
+              Glyph { anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 13; color: "#ffffff" }
+              Label { anchors.verticalCenter: parent.verticalCenter; text: "Update"; color: "#ffffff"; font.pixelSize: 12; font.weight: Font.DemiBold }
+            }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.win.closeControls(); root.s.runUpdate() } }
           }
           Round {
             width: 34; height: 34
-            glyph: root.s.dnd ? "󰂛" : "󰂚"
+            glyph: root.s.dnd ? "" : ""
             onClicked: root.go("notifications")
             Rectangle {
               visible: root.s.history.length > 0
@@ -1106,7 +1112,7 @@ Item {
               }
             }
           }
-          Round { width: 34; height: 34; glyph: "󰃭"; onClicked: root.go("calendar") }
+          Round { width: 34; height: 34; glyph: ""; onClicked: root.go("calendar") }
         }
       }
 
@@ -1114,7 +1120,7 @@ Item {
         columns: 2
         spacing: 10
         Tile {
-          glyph: !root.wifiOn ? "󰤮" : root.wired && !root.wifiCurrent ? "󰈀" : root.wifiCurrent ? root.wifiGlyph(root.wifiCurrent.signal) : "󰤯"
+          glyph: !root.wifiOn ? "" : root.wired && !root.wifiCurrent ? "" : root.wifiCurrent ? root.wifiGlyph(root.wifiCurrent.signal) : ""
           title: "Wi-Fi"
           subtitle: !root.wifiOn ? (root.wired ? "Ethernet" : "Off") : root.wifiCurrent ? root.wifiCurrent.ssid : root.wired ? "Ethernet" : "Not connected"
           on: root.wifiOn
@@ -1122,7 +1128,7 @@ Item {
           onOpened: root.go("wifi")
         }
         Tile {
-          glyph: root.btOn ? "󰂯" : "󰂲"
+          glyph: root.btOn ? "" : ""
           title: "Bluetooth"
           subtitle: !root.btOn ? "Off" : root.btConnected.length === 1 ? root.btName(root.btConnected[0])
             : root.btConnected.length > 1 ? root.btConnected.length + " devices" : "On"
@@ -1143,7 +1149,7 @@ Item {
         }
         Tile {
           visible: root.hasPhone
-          glyph: "󰄜"
+          glyph: ""
           title: "Phone"
           subtitle: root.phoneRunning ? "Mirroring " + root.phoneName(root.phoneDevice)
             : root.phone && root.phone.hasReadyDevice ? root.phoneName(root.phoneDevice) + " · ready"
@@ -1170,8 +1176,8 @@ Item {
         label: "Volume"
         width: parent.width
         value: root.muted ? 0 : root.volume
-        glyph: root.muted || root.volume <= 0 ? "󰝟" : root.volume < 0.34 ? "󰕿" : root.volume < 0.67 ? "󰖀" : "󰕾"
-        trailing: "󰓃"
+        glyph: root.muted || root.volume <= 0 ? "" : root.volume < 0.34 ? "" : root.volume < 0.67 ? "" : ""
+        trailing: ""
         trailingIsGlyph: true
         onMoved: function(v) { root.setVolume(v) }
         onGlyphClicked: root.toggleMute()
@@ -1190,17 +1196,17 @@ Item {
       Row {
         spacing: Math.floor((root.innerWidth - 42 * visibleChildren.length) / Math.max(1, visibleChildren.length - 1))
         Round { glyph: root.s.glyphs.moon; on: root.s.dnd; accent: root.onColor("indigo"); onClicked: root.toggleDnd(); hint: "Focus" }
-        Round { glyph: "󰌵"; on: root.nightLight; accent: root.onColor("orange"); onClicked: root.toggleNight(); hint: "Night" }
-        Round { glyph: "󰅶"; on: root.stayAwake; accent: root.onColor("yellow"); onClicked: root.toggleAwake(); hint: "Awake" }
+        Round { glyph: ""; on: root.nightLight; accent: root.onColor("orange"); onClicked: root.toggleNight(); hint: "Night" }
+        Round { glyph: ""; on: root.stayAwake; accent: root.onColor("yellow"); onClicked: root.toggleAwake(); hint: "Awake" }
         Round { glyph: root.profileGlyph(root.powerProfile); visible: root.hasBuds && root.hasPhone; on: root.powerProfile !== "balanced" && root.powerProfile !== ""; accent: root.onColor("orange"); onClicked: root.cycleProfile(); hint: root.profileLabel(root.powerProfile) }
         // Both run as long as the user takes over them, so no deadline.
-        Round { glyph: "󰄀"; onClicked: { root.win.closeControls(); root.s.launch(["omarchy-capture-screenshot"]) }
+        Round { glyph: ""; onClicked: { root.win.closeControls(); root.s.launch(["omarchy-capture-screenshot"]) }
           hint: "Screenshot"
         }
         Round { glyph: root.s.glyphs.record; on: root.s.recording; accent: root.onColor("red"); onClicked: { root.win.closeControls(); if (root.s.recording) root.s.stopRecording(); else root.s.launch(["omarchy-capture-screenrecording"]) }
           hint: "Record"
         }
-        Round { glyph: "󰐥"; accent: root.onColor("red"); onClicked: root.go("power"); hint: "Power" }
+        Round { glyph: ""; accent: root.onColor("red"); onClicked: root.go("power"); hint: "Power" }
       }
 
     }
@@ -1244,7 +1250,7 @@ Item {
                   : wifiCell.modelData.connected ? "Connected" : wifiCell.modelData.known ? "Saved" : ""
                 selected: wifiCell.modelData.connected
                 busy: root.wifiBusySsid === wifiCell.modelData.ssid
-                trailing: wifiCell.modelData.secure ? "󰌾" : ""
+                trailing: wifiCell.modelData.secure ? "" : ""
                 canRemove: wifiCell.modelData.known
                 onClicked: root.wifiRowClicked(wifiCell.modelData)
                 onRemoved: root.wifiForget(wifiCell.modelData.ssid)
@@ -1384,7 +1390,7 @@ Item {
         label: "Output volume"
         width: parent.width
         value: root.muted ? 0 : root.volume
-        glyph: root.muted ? "󰝟" : "󰕾"
+        glyph: root.muted ? "" : ""
         onMoved: function(v) { root.setVolume(v) }
         onGlyphClicked: root.toggleMute()
       }
@@ -1400,7 +1406,7 @@ Item {
             glyph: "󱡏"
             title: root.budsStatus && root.budsStatus.deviceName ? root.budsStatus.deviceName : "Earbuds"
             subtitle: root.budsStatus ? (root.modeNames[root.budsStatus.noiseMode] || "Earbud settings") : ""
-            trailing: "󰅂"
+            trailing: ""
             onClicked: root.go("buds")
           }
           SectionTitle { text: "APPS"; visible: root.streams.length > 0 }
@@ -1413,7 +1419,7 @@ Item {
               width: root.innerWidth
               value: a && !a.muted ? a.volume : 0
               dimmed: !a || a.muted
-              glyph: a && a.muted ? "󰝟" : "󰝚"
+              glyph: a && a.muted ? "" : ""
               trailing: root.streamName(modelData)
               onMoved: function(v) { if (a) { a.volume = v; if (v > 0) a.muted = false } }
               onGlyphClicked: if (a) a.muted = !a.muted
@@ -1424,10 +1430,10 @@ Item {
             model: root.sinks
             delegate: Row2 {
               required property var modelData
-              glyph: String(modelData.name || "").indexOf("bluez") !== -1 ? "󰋋" : String(modelData.name || "").indexOf("hdmi") !== -1 ? "󰡁" : "󰓃"
+              glyph: String(modelData.name || "").indexOf("bluez") !== -1 ? "" : String(modelData.name || "").indexOf("hdmi") !== -1 ? "" : ""
               title: root.nodeName(modelData)
               selected: root.sink && modelData.id === root.sink.id
-              trailing: selected ? "󰄬" : ""
+              trailing: selected ? "" : ""
               onClicked: root.setSink(modelData)
             }
           }
@@ -1436,15 +1442,15 @@ Item {
             model: root.sources
             delegate: Row2 {
               required property var modelData
-              glyph: "󰍬"
+              glyph: ""
               title: root.nodeName(modelData)
               selected: root.source && modelData.id === root.source.id
-              trailing: selected ? "󰄬" : ""
+              trailing: selected ? "" : ""
               onClicked: root.setSource(modelData)
             }
           }
           Row2 {
-            glyph: root.micMuted ? "󰍭" : "󰍬"
+            glyph: root.micMuted ? "" : ""
             title: root.micMuted ? "Microphone muted" : "Microphone on"
             subtitle: "Tap to " + (root.micMuted ? "unmute" : "mute")
             selected: !root.micMuted
@@ -1486,8 +1492,13 @@ Item {
             Column {
               anchors.centerIn: parent
               spacing: 4
-              Label { anchors.horizontalCenter: parent.horizontalCenter; text: (modelData[1].charging ? "󱐋 " : "") + root.budsLevel(modelData[1]); font.pixelSize: 17; font.weight: Font.DemiBold
-                color: modelData[1].level >= 0 && modelData[1].level <= 20 ? root.onColor("red") : root.fg }
+              Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 3
+                readonly property color tone: modelData[1].level >= 0 && modelData[1].level <= 20 ? root.onColor("red") : root.fg
+                Glyph { visible: modelData[1].charging; anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 14; color: parent.tone }
+                Label { anchors.verticalCenter: parent.verticalCenter; text: root.budsLevel(modelData[1]); font.pixelSize: 17; font.weight: Font.DemiBold; color: parent.tone }
+              }
               Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData[0]; font.pixelSize: 11; color: root.dim }
             }
           }
@@ -1510,7 +1521,7 @@ Item {
             Column {
               anchors.centerIn: parent
               spacing: 3
-              Glyph { anchors.horizontalCenter: parent.horizontalCenter; text: root.modeGlyphs[modelData] || "󰋋"; font.pixelSize: 18; color: sel ? "#ffffff" : root.fg }
+              Glyph { anchors.horizontalCenter: parent.horizontalCenter; text: root.modeGlyphs[modelData] || ""; font.pixelSize: 18; color: sel ? "#ffffff" : root.fg }
               Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.modeNames[modelData] || modelData; font.pixelSize: 10; color: sel ? "#ffffff" : root.dim }
             }
             MouseArea { id: modeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.buds.setNoiseMode(modelData) }
@@ -1632,7 +1643,7 @@ Item {
       // Continuity: the phone at a glance, then one tap to everything.
       Row2 {
         visible: root.hasPhone
-        glyph: "󰄜"
+        glyph: ""
         title: root.psPhone.model || root.psKde.name || root.psBt.name || "Phone"
         subtitle: root.phoneLinkText()
         selected: !!root.psPhone.serial || !!root.psKde.reachable
@@ -1642,13 +1653,13 @@ Item {
       Row {
         visible: root.hasPhone
         spacing: (root.innerWidth - 42 * 8) / 7
-        Round { glyph: "󰏲"; hint: "Call"; onClicked: root.go("call") }
-        Round { glyph: "󰍡"; hint: "Messages"; onClicked: { root.go("messages"); root.phone.refreshPhone() } }
-        Round { glyph: "󰉏"; hint: "Photos"; onClicked: root.phone.photos() }
-        Round { glyph: "󰍹"; hint: "DeX"; onClicked: root.phone.openDex() }
-        Round { glyph: "󰄀"; hint: "Webcam"; onClicked: root.phone.webcam() }
-        Round { glyph: "󰅌"; hint: "Clipboard"; onClicked: root.phone.sendClipboard() }
-        Round { glyph: "󰀂"; hint: "Hotspot"; on: !!root.ps.hotspot; accent: root.onColor("green"); onClicked: root.phone.phonedSend({ cmd: "hotspot" }) }
+        Round { glyph: ""; hint: "Call"; onClicked: root.go("call") }
+        Round { glyph: ""; hint: "Messages"; onClicked: { root.go("messages"); root.phone.refreshPhone() } }
+        Round { glyph: ""; hint: "Photos"; onClicked: root.phone.photos() }
+        Round { glyph: ""; hint: "DeX"; onClicked: root.phone.openDex() }
+        Round { glyph: ""; hint: "Webcam"; onClicked: root.phone.webcam() }
+        Round { glyph: ""; hint: "Clipboard"; onClicked: root.phone.sendClipboard() }
+        Round { glyph: ""; hint: "Hotspot"; on: !!root.ps.hotspot; accent: root.onColor("green"); onClicked: root.phone.phonedSend({ cmd: "hotspot" }) }
         Round { glyph: "\u{F009E}"; hint: "Find phone"; accent: root.onColor("orange"); onClicked: root.phone.ring() }
       }
       Label {
@@ -1690,7 +1701,7 @@ Item {
           spacing: 2
           Row2 {
             visible: !!(root.phone && root.phone.onlinePeer)
-            glyph: "󰖂"
+            glyph: ""
             title: root.phone && root.phone.onlinePeer ? "Connect " + root.phone.onlinePeer.name + " over Tailscale" : ""
             subtitle: "ADB over Tailscale, port " + (root.phone ? root.phone.adbPort : 5555)
             onClicked: root.phone.connectTailscale()
@@ -1700,7 +1711,7 @@ Item {
             model: root.phone ? root.phone.devices : []
             delegate: Row2 {
               required property var modelData
-              glyph: modelData.transport === "tcp" ? "󰖩" : "󰕓"
+              glyph: modelData.transport === "tcp" ? "" : ""
               title: root.phoneName(modelData)
               subtitle: root.phoneSub(modelData)
               selected: root.phoneRunning && root.phone.controllingSerial === modelData.serial
@@ -1718,7 +1729,7 @@ Item {
             model: root.phone ? root.phone.tailscalePeers : []
             delegate: Row2 {
               required property var modelData
-              glyph: "󰏲"
+              glyph: ""
               title: modelData.name || "Android"
               subtitle: (modelData.online ? "Online" : "Offline") + (modelData.ip ? " · " + modelData.ip : "")
               selected: !!modelData.online
@@ -1853,14 +1864,14 @@ Item {
       Row {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 14
-        Round { visible: !!root.call && root.call.state !== "incoming"; glyph: root.phone && root.phone.micMuted ? "󰍭" : "󰍬"; on: !!(root.phone && root.phone.micMuted); accent: root.onColor("red"); onClicked: root.phone.toggleMute() }
-        Round { visible: !!root.call && root.call.state !== "incoming"; glyph: "󰌌"; on: root.keypadInCall; onClicked: root.keypadInCall = !root.keypadInCall }
-        Round { visible: !!root.call && root.s.phoneCalls.length > 1; glyph: "󰓡"; onClicked: root.phone.swapCalls() }
-        Round { visible: !!root.call && root.call.state !== "incoming"; glyph: "󰕾"; onClicked: root.go("audio") }
-        Round { visible: !root.call && root.dialNumber !== ""; glyph: "󰭜"; onClicked: root.dialNumber = root.dialNumber.slice(0, -1) }
-        Round { visible: !!root.call && root.call.state === "incoming"; glyph: "󰏲"; on: true; accent: root.onColor("green"); onClicked: root.phone.answer(root.call.path) }
+        Round { visible: !!root.call && root.call.state !== "incoming"; glyph: root.phone && root.phone.micMuted ? "" : ""; on: !!(root.phone && root.phone.micMuted); accent: root.onColor("red"); onClicked: root.phone.toggleMute() }
+        Round { visible: !!root.call && root.call.state !== "incoming"; glyph: ""; on: root.keypadInCall; onClicked: root.keypadInCall = !root.keypadInCall }
+        Round { visible: !!root.call && root.s.phoneCalls.length > 1; glyph: ""; onClicked: root.phone.swapCalls() }
+        Round { visible: !!root.call && root.call.state !== "incoming"; glyph: ""; onClicked: root.go("audio") }
+        Round { visible: !root.call && root.dialNumber !== ""; glyph: ""; onClicked: root.dialNumber = root.dialNumber.slice(0, -1) }
+        Round { visible: !!root.call && root.call.state === "incoming"; glyph: ""; on: true; accent: root.onColor("green"); onClicked: root.phone.answer(root.call.path) }
         Round {
-          glyph: root.call ? "󰏷" : "󰏲"
+          glyph: root.call ? "" : ""
           on: true
           accent: root.call ? root.onColor("red") : root.onColor("green")
           onClicked: root.call ? root.phone.hangup(root.call.path) : root.phone.dial(root.dialNumber)
@@ -1887,7 +1898,7 @@ Item {
       spacing: 6
 
       Header { title: "Messages"; busyText: root.psKde.reachable ? (root.psKde.name || "") : "Phone not reachable" }
-      Row2 { glyph: "󰏫"; title: "New Message"; onClicked: root.openThread(null) }
+      Row2 { glyph: ""; title: "New Message"; onClicked: root.openThread(null) }
       Label {
         visible: root.allChats.length === 0
         width: root.innerWidth
@@ -1907,7 +1918,7 @@ Item {
             model: root.allChats
             delegate: Row2 {
               required property var modelData
-              glyph: "󰍡"
+              glyph: ""
               photo: modelData.face ? "file://" + modelData.face : ""
               selected: modelData.unread
               title: modelData.name
@@ -2106,7 +2117,7 @@ Item {
             }
           }
         }
-        Round { width: 36; height: 36; glyph: "󰒊"; on: root.draft.trim() !== "" && draftField.canSend; onClicked: root.sendDraft() }
+        Round { width: 36; height: 36; glyph: ""; on: root.draft.trim() !== "" && draftField.canSend; onClicked: root.sendDraft() }
       }
     }
 
@@ -2185,7 +2196,7 @@ Item {
                 radius: 11
                 visible: cardMouse.containsMouse || closeMouse.containsMouse
                 color: closeMouse.containsMouse ? root.tileHover : root.tileOff
-                Glyph { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 11; color: root.dim }
+                Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: 11; color: root.dim }
                 MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.s.removeHistory(card.modelData.file) }
               }
             }
@@ -2240,7 +2251,7 @@ Item {
           width: 30; height: 30; radius: 15
           anchors.verticalCenter: parent.verticalCenter
           color: calBackMouse.containsMouse ? root.tileHover : root.tileOff
-          Glyph { anchors.centerIn: parent; text: "󰅁"; font.pixelSize: 16 }
+          Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: 16 }
           MouseArea { id: calBackMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.back() }
         }
         Label {
@@ -2255,9 +2266,9 @@ Item {
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           spacing: 6
-          Round { width: 30; height: 30; glyph: "󰅁"; onClicked: calPage.offset-- }
-          Round { width: 30; height: 30; glyph: "󰃭"; on: calPage.offset === 0; accent: root.onColor("red"); onClicked: calPage.offset = 0 }
-          Round { width: 30; height: 30; glyph: "󰅂"; onClicked: calPage.offset++ }
+          Round { width: 30; height: 30; glyph: ""; onClicked: calPage.offset-- }
+          Round { width: 30; height: 30; glyph: ""; on: calPage.offset === 0; accent: root.onColor("red"); onClicked: calPage.offset = 0 }
+          Round { width: 30; height: 30; glyph: ""; onClicked: calPage.offset++ }
         }
       }
       Grid {
@@ -2336,11 +2347,11 @@ Item {
         spacing: 8
         Repeater {
           model: [
-            ["󰌾", "Lock", ["omarchy-system-lock"], ""],
-            ["󰒲", "Sleep", ["/usr/bin/systemctl", "suspend"], ""],
-            ["󰍃", "Log Out", ["omarchy-system-logout"], "confirm"],
-            ["󰜉", "Restart", ["omarchy-system-reboot"], "confirm"],
-            ["󰐥", "Shut Down", ["omarchy-system-shutdown"], "confirm"]
+            ["", "Lock", ["omarchy-system-lock"], ""],
+            ["", "Sleep", ["/usr/bin/systemctl", "suspend"], ""],
+            ["", "Log Out", ["omarchy-system-logout"], "confirm"],
+            ["", "Restart", ["omarchy-system-reboot"], "confirm"],
+            ["", "Shut Down", ["omarchy-system-shutdown"], "confirm"]
           ]
           delegate: Rectangle {
             id: pw

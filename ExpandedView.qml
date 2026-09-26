@@ -306,7 +306,7 @@ Item {
       anchors.right: parent.right
       anchors.rightMargin: -8
       anchors.verticalCenter: transport.verticalCenter
-      glyph: root.s.budsConnected ? "󱡏" : "󰓃"
+      glyph: root.s.budsConnected ? "󱡏" : ""
       glyphFont: root.s.iconFont
       glyphSize: 16
       color: root.s.budsConnected ? root.s.tint("blue") : root.s.secondaryText

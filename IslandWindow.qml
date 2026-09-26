@@ -451,7 +451,7 @@ PanelWindow {
         textFormat: Text.PlainText
         visible: win.s.secondLive === "call"
         anchors.centerIn: parent
-        text: "󰏲"
+        text: ""
         font.family: win.s.iconFont
         font.pixelSize: 13
         color: win.s.tint("green")
@@ -460,7 +460,7 @@ PanelWindow {
         textFormat: Text.PlainText
         visible: win.s.secondLive === "phone"
         anchors.centerIn: parent
-        text: "󰄜"
+        text: ""
         font.family: win.s.iconFont
         font.pixelSize: 13
         color: win.s.tint("green")
@@ -613,7 +613,7 @@ PanelWindow {
         CompactActivity {
           kind: "call"
           tone: "green"
-          glyph: "󰏲"
+          glyph: ""
           trail: win.trailText
           pulsing: !!win.s.currentCall && win.s.currentCall.state !== "active"
           pulseMs: 600
@@ -642,7 +642,7 @@ PanelWindow {
               anchors.centerIn: parent
               text: {
                 var n = String(incoming.call.name || "")
-                return n !== "" ? n.charAt(0).toUpperCase() : "󰀄"
+                return n !== "" ? n.charAt(0).toUpperCase() : ""
               }
               font.family: text.length === 1 && /[A-Z0-9]/.test(text) ? win.s.textFont : win.s.iconFont
               font.pixelSize: 19
@@ -685,8 +685,8 @@ PanelWindow {
             spacing: 10
             Repeater {
               model: [
-                { glyph: "󰏷", color: "red", act: "hangup" },
-                { glyph: "󰏲", color: "green", act: "answer" }
+                { glyph: "", color: "red", act: "hangup" },
+                { glyph: "", color: "green", act: "answer" }
               ]
               delegate: Rectangle {
                 required property var modelData
@@ -723,7 +723,7 @@ PanelWindow {
         CompactActivity {
           kind: "phone"
           tone: "green"
-          glyph: "󰄜"
+          glyph: ""
           trail: win.trailText
         }
 
@@ -858,7 +858,7 @@ PanelWindow {
             height: 44
             radius: 12
             source: win.lastNotif.image || ""
-            fallbackGlyph: win.lastNotif.sms ? "󰍡" : win.s.glyphs.bell
+            fallbackGlyph: win.lastNotif.sms ? "" : win.s.glyphs.bell
             glyphFont: win.s.iconFont
             glyphColor: win.lastNotif.urgent ? win.s.tint("red") : win.s.textColor
             fallbackColor: Qt.rgba(1, 1, 1, 0.12)

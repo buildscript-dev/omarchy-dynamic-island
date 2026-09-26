@@ -1031,7 +1031,7 @@ Item {
   readonly property bool budsConnected: !!(buds && buds.status && buds.status.connected)
   readonly property string budsName: buds && buds.status && buds.status.deviceName ? buds.status.deviceName : "Earbuds"
   readonly property var budsModeNames: ({ smart: "Adaptive", anc: "Noise Cancellation", transparency: "Transparency", vocal: "Conversation", off: "Noise Control Off" })
-  readonly property var budsModeGlyphs: ({ smart: "󰧑", anc: "󰟎", transparency: "󰈈", vocal: "󰗋", off: "󰋋" })
+  readonly property var budsModeGlyphs: ({ smart: "", anc: "", transparency: "", vocal: "", off: "" })
   function budsPart(p) { return p && p.level >= 0 ? p.level + "%" : "–" }
   // AirPods-style: a pill with both buds' battery when they connect, and a
   // quick confirmation when the noise mode changes (from here, the buds or the phone).
@@ -1049,7 +1049,7 @@ Item {
       var st = root.buds.status
       var mode = st && st.linked ? String(st.noiseMode || "") : ""
       if (root.settled && mode !== "" && root.lastBudsMode !== "" && mode !== root.lastBudsMode)
-        root.pushActivity({ kind: "alert", source: "buds-mode", icon: root.budsModeGlyphs[mode] || "󰋋", tint: mode === "off" ? "secondary" : "blue",
+        root.pushActivity({ kind: "alert", source: "buds-mode", icon: root.budsModeGlyphs[mode] || "", tint: mode === "off" ? "secondary" : "blue",
           title: root.budsModeNames[mode] || mode, value: "", duration: 1800 })
       if (mode !== "") root.lastBudsMode = mode
     }
@@ -1124,22 +1124,22 @@ Item {
       if (root.phoneMuted && (ev.kind === "connected" || ev.kind === "disconnected"
           || ev.kind === "nearby" || ev.kind === "hotspot")) return
       if (ev.kind === "connected")
-        root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰄜", tint: "green", title: ev.model || root.phoneName,
+        root.pushActivity({ kind: "alert", source: "phone-link", icon: "", tint: "green", title: ev.model || root.phoneName,
           value: ev.transport === "usb" ? "USB" : "Wi-Fi", duration: 2400 })
       else if (ev.kind === "disconnected")
-        root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰥐", tint: "secondary", title: root.phoneName, value: "Disconnected", duration: 2000 })
+        root.pushActivity({ kind: "alert", source: "phone-link", icon: "", tint: "secondary", title: root.phoneName, value: "Disconnected", duration: 2000 })
       else if (ev.kind === "callEnded")
-        root.pushActivity({ kind: "alert", source: "call", icon: "󰏷", tint: "red", title: root.callTitle(ev),
+        root.pushActivity({ kind: "alert", source: "call", icon: "", tint: "red", title: root.callTitle(ev),
           value: ev.activeSince > 0 ? Model.formatTime(Date.now() / 1000 - ev.activeSince) : "Call Ended", duration: 2600 })
       else if (ev.kind === "missedCall")
-        root.pushActivity({ kind: "alert", source: "call", icon: "󰵋", tint: "red", title: ev.name || ev.number || "Unknown", value: "Missed Call", duration: 5000 })
+        root.pushActivity({ kind: "alert", source: "call", icon: "", tint: "red", title: ev.name || ev.number || "Unknown", value: "Missed Call", duration: 5000 })
       else if (ev.kind === "nearby") {
         var b = root.phone.pstate && root.phone.pstate.battery ? root.phone.pstate.battery.level : -1
-        root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰄜", tint: "blue", title: ev.name || root.phoneName,
+        root.pushActivity({ kind: "alert", source: "phone-link", icon: "", tint: "blue", title: ev.name || root.phoneName,
           value: b >= 0 ? b + "%" : "Nearby", duration: 2400 })
       }
       else if (ev.kind === "hotspot")
-        root.pushActivity({ kind: "alert", source: "hotspot", icon: "󰀂", tint: ev.on ? "green" : "secondary", title: "Hotspot",
+        root.pushActivity({ kind: "alert", source: "hotspot", icon: "", tint: ev.on ? "green" : "secondary", title: "Hotspot",
           value: ev.on ? "Connected" : "Off", duration: 2200 })
       else if (ev.kind === "sms") {
         var text = String(ev.body || "")
@@ -1151,7 +1151,7 @@ Item {
             urgent: false, duration: 6000, sms: ev })
       }
       else if (ev.kind === "error")
-        root.pushActivity({ kind: "alert", source: "phone-error", icon: "󰀦", tint: "orange", title: String(ev.message || "Phone").slice(0, 60), value: "", duration: 3500 })
+        root.pushActivity({ kind: "alert", source: "phone-error", icon: "", tint: "orange", title: String(ev.message || "Phone").slice(0, 60), value: "", duration: 3500 })
     }
   }
 
@@ -1204,7 +1204,7 @@ Item {
       if (ids.indexOf(ws.id) === -1) ids.push(ws.id)
       ids.sort(function(a, b) { return a - b })
       var dots = ids.map(function(id) { return id === ws.id ? "●" : "○" }).join(" ")
-      pushActivity({ kind: "alert", source: "workspace", icon: "󰍹", tint: "white", title: String(ws.name || ws.id), value: dots, duration: 1100 })
+      pushActivity({ kind: "alert", source: "workspace", icon: "", tint: "white", title: String(ws.name || ws.id), value: dots, duration: 1100 })
     }
     lastWorkspace = ws.id
   }
