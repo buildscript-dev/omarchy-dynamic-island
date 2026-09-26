@@ -33,7 +33,10 @@ Item {
         property real level: 0.25
 
         width: root.barWidth
-        readonly property real live: root.levels.length ? 0.18 + 0.82 * root.levels[Math.floor(index * root.levels.length / root.bars)] : -1
+        // Live: bass drives the middle bars, treble the edges, shaped by the
+        // same envelope as the made-up dance so the wave keeps its look.
+        readonly property real band: root.levels.length ? root.levels[Math.min(root.levels.length - 1, Math.floor(Math.abs(index - (root.bars - 1) / 2) / ((root.bars) / 2) * root.levels.length))] : 0
+        readonly property real live: root.levels.length ? 0.22 + band * 0.78 * envelope + 0.1 * band : -1
         height: Math.max(root.barWidth, root.height * (!root.playing ? 0.18 : live >= 0 ? live : level))
         radius: width / 2
         anchors.verticalCenter: parent.verticalCenter

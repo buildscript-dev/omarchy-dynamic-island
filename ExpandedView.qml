@@ -185,7 +185,7 @@ Item {
         visible: text !== ""
         font.family: root.s.textFont
         font.pixelSize: 12
-        color: Qt.rgba(root.s.textColor.r, root.s.textColor.g, root.s.textColor.b, root.s.lyricLine ? 0.8 : 0.38)
+        color: Qt.rgba(root.s.textColor.r, root.s.textColor.g, root.s.textColor.b, 0.38)
         elide: Text.ElideRight
       }
     }
