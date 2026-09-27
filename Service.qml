@@ -1043,7 +1043,22 @@ Item {
   // assistant driving the phone always stay in view.
   property var tucked: ({})
   readonly property var tuckable: ["timer", "stopwatch", "media", "phone"]
-  readonly property var lives: activeLives.filter(function(k) { return !tucked[k] })
+  // Scrolling on the island brings another running activity to the front
+  // (pinnedLive); liveOrder is the order the scroll walks through.
+  readonly property var liveOrder: activeLives.filter(function(k) { return !tucked[k] })
+  property string pinnedLive: ""
+  readonly property var lives: {
+    var i = liveOrder.indexOf(pinnedLive)
+    if (i <= 0) return liveOrder
+    return [pinnedLive].concat(liveOrder.slice(0, i), liveOrder.slice(i + 1))
+  }
+  // One scroll step through the running activities; false past either end.
+  function stepLive(dir) {
+    var i = liveOrder.indexOf(live) + dir
+    if (i < 0 || i >= liveOrder.length) return false
+    pinnedLive = liveOrder[i]
+    return true
+  }
   onActiveLivesChanged: {
     var t = {}, changed = false
     for (var k in tucked) { if (activeLives.indexOf(k) !== -1) t[k] = true; else changed = true }
@@ -1547,6 +1562,10 @@ Item {
     function ping(): string { return "ok" }
     function expand(): string { root.expandRequested(); return "ok" }
     function history(): string { root.historyRequested(); return "ok" }
+    // Same as one scroll notch on the island: next / previous activity,
+    // and past the last one, the history.
+    function next(): string { root.stepRequested(1); return "ok" }
+    function prev(): string { root.stepRequested(-1); return "ok" }
     // A call note form, prefilled from the current call if there is one.
     function callNotes(): string { root.callNotesRequested(); return "ok" }
     // Open the Control Center, optionally on a page: wifi, bluetooth, audio,
@@ -1617,6 +1636,7 @@ Item {
   }
   signal expandRequested()
   signal historyRequested()
+  signal stepRequested(int dir)
   signal callNotesRequested()
 
   // The first Service to start is the island; the bar widget finds it here.

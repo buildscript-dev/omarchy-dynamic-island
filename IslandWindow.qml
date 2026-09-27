@@ -292,6 +292,16 @@ PanelWindow {
     s.expandedWindow = win
     callOpen = true
   }
+  // One scroll notch: 1 = down (next activity, then history), -1 = up.
+  function scrollStep(dir) {
+    if (mode === "history") { if (dir < 0) historyOpen = false; return }
+    // Now Playing: up tucks it back into the pill, down goes on to history.
+    if (mode === "expanded" && dir < 0) { setExpanded(false); return }
+    // A passing alert or volume pill steps aside for the scroll.
+    if ((mode === "alert" || mode === "hud") && t && t.source !== "alarm-ring") s.finishActivity()
+    if (mode !== "expanded" && mode !== "notification" && s.stepLive(dir)) return
+    if (dir > 0) openHistory()
+  }
   function openHistory() {
     if (!s.showHistory || historyOpen) return
     if (expanded) setExpanded(false)
@@ -338,6 +348,7 @@ PanelWindow {
       }
     }
     function onCallNotesRequested() { if (win.isTarget()) { win.openCall(); win.callView.openNotes() } }
+    function onStepRequested(dir) { if (win.isTarget()) win.scrollStep(dir) }
     function onHistoryRequested() { if (win.isTarget()) { if (win.historyOpen) win.historyOpen = false; else win.openHistory() } }
     function onExpandRequested() { if (win.isTarget()) { win.keyExpanded = true; win.setExpanded(true) } }
     function onRingingCallChanged() { if (win.s.ringingCall) win.setExpanded(false) }
@@ -456,10 +467,17 @@ PanelWindow {
             return
           }
           if (win.mode === "history" || win.mode === "controls" || win.mode === "callview" || wheel.angleDelta.y === 0) return
-          // Scrolling down opens the history, like pulling down on an iPhone.
+          // Scrolling walks through the running activities (music, call,
+          // timer...), one per notch; past the last one, down opens the
+          // notification history, like pulling down on an iPhone.
           if (win.s.showHistory) {
-            wheelAccum = wheel.angleDelta.y < 0 ? wheelAccum + wheel.angleDelta.y : 0
-            if (wheelAccum <= -120) { wheelAccum = 0; dwellTimer.stop(); win.openHistory() }
+            if ((wheelAccum < 0) !== (wheel.angleDelta.y < 0)) wheelAccum = 0
+            wheelAccum += wheel.angleDelta.y
+            if (Math.abs(wheelAccum) < 120) return
+            var dir = wheelAccum < 0 ? 1 : -1
+            wheelAccum = 0
+            dwellTimer.stop()
+            win.scrollStep(dir)
             return
           }
           if (win.mode === "expanded" || win.mode === "hidden") return
