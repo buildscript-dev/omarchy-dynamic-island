@@ -251,7 +251,14 @@ Item {
     return first
   }
   onPlayingPlayerChanged: if (playingPlayer) playerMemory.key = Model.playerKey(playingPlayer)
+  // Set while you page to a particular player in the opened island (a music
+  // app or a browser tab), so that page keeps showing it.
+  property string pinnedPlayerKey: ""
+  readonly property var mediaPlayers: players.filter(function(p) { return p && (p.trackTitle || p.trackArtist) })
   readonly property var player: {
+    if (root.pinnedPlayerKey !== "")
+      for (var j = 0; j < mediaPlayers.length; j++)
+        if (Model.playerKey(mediaPlayers[j]) === root.pinnedPlayerKey) return mediaPlayers[j]
     if (root.playingPlayer) return root.playingPlayer
     var fallback = null
     for (var i = 0; i < players.length; i++) {
@@ -1051,6 +1058,24 @@ Item {
     var i = liveOrder.indexOf(pinnedLive)
     if (i <= 0) return liveOrder
     return [pinnedLive].concat(liveOrder.slice(0, i), liveOrder.slice(i + 1))
+  }
+  // The opened island's pages, in scroll order: each running activity at
+  // full size, with one page per player that has a track (music apps and
+  // browser tabs, playing or paused).
+  readonly property var expandedPages: {
+    var out = [], mediaDone = false
+    function addPlayers() {
+      if (mediaDone) return
+      mediaDone = true
+      for (var j = 0; j < mediaPlayers.length; j++)
+        out.push({ kind: "media", key: Model.playerKey(mediaPlayers[j]) })
+    }
+    for (var i = 0; i < liveOrder.length; i++) {
+      if (liveOrder[i] === "media") addPlayers()
+      else out.push({ kind: liveOrder[i] })
+    }
+    addPlayers()
+    return out
   }
   // One scroll step through the running activities; false past either end.
   function stepLive(dir) {

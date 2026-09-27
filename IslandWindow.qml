@@ -84,7 +84,7 @@ PanelWindow {
     // A new notification briefly takes over the expanded island; `expanded`
     // stays set, so the player/home view springs back once it's done.
     if (t && t.kind === "notification") return "notification"
-    if (expanded && (s.hasMedia || s.showHome)) return "expanded"
+    if (expanded && (s.expandedPages.length > 0 || s.showHome)) return "expanded"
     if (t) return t.kind
     if (fullscreen && s.hideInFullscreen && !hovered) return "hidden"
     if (s.live !== "") return "compact"
@@ -292,6 +292,7 @@ PanelWindow {
     historyOpen = false
     s.expandedWindow = win
     callOpen = true
+    pageIndex = Math.max(0, pageOf("call"))
   }
   // ---------------------------------------------------------------- scroll feel
   // Each scroll step answers like a detent: the new activity slides in from
@@ -347,7 +348,6 @@ PanelWindow {
       wheelAccum = 0
       wheelQuietUntil = now + 300
       dwellTimer.stop()
-      if (mode === "callview") callOpen = false
       scrollStep(dir)
       return
     }
@@ -362,24 +362,60 @@ PanelWindow {
     }
   }
 
-  // One scroll notch walks one list, both ways: each running activity
-  // (call, music, timer...) and, after the last, the history.
-  // 1 = down, -1 = up.
+  // ---------------------------------------------------------------- pages
+  // The opened island pages through everything running at full size:
+  // music (one page per player), call, timer, stopwatch, recording, phone.
+  property int pageIndex: 0
+  readonly property var page: s.expandedPages.length > 0
+    ? s.expandedPages[Math.max(0, Math.min(pageIndex, s.expandedPages.length - 1))] : null
+  function pageOf(k) {
+    var pages = s.expandedPages
+    for (var i = 0; i < pages.length; i++) {
+      if (pages[i].kind !== k) continue
+      if (k !== "media" || !s.player || pages[i].key === Model.playerKey(s.player)) return i
+    }
+    return -1
+  }
+  function showPage(i) {
+    var pg = s.expandedPages[i]
+    if (!pg) return
+    if (pg.kind === "media") s.pinnedPlayerKey = pg.key
+    if (pg.kind !== "media" && pg.kind !== "call") s.pinnedLive = pg.kind
+    if (pg.kind === "call") { if (expanded) setExpanded(false); s.expandedWindow = win; callOpen = true }
+    else { callOpen = false; if (!expanded) setExpanded(true) }
+    pageIndex = i
+  }
+  readonly property bool mediaPage: !page || page.kind === "media"
+  // Up past the first page tucks the island back to its own size.
+  function pageStep(dir) {
+    var i = pageIndex + dir
+    if (i < 0) { callOpen = false; setExpanded(false); feelStep(-1); return }
+    if (i >= s.expandedPages.length) { openHistory(); feelStep(1); return }
+    showPage(i)
+    feelStep(dir)
+  }
+
+  // One scroll notch walks one list, both ways:
+  //   pill -> the full page of what's in front -> the other full pages
+  //   (music players, call, timer...) -> History,
+  // and up retraces it to the pill. 1 = down, -1 = up.
   function scrollStep(dir) {
     if (mode === "history") {
       if (dir > 0) return
       historyOpen = false
       wheelQuietUntil = Date.now() + 300
-      var order = s.liveOrder
-      if (order.length > 0) s.pinnedLive = order[order.length - 1]
+      if (s.expandedPages.length > 0) showPage(s.expandedPages.length - 1)
       feelStep(-1)
       return
     }
+    if (mode === "expanded" || mode === "callview") { pageStep(dir); return }
     // A passing alert, volume pill or notification steps aside for the scroll.
     if ((mode === "alert" || mode === "hud" || mode === "notification") && t && t.source !== "alarm-ring") s.finishActivity()
-    if (s.stepLive(dir)) { if (expanded) setExpanded(false); feelStep(dir); return }
-    if (dir > 0) { openHistory(); feelStep(1) }
-    else if (expanded) setExpanded(false)
+    if (dir < 0) return
+    dwellTimer.stop()
+    if (s.expandedPages.length > 0) showPage(Math.max(0, pageOf(s.live === "" ? "media" : s.live)))
+    else openHistory()
+    feelStep(1)
   }
   function openHistory() {
     if (!s.showHistory || historyOpen) return
@@ -412,8 +448,11 @@ PanelWindow {
     if (on) {
       s.expandedWindow = win
       s.positionWatchers++
+      // Open on the page of whatever is in front.
+      pageIndex = Math.max(0, pageOf(s.live === "" ? "media" : s.live))
     } else {
       s.positionWatchers = Math.max(0, s.positionWatchers - 1)
+      s.pinnedPlayerKey = ""
     }
   }
   Connections {
@@ -1222,7 +1261,7 @@ PanelWindow {
           // ------------------------------------------------ expanded
           Reveal {
             reduced: win.s.reduceMotion
-            shown: win.mode === "expanded"
+            shown: win.mode === "expanded" && win.mediaPage
             width: win.geometryFor("expanded").w
             height: win.geometryFor("expanded").h
             anchors.horizontalCenter: parent.horizontalCenter
@@ -1232,10 +1271,27 @@ PanelWindow {
             ExpandedView {
               anchors.fill: parent
               s: win.s
-              active: win.mode === "expanded"
+              active: win.mode === "expanded" && win.mediaPage
               keyboard: win.keyHeld && !win.controlsOpen
               onOutputClicked: win.openControls("audio")
               onCloseRequested: win.setExpanded(false)
+            }
+          }
+
+          // Any other running activity at full size.
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "expanded" && !win.mediaPage
+            width: win.geometryFor("expanded").w
+            height: win.geometryFor("expanded").h
+            anchors.horizontalCenter: parent.horizontalCenter
+            inDelay: 130
+            inDuration: 380
+
+            ActivityCard {
+              anchors.fill: parent
+              s: win.s
+              kind: win.page && !win.mediaPage ? win.page.kind : ""
             }
           }
 
