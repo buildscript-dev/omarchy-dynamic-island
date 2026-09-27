@@ -45,6 +45,8 @@
       "showHistory": true,
       "notificationWidth": 340,
       "swipeToTuck": false,
+      "reserveSpace": false,
+      "reserveGap": 4,
       "callTranscript": false,
       "outerShell": false,
       "shellGap": 4,
@@ -238,6 +240,18 @@
         "type": "integer",
         "label": "Notification width (px)",
         "defaultValue": 340
+      },
+      {
+        "key": "reserveSpace",
+        "type": "boolean",
+        "label": "Keep windows clear of the island",
+        "defaultValue": false
+      },
+      {
+        "key": "reserveGap",
+        "type": "integer",
+        "label": "Space below the island (px)",
+        "defaultValue": 4
       },
       {
         "key": "swipeToTuck",

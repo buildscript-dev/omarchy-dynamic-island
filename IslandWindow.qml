@@ -294,6 +294,25 @@ PanelWindow {
     callOpen = true
     pageIndex = Math.max(0, pageOf("call"))
   }
+  // ---------------------------------------------------------------- room
+  // reserveSpace: an invisible strip that keeps tiled windows clear of the
+  // resting pill (it hangs below the bar), so nothing presses on its edge.
+  // It only reserves space; it draws nothing and takes no input.
+  PanelWindow {
+    screen: win.screen
+    visible: win.s.reserveSpace && win.onThisScreen && win.s.pill && win.s.barPosition === "top"
+    anchors { top: true; left: true; right: true }
+    implicitHeight: 1
+    color: "transparent"
+    mask: Region {}
+    exclusionMode: ExclusionMode.Normal
+    exclusiveZone: Math.max(0, win.s.islandTop + win.s.notchHeight + win.s.reserveGap - win.s.barHeight)
+    WlrLayershell.namespace: "omarchy-dynamic-island-space"
+    // Overlay, not Top: Hyprland arranges exclusive zones layer by layer,
+    // so on Overlay the strip stacks under the bar instead of above it.
+    WlrLayershell.layer: WlrLayer.Overlay
+  }
+
   // ---------------------------------------------------------------- scroll feel
   // Each scroll step answers like a detent: the new activity slides in from
   // the scroll direction and settles with a small overshoot, and the island
@@ -331,9 +350,17 @@ PanelWindow {
   // detent, so a fast swipe doesn't skip three activities.
   property real wheelAccum: 0
   property real wheelQuietUntil: 0
+  // Precision: a scroll only counts once the pointer has been on the island
+  // for a moment (not a page scroll carried over as it slides past), and
+  // only when it is clearly up or down, not a diagonal touchpad drift.
+  property real hoverSince: 0
+  readonly property int settleMs: 180
   function islandWheel(wheel) {
     var dy = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y * 4
+    var dx = wheel.angleDelta.x !== 0 ? wheel.angleDelta.x : wheel.pixelDelta.x * 4
     if (dy === 0 || mode === "controls") return
+    if (Math.abs(dy) < 2 * Math.abs(dx)) return
+    if (Date.now() - hoverSince < settleMs) { wheelAccum = 0; return }
     // History scrolls its list; an up-scroll at the top closes it.
     if (mode === "history") { if (Date.now() >= wheelQuietUntil) historyView.wheel(dy); return }
     // Typing a call note: the notes box scrolls, the island stays put.
@@ -500,10 +527,20 @@ PanelWindow {
 
     HoverHandler {
       id: hover
+      // Hover-open only when the pointer rests: moving across the island
+      // (on the way to a browser tab, say) keeps pushing the open back.
+      property point restAt: Qt.point(0, 0)
+      onPointChanged: {
+        var p = point.position
+        if (Math.abs(p.x - restAt.x) + Math.abs(p.y - restAt.y) < 6) return
+        restAt = p
+        if (dwellTimer.running) dwellTimer.restart()
+      }
       onHoveredChanged: {
         if (hovered) {
           leaveTimer.stop()
           win.hovered = true
+          win.hoverSince = Date.now()
           if (win.t) win.s.holdActivity(true)
           if (win.s.openOnHover && (win.mode === "idle" || win.mode === "compact")) dwellTimer.restart()
         } else {

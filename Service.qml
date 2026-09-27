@@ -1439,6 +1439,8 @@ Item {
   onTrackTitleChanged: if (trackTitle !== "") songLog.restart()
   readonly property bool showHistory: setting("showHistory", true) === true
   readonly property bool swipeToTuck: setting("swipeToTuck", false) === true
+  readonly property bool reserveSpace: setting("reserveSpace", false) === true
+  readonly property int reserveGap: Math.max(0, Math.min(24, Number(setting("reserveGap", 4))))
   // How wide a notification opens the island (px); History matches it.
   readonly property int notificationWidth: Math.max(300, Math.min(700, Number(setting("notificationWidth", 340))))
 
