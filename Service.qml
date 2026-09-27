@@ -1423,7 +1423,7 @@ Item {
   readonly property bool showClock: setting("showClock", true) === true
   // Off: the island only opens for Now Playing, never to the clock/calendar card.
   readonly property bool showHome: setting("showHome", true) === true
-  // Off: no Control Center; only the phone pages (call, keypad, messages) still open.
+  // Off: no Control Center at all (phone pages included); it is never built.
   readonly property bool controlCenter: setting("controlCenter", true) === true
 
   // ------------------------------------------------------------ control center

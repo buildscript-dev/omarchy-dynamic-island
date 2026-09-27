@@ -52,7 +52,8 @@ PanelWindow {
   }
   visible: onThisScreen
   onOnThisScreenChanged: if (!onThisScreen) { hovered = false; setExpanded(false); closeControls() }
-  readonly property alias cc: controlCenter
+  // Null when controlCenter is off: then it is never built at all.
+  readonly property var cc: ccLoader.item
   // Which window answers a keyboard shortcut: the one showing the island
   // (external mode), otherwise the one on the focused monitor.
   function isTarget() {
@@ -194,7 +195,7 @@ PanelWindow {
   function geometryFor(m) {
     if (m === "controls")
       // The body has to grow with the page, or a wide one spills off the pill.
-      return { w: Math.max(120, cc.preferredWidth), h: Math.max(120, cc.preferredHeight), rb: 34, rt: s.pill ? 0 : 10 }
+      return { w: Math.max(120, cc ? cc.preferredWidth : 0), h: Math.max(120, cc ? cc.preferredHeight : 0), rb: 34, rt: s.pill ? 0 : 10 }
     if (m === "history")
       return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
     var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth : alertContentWidth
@@ -271,7 +272,7 @@ PanelWindow {
 
   // ---------------------------------------------------------------- behavior
   function openControls(page) {
-    if (!s.controlCenter && ["call", "phone", "messages", "thread"].indexOf(page || "main") < 0) return
+    if (!cc) return
     if (!controlsOpen) {
       if (expanded) setExpanded(false)
       s.expandedWindow = win
@@ -320,7 +321,7 @@ PanelWindow {
     function onCollapseAll() { win.setExpanded(false); win.closeControls(); win.historyOpen = false }
     function onControlsRequested(page) {
       if (win.isTarget()) {
-        if (win.controlsOpen && (page === "main" || page === win.cc.page)) win.closeControls()
+        if (win.controlsOpen && win.cc && (page === "main" || page === win.cc.page)) win.closeControls()
         else win.openControls(page)
       }
     }
@@ -1154,18 +1155,21 @@ PanelWindow {
         Reveal {
           reduced: win.s.reduceMotion
           shown: win.mode === "controls"
-          width: controlCenter.preferredWidth
+          width: win.cc ? win.cc.preferredWidth : 0
           height: Math.max(0, win.bh)
           anchors.horizontalCenter: parent.horizontalCenter
           inDelay: 110
           inDuration: 320
 
-          ControlCenter {
-            id: controlCenter
+          Loader {
+            id: ccLoader
             anchors.fill: parent
-            s: win.s
-            win: win
-            active: win.controlsOpen
+            active: win.s.controlCenter
+            sourceComponent: ControlCenter {
+              s: win.s
+              win: win
+              active: win.controlsOpen
+            }
           }
         }
       }
