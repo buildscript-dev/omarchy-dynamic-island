@@ -154,7 +154,7 @@ Item {
   // its hole from islandWindows[screen].barHolePath; the band is drawn here.
   readonly property bool outerShell: setting("outerShell", false) === true
   readonly property int shellGap: Math.max(0, Math.min(16, Number(setting("shellGap", 4))))
-  readonly property int shellBand: Math.max(2, Math.min(16, Number(setting("shellBand", 5))))
+  readonly property int shellBand: Math.max(0, Math.min(16, Number(setting("shellBand", 5))))
   property var islandWindows: ({})
   function registerWindow(name, win) {
     var next = Object.assign({}, islandWindows)

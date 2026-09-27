@@ -581,11 +581,13 @@ PanelWindow {
             fillRule: ShapePath.OddEvenFill
             PathSvg { path: win.bandPath }
           }
+          // With no band the outer edge already traces the gap; a second
+          // line on the same spot would draw it twice as bright.
           ShapePath {
             strokeWidth: 1
             strokeColor: win.s.shellEdge
             fillColor: "transparent"
-            PathSvg { path: win.holeLocalPath }
+            PathSvg { path: win.s.shellBand > 0 ? win.holeLocalPath : "" }
           }
         }
       }
