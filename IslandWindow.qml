@@ -293,6 +293,37 @@ PanelWindow {
     s.expandedWindow = win
     callOpen = true
   }
+  // ---------------------------------------------------------------- scroll feel
+  // Each scroll step answers like a detent: the new activity slides in from
+  // the scroll direction and settles with a small overshoot, and the island
+  // gives a quick squish and springs back, the visual stand-in for the
+  // iPhone's haptic tick.
+  property real slideY: 0
+  property real squish: 0
+  property real slideDist: 0
+  // Out, then in: the leaving activity slides off in the scroll direction
+  // while it fades, the arriving one comes in from the other side and
+  // settles with a small overshoot.
+  SequentialAnimation {
+    id: slideAnim
+    NumberAnimation { target: win; property: "slideY"; to: -win.slideDist; duration: 120; easing.type: Easing.InQuad }
+    PropertyAction { target: win; property: "slideY"; value: win.slideDist }
+    NumberAnimation { target: win; property: "slideY"; to: 0; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.5 }
+  }
+  SequentialAnimation {
+    id: squishAnim
+    NumberAnimation { target: win; property: "squish"; to: 1; duration: 70; easing.type: Easing.OutQuad }
+    SpringAnimation { target: win; property: "squish"; to: 0; spring: 5; damping: 0.22; epsilon: 0.002 }
+  }
+  function feelStep(dir) {
+    if (s.reduceMotion) return
+    slideAnim.stop()
+    slideY = 0
+    slideDist = dir * Math.max(12, bh * 0.6)
+    slideAnim.start()
+    squishAnim.restart()
+  }
+
   // One scroll notch walks one list, both ways: each running activity
   // (call, music, timer...) and, after the last, the history.
   // 1 = down, -1 = up.
@@ -302,12 +333,13 @@ PanelWindow {
       historyOpen = false
       var order = s.liveOrder
       if (order.length > 0) s.pinnedLive = order[order.length - 1]
+      feelStep(-1)
       return
     }
     // A passing alert, volume pill or notification steps aside for the scroll.
     if ((mode === "alert" || mode === "hud" || mode === "notification") && t && t.source !== "alarm-ring") s.finishActivity()
-    if (s.stepLive(dir)) { if (expanded) setExpanded(false); return }
-    if (dir > 0) openHistory()
+    if (s.stepLive(dir)) { if (expanded) setExpanded(false); feelStep(dir); return }
+    if (dir > 0) { openHistory(); feelStep(1) }
     else if (expanded) setExpanded(false)
   }
   function openHistory() {
@@ -624,6 +656,13 @@ PanelWindow {
       y: win.s.islandTop
       width: win.s.pill ? Math.max(0, win.bw) : shape.width
       height: Math.max(0, win.bh)
+      // The squish: a touch wider and shorter, anchored at the top edge.
+      transform: Scale {
+        origin.x: island.width / 2
+        origin.y: 0
+        xScale: 1 + 0.05 * win.squish
+        yScale: 1 - 0.1 * win.squish
+      }
 
       // The gap: the actual wallpaper, cut to the hole around the island, so
       // it reads as a window onto the desktop even with apps behind it.
@@ -781,459 +820,468 @@ PanelWindow {
         height: Math.max(0, win.bh)
         clip: true
 
-        // ------------------------------------------------ compact live activities
-        Reveal {
-          reduced: win.s.reduceMotion
-          id: compactMedia
-          shown: win.mode === "compact" && win.s.live === "media"
-          width: win.geometryFor("compact").w
-          height: win.s.notchHeight
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 60
+        // Everything inside moves together when a scroll brings another
+        // activity to the front: it slides in from the scroll direction.
+        Item {
+          id: slider
+          width: parent.width
+          height: parent.height
+          transform: Translate { y: win.slideY }
 
-          Artwork {
-            // Concentric: the same inset on every side of the round art.
-            x: Math.round((win.s.notchHeight - width) / 2)
-            anchors.verticalCenter: parent.verticalCenter
-            width: win.artSize
-            height: width
-            radius: win.s.pill ? width / 2 : 5
-            source: win.s.artLocal
-            fallbackGlyph: win.s.glyphs.music
-            glyphFont: win.s.iconFont
-            glyphColor: win.s.mediaAccent
-          }
-          Waveform {
-            anchors.right: parent.right
-            anchors.rightMargin: win.edge + 2
-            anchors.verticalCenter: parent.verticalCenter
-            height: win.s.notchHeight - 12
-            playing: win.s.isPlaying
-            color: win.s.mediaAccent
-            levels: win.s.spectrum
-          }
-        }
+          // ------------------------------------------------ compact live activities
+          Reveal {
+            reduced: win.s.reduceMotion
+            id: compactMedia
+            shown: win.mode === "compact" && win.s.live === "media"
+            width: win.geometryFor("compact").w
+            height: win.s.notchHeight
+            anchors.horizontalCenter: parent.horizontalCenter
+            inDelay: 60
 
-        CompactActivity {
-          kind: "timer"
-          tone: "orange"
-          glyph: win.s.glyphs.timer
-          trail: Model.formatTime(Math.ceil(win.s.timerLeft))
-          trailOpacity: win.s.timerPausedLeft >= 0 ? 0.55 : 1
-        }
-
-        CompactActivity {
-          kind: "ai"
-          tone: "purple"
-          glyph: win.s.glyphs.robot
-          trail: "Phone"
-          pulsing: true
-        }
-
-        CompactActivity {
-          kind: "stopwatch"
-          tone: "orange"
-          glyph: win.s.glyphs.stopwatch
-          trail: Model.formatTime(win.s.stopwatchElapsed)
-          trailOpacity: win.s.stopwatchHeld >= 0 ? 0.55 : 1
-        }
-
-        CompactActivity {
-          kind: "recording"
-          tone: "red"
-          trail: { win.s.now; return Model.formatTime((Date.now() - win.s.recordingSince) / 1000) }
-          pulsing: win.s.recording
-        }
-
-        CompactActivity {
-          kind: "call"
-          tone: "green"
-          glyph: ""
-          trail: win.trailText
-          pulsing: !!win.s.currentCall && win.s.currentCall.state !== "active"
-          pulseMs: 600
-        }
-
-        // ------------------------------------------------ incoming call
-        Reveal {
-          reduced: win.s.reduceMotion
-          id: incoming
-          shown: win.mode === "incoming"
-          width: win.geometryFor("incoming").w
-          height: win.geometryFor("incoming").h
-          anchors.horizontalCenter: parent.horizontalCenter
-          property var call: win.s.ringingCall || ({})
-
-          Rectangle {
-            id: callerAvatar
-            x: 14
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.height - 24
-            height: width
-            radius: width / 2
-            color: Qt.rgba(1, 1, 1, 0.16)
-            Text {
-              textFormat: Text.PlainText
-              anchors.centerIn: parent
-              text: {
-                var n = String(incoming.call.name || "")
-                return n !== "" ? n.charAt(0).toUpperCase() : ""
-              }
-              font.family: text.length === 1 && /[A-Z0-9]/.test(text) ? win.s.textFont : win.s.iconFont
-              font.pixelSize: 19
-              font.weight: Font.DemiBold
-              color: win.s.textColor
-            }
-          }
-          Column {
-            anchors.left: callerAvatar.right
-            anchors.leftMargin: 12
-            anchors.right: callButtons.left
-            anchors.rightMargin: 10
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 1
-            Text {
-              textFormat: Text.PlainText
-              width: parent.width
-              text: win.s.phoneName + (incoming.call.state === "waiting" ? " · Call Waiting" : "")
-              font.family: win.s.textFont
-              font.pixelSize: 11
-              color: win.s.secondaryText
-              elide: Text.ElideRight
-            }
-            Text {
-              textFormat: Text.PlainText
-              width: parent.width
-              text: win.s.callTitle(incoming.call)
-              font.family: win.s.textFont
-              font.pixelSize: 15
-              font.weight: Font.DemiBold
-              color: win.s.textColor
-              elide: Text.ElideRight
-            }
-          }
-          Row {
-            id: callButtons
-            anchors.right: parent.right
-            anchors.rightMargin: 12
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
-            Repeater {
-              model: [
-                { glyph: "", color: "red", act: "hangup" },
-                { glyph: "", color: "green", act: "answer" }
-              ]
-              delegate: Rectangle {
-                required property var modelData
-                width: callerAvatar.width
-                height: width
-                radius: width / 2
-                color: win.s.tint(modelData.color)
-                scale: callTap.pressed ? 0.88 : callTap.containsMouse ? 1.06 : 1
-                Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
-                Text {
-                  textFormat: Text.PlainText
-                  anchors.centerIn: parent
-                  text: modelData.glyph
-                  font.family: win.s.iconFont
-                  font.pixelSize: 19
-                  color: "#ffffff"
-                }
-                MouseArea {
-                  id: callTap
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: {
-                    var path = win.s.ringingCall ? win.s.ringingCall.path : ""
-                    if (modelData.act === "answer") { win.s.phone.answer(path); win.openCall() }
-                    else win.s.phone.hangup(path)
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        CompactActivity {
-          kind: "phone"
-          tone: "green"
-          glyph: ""
-          trail: win.trailText
-        }
-
-        // The clock lives in the island now: centered in the bare pill and
-        // between the leading/trailing views of a live activity.
-        Text {
-          textFormat: Text.PlainText
-          anchors.horizontalCenter: parent.horizontalCenter
-          y: Math.round((win.s.notchHeight - height) / 2)
-          text: win.s.clockText
-          font: clockMetrics.font
-          color: win.s.textColor
-          opacity: win.s.showClock && (win.mode === "idle" || win.mode === "compact") ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: win.mode === "idle" || win.mode === "compact" ? 260 : 90 } }
-        }
-
-        // ------------------------------------------------ alert (wide pill)
-        Reveal {
-          reduced: win.s.reduceMotion
-          shown: win.mode === "alert"
-          width: win.geometryFor("alert").w
-          height: win.geometryFor("alert").h
-          anchors.horizontalCenter: parent.horizontalCenter
-
-          Row {
-            x: 18
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
-            Text {
-              textFormat: Text.PlainText
-              width: 20
-              horizontalAlignment: Text.AlignHCenter
+            Artwork {
+              // Concentric: the same inset on every side of the round art.
+              x: Math.round((win.s.notchHeight - width) / 2)
               anchors.verticalCenter: parent.verticalCenter
-              text: win.lastAlert.icon || ""
-              font.family: win.s.iconFont
-              font.pixelSize: 17
-              color: win.s.tint(win.lastAlert.tint)
+              width: win.artSize
+              height: width
+              radius: win.s.pill ? width / 2 : 5
+              source: win.s.artLocal
+              fallbackGlyph: win.s.glyphs.music
+              glyphFont: win.s.iconFont
+              glyphColor: win.s.mediaAccent
             }
-            Text {
-              textFormat: Text.PlainText
-              anchors.verticalCenter: parent.verticalCenter
-              text: win.lastAlert.title || ""
-              font: alertTitleMetrics.font
-              color: win.s.textColor
-              elide: Text.ElideRight
-              width: Math.min(implicitWidth, 300)
-            }
-          }
-          Text {
-            textFormat: Text.PlainText
-            anchors.right: parent.right
-            anchors.rightMargin: 20
-            anchors.verticalCenter: parent.verticalCenter
-            text: win.lastAlert.value || ""
-            font: alertValueMetrics.font
-            color: win.lastAlert.tint === "white" || win.lastAlert.tint === "secondary" ? win.s.secondaryText : win.s.tint(win.lastAlert.tint)
-          }
-        }
-
-        // ------------------------------------------------ HUD (volume, brightness…)
-        Reveal {
-          reduced: win.s.reduceMotion
-          shown: win.mode === "hud"
-          width: win.geometryFor("hud").w
-          height: win.geometryFor("hud").h
-          anchors.horizontalCenter: parent.horizontalCenter
-
-          Item {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: win.s.pill ? 14 : 20
-            anchors.rightMargin: win.s.pill ? 16 : 20
-            y: win.s.pill ? 0 : win.s.notchHeight + 2
-            height: win.s.pill ? parent.height : parent.height - win.s.notchHeight - 12
-
-            Text {
-              textFormat: Text.PlainText
-              id: hudIcon
-              width: 22
-              anchors.verticalCenter: parent.verticalCenter
-              horizontalAlignment: Text.AlignHCenter
-              text: win.lastHud.icon || ""
-              font.family: win.s.iconFont
-              font.pixelSize: 18
-              color: win.s.tint(win.lastHud.tint)
-            }
-            Text {
-              textFormat: Text.PlainText
-              id: hudValue
+            Waveform {
               anchors.right: parent.right
+              anchors.rightMargin: win.edge + 2
               anchors.verticalCenter: parent.verticalCenter
-              width: 38
-              horizontalAlignment: Text.AlignRight
-              text: win.lastHud.value || ""
-              font: trailMetrics.font
-              color: win.s.secondaryText
+              height: win.s.notchHeight - 12
+              playing: win.s.isPlaying
+              color: win.s.mediaAccent
+              levels: win.s.spectrum
             }
+          }
+
+          CompactActivity {
+            kind: "timer"
+            tone: "orange"
+            glyph: win.s.glyphs.timer
+            trail: Model.formatTime(Math.ceil(win.s.timerLeft))
+            trailOpacity: win.s.timerPausedLeft >= 0 ? 0.55 : 1
+          }
+
+          CompactActivity {
+            kind: "ai"
+            tone: "purple"
+            glyph: win.s.glyphs.robot
+            trail: "Phone"
+            pulsing: true
+          }
+
+          CompactActivity {
+            kind: "stopwatch"
+            tone: "orange"
+            glyph: win.s.glyphs.stopwatch
+            trail: Model.formatTime(win.s.stopwatchElapsed)
+            trailOpacity: win.s.stopwatchHeld >= 0 ? 0.55 : 1
+          }
+
+          CompactActivity {
+            kind: "recording"
+            tone: "red"
+            trail: { win.s.now; return Model.formatTime((Date.now() - win.s.recordingSince) / 1000) }
+            pulsing: win.s.recording
+          }
+
+          CompactActivity {
+            kind: "call"
+            tone: "green"
+            glyph: ""
+            trail: win.trailText
+            pulsing: !!win.s.currentCall && win.s.currentCall.state !== "active"
+            pulseMs: 600
+          }
+
+          // ------------------------------------------------ incoming call
+          Reveal {
+            reduced: win.s.reduceMotion
+            id: incoming
+            shown: win.mode === "incoming"
+            width: win.geometryFor("incoming").w
+            height: win.geometryFor("incoming").h
+            anchors.horizontalCenter: parent.horizontalCenter
+            property var call: win.s.ringingCall || ({})
+
             Rectangle {
-              anchors.left: hudIcon.right
-              anchors.leftMargin: 14
-              anchors.right: hudValue.left
-              anchors.rightMargin: 12
+              id: callerAvatar
+              x: 14
               anchors.verticalCenter: parent.verticalCenter
-              height: 6
-              radius: 3
-              color: win.s.trackColor
-              Rectangle {
-                height: parent.height
-                radius: parent.radius
-                width: Math.max(parent.height, parent.width * Model.clamp((win.lastHud.percent || 0) / 100, 0, 1))
-                opacity: (win.lastHud.percent || 0) > 0 ? 1 : 0.0
-                color: win.s.paletteName === "theme" ? win.s.tint("accent") : win.s.textColor
-                Behavior on width { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.3 } }
-              }
-            }
-          }
-        }
-
-        // ------------------------------------------------ notification peek
-        Reveal {
-          reduced: win.s.reduceMotion
-          shown: win.mode === "notification"
-          width: win.geometryFor("notification").w
-          height: win.geometryFor("notification").h
-          anchors.horizontalCenter: parent.horizontalCenter
-
-          Artwork {
-            id: notifImage
-            x: 18
-            y: Math.round((parent.height - height) / 2) + 4
-            width: 44
-            height: 44
-            radius: 12
-            source: win.lastNotif.image || ""
-            fallbackGlyph: win.lastNotif.sms ? "" : win.s.glyphs.bell
-            glyphFont: win.s.iconFont
-            glyphColor: win.lastNotif.urgent ? win.s.tint("red") : win.s.textColor
-            fallbackColor: Qt.rgba(1, 1, 1, 0.12)
-          }
-          Column {
-            anchors.left: notifImage.right
-            anchors.leftMargin: 12
-            anchors.right: parent.right
-            anchors.rightMargin: 20
-            anchors.verticalCenter: notifImage.verticalCenter
-            spacing: 1
-
-            Item {
-              width: parent.width
-              height: appLabel.implicitHeight
+              width: parent.height - 24
+              height: width
+              radius: width / 2
+              color: Qt.rgba(1, 1, 1, 0.16)
               Text {
                 textFormat: Text.PlainText
-                id: appLabel
-                anchors.left: parent.left
-                anchors.right: nowLabel.left
-                anchors.rightMargin: 8
-                text: win.lastNotif.app || ""
+                anchors.centerIn: parent
+                text: {
+                  var n = String(incoming.call.name || "")
+                  return n !== "" ? n.charAt(0).toUpperCase() : ""
+                }
+                font.family: text.length === 1 && /[A-Z0-9]/.test(text) ? win.s.textFont : win.s.iconFont
+                font.pixelSize: 19
+                font.weight: Font.DemiBold
+                color: win.s.textColor
+              }
+            }
+            Column {
+              anchors.left: callerAvatar.right
+              anchors.leftMargin: 12
+              anchors.right: callButtons.left
+              anchors.rightMargin: 10
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: 1
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                text: win.s.phoneName + (incoming.call.state === "waiting" ? " · Call Waiting" : "")
                 font.family: win.s.textFont
                 font.pixelSize: 11
-                font.weight: Font.Medium
                 color: win.s.secondaryText
                 elide: Text.ElideRight
               }
               Text {
                 textFormat: Text.PlainText
-                id: nowLabel
-                anchors.right: parent.right
-                text: "now"
+                width: parent.width
+                text: win.s.callTitle(incoming.call)
                 font.family: win.s.textFont
-                font.pixelSize: 11
-                color: win.s.secondaryText
+                font.pixelSize: 15
+                font.weight: Font.DemiBold
+                color: win.s.textColor
+                elide: Text.ElideRight
+              }
+            }
+            Row {
+              id: callButtons
+              anchors.right: parent.right
+              anchors.rightMargin: 12
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: 10
+              Repeater {
+                model: [
+                  { glyph: "", color: "red", act: "hangup" },
+                  { glyph: "", color: "green", act: "answer" }
+                ]
+                delegate: Rectangle {
+                  required property var modelData
+                  width: callerAvatar.width
+                  height: width
+                  radius: width / 2
+                  color: win.s.tint(modelData.color)
+                  scale: callTap.pressed ? 0.88 : callTap.containsMouse ? 1.06 : 1
+                  Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.centerIn: parent
+                    text: modelData.glyph
+                    font.family: win.s.iconFont
+                    font.pixelSize: 19
+                    color: "#ffffff"
+                  }
+                  MouseArea {
+                    id: callTap
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                      var path = win.s.ringingCall ? win.s.ringingCall.path : ""
+                      if (modelData.act === "answer") { win.s.phone.answer(path); win.openCall() }
+                      else win.s.phone.hangup(path)
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          CompactActivity {
+            kind: "phone"
+            tone: "green"
+            glyph: ""
+            trail: win.trailText
+          }
+
+          // The clock lives in the island now: centered in the bare pill and
+          // between the leading/trailing views of a live activity.
+          Text {
+            textFormat: Text.PlainText
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: Math.round((win.s.notchHeight - height) / 2)
+            text: win.s.clockText
+            font: clockMetrics.font
+            color: win.s.textColor
+            opacity: win.s.showClock && (win.mode === "idle" || win.mode === "compact") ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: win.mode === "idle" || win.mode === "compact" ? 260 : 90 } }
+          }
+
+          // ------------------------------------------------ alert (wide pill)
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "alert"
+            width: win.geometryFor("alert").w
+            height: win.geometryFor("alert").h
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Row {
+              x: 18
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: 10
+              Text {
+                textFormat: Text.PlainText
+                width: 20
+                horizontalAlignment: Text.AlignHCenter
+                anchors.verticalCenter: parent.verticalCenter
+                text: win.lastAlert.icon || ""
+                font.family: win.s.iconFont
+                font.pixelSize: 17
+                color: win.s.tint(win.lastAlert.tint)
+              }
+              Text {
+                textFormat: Text.PlainText
+                anchors.verticalCenter: parent.verticalCenter
+                text: win.lastAlert.title || ""
+                font: alertTitleMetrics.font
+                color: win.s.textColor
+                elide: Text.ElideRight
+                width: Math.min(implicitWidth, 300)
               }
             }
             Text {
               textFormat: Text.PlainText
-              width: parent.width
-              text: win.lastNotif.title || ""
-              font.family: win.s.textFont
-              font.pixelSize: 14
-              font.weight: Font.DemiBold
-              color: win.lastNotif.urgent ? win.s.tint("red") : win.s.textColor
-              elide: Text.ElideRight
-              maximumLineCount: 1
-            }
-            Text {
-              textFormat: Text.PlainText
-              width: parent.width
-              visible: text !== ""
-              text: win.lastNotif.body || ""
-              font.family: win.s.textFont
-              font.pixelSize: 12
-              color: win.s.secondaryText
-              elide: Text.ElideRight
-              maximumLineCount: 1
+              anchors.right: parent.right
+              anchors.rightMargin: 20
+              anchors.verticalCenter: parent.verticalCenter
+              text: win.lastAlert.value || ""
+              font: alertValueMetrics.font
+              color: win.lastAlert.tint === "white" || win.lastAlert.tint === "secondary" ? win.s.secondaryText : win.s.tint(win.lastAlert.tint)
             }
           }
-        }
 
-        // ------------------------------------------------ expanded
-        Reveal {
-          reduced: win.s.reduceMotion
-          shown: win.mode === "expanded"
-          width: win.geometryFor("expanded").w
-          height: win.geometryFor("expanded").h
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 130
-          inDuration: 380
+          // ------------------------------------------------ HUD (volume, brightness…)
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "hud"
+            width: win.geometryFor("hud").w
+            height: win.geometryFor("hud").h
+            anchors.horizontalCenter: parent.horizontalCenter
 
-          ExpandedView {
-            anchors.fill: parent
-            s: win.s
-            active: win.mode === "expanded"
-            keyboard: win.keyHeld && !win.controlsOpen
-            onOutputClicked: win.openControls("audio")
-            onCloseRequested: win.setExpanded(false)
+            Item {
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.leftMargin: win.s.pill ? 14 : 20
+              anchors.rightMargin: win.s.pill ? 16 : 20
+              y: win.s.pill ? 0 : win.s.notchHeight + 2
+              height: win.s.pill ? parent.height : parent.height - win.s.notchHeight - 12
+
+              Text {
+                textFormat: Text.PlainText
+                id: hudIcon
+                width: 22
+                anchors.verticalCenter: parent.verticalCenter
+                horizontalAlignment: Text.AlignHCenter
+                text: win.lastHud.icon || ""
+                font.family: win.s.iconFont
+                font.pixelSize: 18
+                color: win.s.tint(win.lastHud.tint)
+              }
+              Text {
+                textFormat: Text.PlainText
+                id: hudValue
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 38
+                horizontalAlignment: Text.AlignRight
+                text: win.lastHud.value || ""
+                font: trailMetrics.font
+                color: win.s.secondaryText
+              }
+              Rectangle {
+                anchors.left: hudIcon.right
+                anchors.leftMargin: 14
+                anchors.right: hudValue.left
+                anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                height: 6
+                radius: 3
+                color: win.s.trackColor
+                Rectangle {
+                  height: parent.height
+                  radius: parent.radius
+                  width: Math.max(parent.height, parent.width * Model.clamp((win.lastHud.percent || 0) / 100, 0, 1))
+                  opacity: (win.lastHud.percent || 0) > 0 ? 1 : 0.0
+                  color: win.s.paletteName === "theme" ? win.s.tint("accent") : win.s.textColor
+                  Behavior on width { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.3 } }
+                }
+              }
+            }
           }
-        }
 
-        // ------------------------------------------------ call
-        Reveal {
-          reduced: win.s.reduceMotion
-          shown: win.mode === "callview"
-          width: callView.preferredWidth
-          height: Math.max(0, win.bh)
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 110
-          inDuration: 320
+          // ------------------------------------------------ notification peek
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "notification"
+            width: win.geometryFor("notification").w
+            height: win.geometryFor("notification").h
+            anchors.horizontalCenter: parent.horizontalCenter
 
-          CallView {
-            id: callView
-            anchors.fill: parent
-            s: win.s
-            active: win.callOpen
-            focus: win.callOpen
-            onCloseRequested: win.callOpen = false
+            Artwork {
+              id: notifImage
+              x: 18
+              y: Math.round((parent.height - height) / 2) + 4
+              width: 44
+              height: 44
+              radius: 12
+              source: win.lastNotif.image || ""
+              fallbackGlyph: win.lastNotif.sms ? "" : win.s.glyphs.bell
+              glyphFont: win.s.iconFont
+              glyphColor: win.lastNotif.urgent ? win.s.tint("red") : win.s.textColor
+              fallbackColor: Qt.rgba(1, 1, 1, 0.12)
+            }
+            Column {
+              anchors.left: notifImage.right
+              anchors.leftMargin: 12
+              anchors.right: parent.right
+              anchors.rightMargin: 20
+              anchors.verticalCenter: notifImage.verticalCenter
+              spacing: 1
+
+              Item {
+                width: parent.width
+                height: appLabel.implicitHeight
+                Text {
+                  textFormat: Text.PlainText
+                  id: appLabel
+                  anchors.left: parent.left
+                  anchors.right: nowLabel.left
+                  anchors.rightMargin: 8
+                  text: win.lastNotif.app || ""
+                  font.family: win.s.textFont
+                  font.pixelSize: 11
+                  font.weight: Font.Medium
+                  color: win.s.secondaryText
+                  elide: Text.ElideRight
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  id: nowLabel
+                  anchors.right: parent.right
+                  text: "now"
+                  font.family: win.s.textFont
+                  font.pixelSize: 11
+                  color: win.s.secondaryText
+                }
+              }
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                text: win.lastNotif.title || ""
+                font.family: win.s.textFont
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                color: win.lastNotif.urgent ? win.s.tint("red") : win.s.textColor
+                elide: Text.ElideRight
+                maximumLineCount: 1
+              }
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                visible: text !== ""
+                text: win.lastNotif.body || ""
+                font.family: win.s.textFont
+                font.pixelSize: 12
+                color: win.s.secondaryText
+                elide: Text.ElideRight
+                maximumLineCount: 1
+              }
+            }
           }
-        }
 
-        // ------------------------------------------------ history
-        Reveal {
-          reduced: win.s.reduceMotion
-          shown: win.mode === "history"
-          width: historyView.preferredWidth
-          height: Math.max(0, win.bh)
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 110
-          inDuration: 340
+          // ------------------------------------------------ expanded
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "expanded"
+            width: win.geometryFor("expanded").w
+            height: win.geometryFor("expanded").h
+            anchors.horizontalCenter: parent.horizontalCenter
+            inDelay: 130
+            inDuration: 380
 
-          HistoryView {
-            id: historyView
-            anchors.fill: parent
-            s: win.s
-            active: win.mode === "history"
-            onCloseRequested: win.scrollStep(-1)
-          }
-        }
-
-        // ------------------------------------------------ control center
-        Reveal {
-          reduced: win.s.reduceMotion
-          shown: win.mode === "controls"
-          width: win.cc ? win.cc.preferredWidth : 0
-          height: Math.max(0, win.bh)
-          anchors.horizontalCenter: parent.horizontalCenter
-          inDelay: 110
-          inDuration: 320
-
-          Loader {
-            id: ccLoader
-            anchors.fill: parent
-            active: win.s.controlCenter
-            sourceComponent: ControlCenter {
+            ExpandedView {
+              anchors.fill: parent
               s: win.s
-              win: win
-              active: win.controlsOpen
+              active: win.mode === "expanded"
+              keyboard: win.keyHeld && !win.controlsOpen
+              onOutputClicked: win.openControls("audio")
+              onCloseRequested: win.setExpanded(false)
+            }
+          }
+
+          // ------------------------------------------------ call
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "callview"
+            width: callView.preferredWidth
+            height: Math.max(0, win.bh)
+            anchors.horizontalCenter: parent.horizontalCenter
+            inDelay: 110
+            inDuration: 320
+
+            CallView {
+              id: callView
+              anchors.fill: parent
+              s: win.s
+              active: win.callOpen
+              focus: win.callOpen
+              onCloseRequested: win.callOpen = false
+            }
+          }
+
+          // ------------------------------------------------ history
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "history"
+            width: historyView.preferredWidth
+            height: Math.max(0, win.bh)
+            anchors.horizontalCenter: parent.horizontalCenter
+            inDelay: 110
+            inDuration: 340
+
+            HistoryView {
+              id: historyView
+              anchors.fill: parent
+              s: win.s
+              active: win.mode === "history"
+              onCloseRequested: win.scrollStep(-1)
+            }
+          }
+
+          // ------------------------------------------------ control center
+          Reveal {
+            reduced: win.s.reduceMotion
+            shown: win.mode === "controls"
+            width: win.cc ? win.cc.preferredWidth : 0
+            height: Math.max(0, win.bh)
+            anchors.horizontalCenter: parent.horizontalCenter
+            inDelay: 110
+            inDuration: 320
+
+            Loader {
+              id: ccLoader
+              anchors.fill: parent
+              active: win.s.controlCenter
+              sourceComponent: ControlCenter {
+                s: win.s
+                win: win
+                active: win.controlsOpen
+              }
             }
           }
         }
