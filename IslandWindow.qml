@@ -324,6 +324,43 @@ PanelWindow {
     squishAnim.restart()
   }
 
+  // Vertical scrolling anywhere on the island (the pill, any open view, the
+  // second bubble) lands here. One flick is one step: after a step the rest
+  // of that gesture, touchpad inertia included, is spent, like an iPhone
+  // detent, so a fast swipe doesn't skip three activities.
+  property real wheelAccum: 0
+  property real wheelQuietUntil: 0
+  function islandWheel(wheel) {
+    var dy = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y * 4
+    // History scrolls its own list and hands back an up-scroll at the top.
+    if (dy === 0 || mode === "controls" || mode === "history") return
+    // Typing a call note: the notes box scrolls, the island stays put.
+    if (mode === "callview" && callView.notesOpen) return
+    var now = Date.now()
+    if (now < wheelQuietUntil) { wheelQuietUntil = now + 180; return }
+    if (s.showHistory) {
+      if ((wheelAccum < 0) !== (dy < 0)) wheelAccum = 0
+      wheelAccum += dy
+      if (Math.abs(wheelAccum) < 120) return
+      var dir = wheelAccum < 0 ? 1 : -1
+      wheelAccum = 0
+      wheelQuietUntil = now + 300
+      dwellTimer.stop()
+      if (mode === "callview") callOpen = false
+      scrollStep(dir)
+      return
+    }
+    if (mode === "expanded" || mode === "hidden" || mode === "history" || mode === "callview") return
+    // Scrolling says "adjust", not "open": hold off the hover-open.
+    if (dwellTimer.running) dwellTimer.restart()
+    wheelAccum += dy
+    // Touchpads send many small deltas; step once per wheel notch.
+    if (Math.abs(wheelAccum) >= 120) {
+      s.scrollVolumeBy(wheelAccum)
+      wheelAccum = 0
+    }
+  }
+
   // One scroll notch walks one list, both ways: each running activity
   // (call, music, timer...) and, after the last, the history.
   // 1 = down, -1 = up.
@@ -331,6 +368,7 @@ PanelWindow {
     if (mode === "history") {
       if (dir > 0) return
       historyOpen = false
+      wheelQuietUntil = Date.now() + 300
       var order = s.liveOrder
       if (order.length > 0) s.pinnedLive = order[order.length - 1]
       feelStep(-1)
@@ -448,7 +486,6 @@ PanelWindow {
       MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-        property real wheelAccum: 0
         // Swipes: a drag with the button held, or a two-finger touchpad
         // swipe (horizontal wheel), classified by Model.swipeAction.
         property point pressAt: Qt.point(0, 0)
@@ -509,31 +546,7 @@ PanelWindow {
             swipeReset.restart()
             return
           }
-          // History scrolls itself and hands an up-scroll at its top back
-          // through closeRequested.
-          if (win.mode === "history" || win.mode === "controls" || win.mode === "callview" || wheel.angleDelta.y === 0) return
-          // Scrolling walks through the running activities (music, call,
-          // timer...), one per notch; past the last one, down opens the
-          // notification history, like pulling down on an iPhone.
-          if (win.s.showHistory) {
-            if ((wheelAccum < 0) !== (wheel.angleDelta.y < 0)) wheelAccum = 0
-            wheelAccum += wheel.angleDelta.y
-            if (Math.abs(wheelAccum) < 120) return
-            var dir = wheelAccum < 0 ? 1 : -1
-            wheelAccum = 0
-            dwellTimer.stop()
-            win.scrollStep(dir)
-            return
-          }
-          if (win.mode === "expanded" || win.mode === "hidden") return
-          // Scrolling says "adjust", not "open": hold off the hover-open.
-          if (dwellTimer.running) dwellTimer.restart()
-          wheelAccum += wheel.angleDelta.y
-          // Touchpads send many small deltas; step once per wheel notch.
-          if (Math.abs(wheelAccum) >= 120 || Math.abs(wheel.angleDelta.y) >= 120) {
-            win.s.scrollVolumeBy(wheelAccum)
-            wheelAccum = 0
-          }
+          win.islandWheel(wheel)
         }
       }
     }
@@ -638,6 +651,7 @@ PanelWindow {
         width: stage.bubbleShown ? parent.width : 0
         height: stage.bubbleShown ? parent.height : 0
         MouseArea {
+          onWheel: function(wheel) { win.islandWheel(wheel) }
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
           onClicked: {

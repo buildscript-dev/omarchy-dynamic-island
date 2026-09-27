@@ -52,7 +52,7 @@ Item {
     onWheel: function(event) {
       var dy = event.angleDelta.y !== 0 ? event.angleDelta.y : event.pixelDelta.y
       var max = Math.max(0, list.contentHeight - list.height)
-      if (dy > 0 && list.contentY <= 0.5) {
+      if (dy > 0 && list.targetY <= 0.5) {
         list.overscroll += dy
         if (list.overscroll >= 120) { list.overscroll = 0; root.closeRequested() }
         return
