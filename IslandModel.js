@@ -173,7 +173,7 @@ function pillGeometry(mode, w, h, contentWidth) {
     var hh = h + 12
     return { w: w + 150, h: hh, rb: Math.ceil(hh / 2), rt: 0 }
   case "notification":
-    return { w: Math.max(w + 250, 340), h: h + 50, rb: 24, rt: 0 }
+    return { w: Math.max(w + 250, contentWidth || 340), h: h + 50, rb: 24, rt: 0 }
   case "expanded":
     return { w: Math.max(w + 440, 560), h: h + 172, rb: 34, rt: 0 }
   case "incoming":

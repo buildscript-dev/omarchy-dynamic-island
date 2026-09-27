@@ -203,7 +203,8 @@ PanelWindow {
       return { w: callView.preferredWidth, h: callView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
     if (m === "history")
       return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
-    var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth : alertContentWidth
+    var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth
+      : m === "notification" ? s.notificationWidth : alertContentWidth
     return Model.geometry(m, s.notchWidth, s.notchHeight, content, s.pill)
   }
   readonly property var geom: {
@@ -292,15 +293,22 @@ PanelWindow {
     s.expandedWindow = win
     callOpen = true
   }
-  // One scroll notch: 1 = down (next activity, then history), -1 = up.
+  // One scroll notch walks one list, both ways: each running activity
+  // (call, music, timer...) and, after the last, the history.
+  // 1 = down, -1 = up.
   function scrollStep(dir) {
-    if (mode === "history") { if (dir < 0) historyOpen = false; return }
-    // Now Playing: up tucks it back into the pill, down goes on to history.
-    if (mode === "expanded" && dir < 0) { setExpanded(false); return }
-    // A passing alert or volume pill steps aside for the scroll.
-    if ((mode === "alert" || mode === "hud") && t && t.source !== "alarm-ring") s.finishActivity()
-    if (mode !== "expanded" && mode !== "notification" && s.stepLive(dir)) return
+    if (mode === "history") {
+      if (dir > 0) return
+      historyOpen = false
+      var order = s.liveOrder
+      if (order.length > 0) s.pinnedLive = order[order.length - 1]
+      return
+    }
+    // A passing alert, volume pill or notification steps aside for the scroll.
+    if ((mode === "alert" || mode === "hud" || mode === "notification") && t && t.source !== "alarm-ring") s.finishActivity()
+    if (s.stepLive(dir)) { if (expanded) setExpanded(false); return }
     if (dir > 0) openHistory()
+    else if (expanded) setExpanded(false)
   }
   function openHistory() {
     if (!s.showHistory || historyOpen) return
@@ -458,7 +466,10 @@ PanelWindow {
         }
         onWheel: function(wheel) {
           // Two-finger sideways swipe: one gesture, then a short cooldown.
+          // Off unless swipeToTuck: a touchpad's vertical scroll drifts
+          // sideways enough to tuck activities away by accident.
           if (Math.abs(wheel.angleDelta.x) > Math.abs(wheel.angleDelta.y)) {
+            if (!win.s.swipeToTuck) return
             // After a swipe, the rest of that gesture (and its inertia) is spent.
             if (swipeReset.running && swipeX === 0) { swipeReset.restart(); return }
             swipeX += wheel.angleDelta.x / 4
@@ -466,6 +477,8 @@ PanelWindow {
             swipeReset.restart()
             return
           }
+          // History scrolls itself and hands an up-scroll at its top back
+          // through closeRequested.
           if (win.mode === "history" || win.mode === "controls" || win.mode === "callview" || wheel.angleDelta.y === 0) return
           // Scrolling walks through the running activities (music, call,
           // timer...), one per notch; past the last one, down opens the
@@ -1199,7 +1212,7 @@ PanelWindow {
             anchors.fill: parent
             s: win.s
             active: win.mode === "history"
-            onCloseRequested: win.historyOpen = false
+            onCloseRequested: win.scrollStep(-1)
           }
         }
 

@@ -1413,6 +1413,9 @@ Item {
   }
   onTrackTitleChanged: if (trackTitle !== "") songLog.restart()
   readonly property bool showHistory: setting("showHistory", true) === true
+  readonly property bool swipeToTuck: setting("swipeToTuck", false) === true
+  // How wide a notification opens the island (px); History matches it.
+  readonly property int notificationWidth: Math.max(300, Math.min(700, Number(setting("notificationWidth", 340))))
 
   // ------------------------------------------------ call notes
   // One Markdown file per call, named by when it connected: the notes you

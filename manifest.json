@@ -43,6 +43,8 @@
       "showClock": true,
       "showHome": true,
       "showHistory": true,
+      "notificationWidth": 340,
+      "swipeToTuck": false,
       "callTranscript": false,
       "outerShell": false,
       "shellGap": 4,
@@ -229,6 +231,18 @@
         "key": "callTranscript",
         "type": "boolean",
         "label": "Transcript button in the call view (the other person may need to agree to recording)",
+        "defaultValue": false
+      },
+      {
+        "key": "notificationWidth",
+        "type": "integer",
+        "label": "Notification width (px)",
+        "defaultValue": 340
+      },
+      {
+        "key": "swipeToTuck",
+        "type": "boolean",
+        "label": "Swipe sideways on the island to tuck an activity away",
         "defaultValue": false
       },
       {

@@ -10,6 +10,7 @@ Item {
 
   property var s: null
   property bool active: false
+  onActiveChanged: if (active) { list.targetY = 0; list.overscroll = 0 }
   signal closeRequested()
 
   readonly property color fg: s.textColor
@@ -18,7 +19,7 @@ Item {
   readonly property color cardHover: Qt.rgba(fg.r, fg.g, fg.b, 0.15)
 
   readonly property int pad: 14
-  readonly property int preferredWidth: 380
+  readonly property int preferredWidth: Math.max(380, s.notificationWidth)
   readonly property int preferredHeight: Math.min(460, Math.max(120, list.contentHeight + 2 * pad))
 
   // One flat list, section headers included, so everything scrolls together.
@@ -45,31 +46,38 @@ Item {
     textFormat: Text.PlainText
   }
 
+  // The view scrolls itself rather than leaving the wheel to the list, so an
+  // up-scroll at the top can always hand back to the island (closeRequested).
+  WheelHandler {
+    onWheel: function(event) {
+      var dy = event.angleDelta.y !== 0 ? event.angleDelta.y : event.pixelDelta.y
+      var max = Math.max(0, list.contentHeight - list.height)
+      if (dy > 0 && list.contentY <= 0.5) {
+        list.overscroll += dy
+        if (list.overscroll >= 120) { list.overscroll = 0; root.closeRequested() }
+        return
+      }
+      list.overscroll = 0
+      list.targetY = Math.max(0, Math.min(max, list.targetY - dy))
+    }
+  }
+
   ListView {
     id: list
     anchors.fill: parent
     anchors.margins: root.pad
     clip: true
     spacing: 8
-    boundsBehavior: Flickable.DragOverBounds
+    interactive: false
+    property real targetY: 0
+    contentY: targetY
+    Behavior on contentY { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
     model: root.rows
     // New entries glide in instead of popping.
     add: Transition { NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 220 } }
     displaced: Transition { NumberAnimation { properties: "y"; duration: 260; easing.type: Easing.OutCubic } }
 
-    // Scrolling up past the top closes the history, like swiping the
-    // iPhone's notification list back up.
     property real overscroll: 0
-    WheelHandler {
-      onWheel: function(event) {
-        if (list.atYBeginning && event.angleDelta.y > 0) {
-          list.overscroll += event.angleDelta.y
-          if (list.overscroll >= 240) { list.overscroll = 0; root.closeRequested() }
-        } else {
-          list.overscroll = 0
-        }
-      }
-    }
 
     delegate: Item {
       id: row
