@@ -35,7 +35,7 @@ PanelWindow {
   // was opened from the keyboard (`island expand`). Opened by hover it
   // leaves typing alone.
   property bool keyExpanded: false
-  readonly property bool keyHeld: controlsOpen || (expanded && keyExpanded)
+  readonly property bool keyHeld: controlsOpen || (expanded && keyExpanded) || (callOpen && callView.notesOpen)
   WlrLayershell.keyboardFocus: keyHeld ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
   mask: Region {
     item: hit
@@ -71,12 +71,15 @@ PanelWindow {
   property bool expanded: false
   property bool controlsOpen: false
   property bool historyOpen: false
+  property bool callOpen: false
+  readonly property alias callView: callView
   readonly property var t: s.activity
 
   readonly property string mode: {
     if (controlsOpen) return "controls"
     // A ringing phone beats everything else, like iOS's incoming-call banner.
     if (s.ringingCall) return "incoming"
+    if (callOpen) return "callview"
     if (historyOpen) return "history"
     // A new notification briefly takes over the expanded island; `expanded`
     // stays set, so the player/home view springs back once it's done.
@@ -196,6 +199,8 @@ PanelWindow {
     if (m === "controls")
       // The body has to grow with the page, or a wide one spills off the pill.
       return { w: Math.max(120, cc ? cc.preferredWidth : 0), h: Math.max(120, cc ? cc.preferredHeight : 0), rb: 34, rt: s.pill ? 0 : 10 }
+    if (m === "callview")
+      return { w: callView.preferredWidth, h: callView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
     if (m === "history")
       return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
     var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth : alertContentWidth
@@ -281,6 +286,12 @@ PanelWindow {
     cc.page = page || "main"
   }
   function closeControls() { controlsOpen = false }
+  function openCall() {
+    if (expanded) setExpanded(false)
+    historyOpen = false
+    s.expandedWindow = win
+    callOpen = true
+  }
   function openHistory() {
     if (!s.showHistory || historyOpen) return
     if (expanded) setExpanded(false)
@@ -301,7 +312,8 @@ PanelWindow {
   HyprlandFocusGrab {
     active: win.keyHeld && win.grabReady && win.visible
     windows: [win]
-    onCleared: { win.closeControls(); win.setExpanded(false) }
+    // An unsaved call note stays open; Save or Cancel closes it.
+    onCleared: { if (win.callOpen) return; win.closeControls(); win.setExpanded(false) }
   }
 
   function setExpanded(on) {
@@ -317,14 +329,15 @@ PanelWindow {
   }
   Connections {
     target: win.s
-    function onExpandedWindowChanged() { if (win.s.expandedWindow !== win) { win.setExpanded(false); win.closeControls(); win.historyOpen = false } }
-    function onCollapseAll() { win.setExpanded(false); win.closeControls(); win.historyOpen = false }
+    function onExpandedWindowChanged() { if (win.s.expandedWindow !== win) { win.setExpanded(false); win.closeControls(); win.historyOpen = false; win.callOpen = false } }
+    function onCollapseAll() { win.setExpanded(false); win.closeControls(); win.historyOpen = false; win.callOpen = false }
     function onControlsRequested(page) {
       if (win.isTarget()) {
         if (win.controlsOpen && win.cc && (page === "main" || page === win.cc.page)) win.closeControls()
         else win.openControls(page)
       }
     }
+    function onCallNotesRequested() { if (win.isTarget()) { win.openCall(); win.callView.openNotes() } }
     function onHistoryRequested() { if (win.isTarget()) { if (win.historyOpen) win.historyOpen = false; else win.openHistory() } }
     function onExpandRequested() { if (win.isTarget()) { win.keyExpanded = true; win.setExpanded(true) } }
     function onRingingCallChanged() { if (win.s.ringingCall) win.setExpanded(false) }
@@ -346,6 +359,7 @@ PanelWindow {
       if (win.t) win.s.holdActivity(false)
       if (!win.controlsOpen) win.setExpanded(false)
       win.historyOpen = false
+      if (!callView.notesOpen) win.callOpen = false
     }
   }
 
@@ -406,8 +420,8 @@ PanelWindow {
           if (swiped) return
           var m = win.mode
           if (mouse.button === Qt.MiddleButton) { win.s.mediaToggle(); return }
-          if (m === "controls" || m === "incoming" || m === "history") return
-          if (m === "compact" && win.s.live === "call") { win.openControls("call"); return }
+          if (m === "controls" || m === "incoming" || m === "history" || m === "callview") return
+          if (m === "compact" && win.s.live === "call") { win.openCall(); return }
           if (m === "alert" && win.t && win.t.source === "alarm-ring") {
             if (mouse.button === Qt.RightButton) win.s.snoozeAlarm()
             else win.s.stopAlarm()
@@ -441,7 +455,7 @@ PanelWindow {
             swipeReset.restart()
             return
           }
-          if (win.mode === "history" || win.mode === "controls" || wheel.angleDelta.y === 0) return
+          if (win.mode === "history" || win.mode === "controls" || win.mode === "callview" || wheel.angleDelta.y === 0) return
           // Scrolling down opens the history, like pulling down on an iPhone.
           if (win.s.showHistory) {
             wheelAccum = wheel.angleDelta.y < 0 ? wheelAccum + wheel.angleDelta.y : 0
@@ -564,7 +578,7 @@ PanelWindow {
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
           onClicked: {
-            if (win.s.secondLive === "call") win.openControls("call")
+            if (win.s.secondLive === "call") win.openCall()
             else if (win.s.secondLive === "phone") win.openControls("phone")
             else win.setExpanded(true)
           }
@@ -901,7 +915,7 @@ PanelWindow {
                   cursorShape: Qt.PointingHandCursor
                   onClicked: {
                     var path = win.s.ringingCall ? win.s.ringingCall.path : ""
-                    if (modelData.act === "answer") { win.s.phone.answer(path); win.openControls("call") }
+                    if (modelData.act === "answer") { win.s.phone.answer(path); win.openCall() }
                     else win.s.phone.hangup(path)
                   }
                 }
@@ -1129,6 +1143,26 @@ PanelWindow {
             keyboard: win.keyHeld && !win.controlsOpen
             onOutputClicked: win.openControls("audio")
             onCloseRequested: win.setExpanded(false)
+          }
+        }
+
+        // ------------------------------------------------ call
+        Reveal {
+          reduced: win.s.reduceMotion
+          shown: win.mode === "callview"
+          width: callView.preferredWidth
+          height: Math.max(0, win.bh)
+          anchors.horizontalCenter: parent.horizontalCenter
+          inDelay: 110
+          inDuration: 320
+
+          CallView {
+            id: callView
+            anchors.fill: parent
+            s: win.s
+            active: win.callOpen
+            focus: win.callOpen
+            onCloseRequested: win.callOpen = false
           }
         }
 

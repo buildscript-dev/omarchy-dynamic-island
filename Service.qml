@@ -1399,6 +1399,28 @@ Item {
   onTrackTitleChanged: if (trackTitle !== "") songLog.restart()
   readonly property bool showHistory: setting("showHistory", true) === true
 
+  // ------------------------------------------------ call notes
+  // One Markdown file per note, named by when the call started; the text
+  // goes in as an argument, never through the shell.
+  readonly property string callNotesDir: Quickshell.env("HOME") + "/.local/share/omarchy/call-notes"
+  function saveCallNote(n) {
+    function line(v, max) { return Model.clip(String(v || "").replace(/[\r\n]+/g, " ").trim(), max) }
+    var when = new Date(Number(n.time) || Date.now())
+    var name = line(n.name, 120), number = line(n.number, 40), purpose = line(n.purpose, 300)
+    var body = Model.clip(String(n.notes || "").trim(), 20000)
+    var md = "# Call with " + (name || number || "Unknown") + "\n\n" +
+      "- Name: " + name + "\n" +
+      "- Number: " + number + "\n" +
+      "- Time: " + Qt.formatDateTime(when, "dddd d MMMM yyyy, HH:mm") + "\n" +
+      (n.duration > 0 ? "- Duration: " + Model.formatTime(n.duration) + "\n" : "") +
+      "- Purpose: " + purpose + "\n\n## Notes\n\n" + body + "\n"
+    var stamp = Qt.formatDateTime(when, "yyyy-MM-dd_HH-mm-ss")
+    root.fire(["bash", "-c", "umask 077; /usr/bin/mkdir -p -- \"$1\" || exit 1; f=\"$1/$2.md\"; i=1; " +
+      "while [ -e \"$f\" ]; do f=\"$1/$2-$i.md\"; i=$((i+1)); done; printf '%s' \"$3\" > \"$f\"",
+      "note", root.callNotesDir, stamp, md], 5)
+    logRecent("\uE2CE", "blue", "Call note", name || number || "Unknown")
+  }
+
   function clearHistory() {
     root.fire(["omarchy-shell", "-q", "notifications", "clear"], 10)
     history = []
@@ -1488,6 +1510,8 @@ Item {
     function ping(): string { return "ok" }
     function expand(): string { root.expandRequested(); return "ok" }
     function history(): string { root.historyRequested(); return "ok" }
+    // A call note form, prefilled from the current call if there is one.
+    function callNotes(): string { root.callNotesRequested(); return "ok" }
     // Open the Control Center, optionally on a page: wifi, bluetooth, audio,
     // buds, phone, notifications, calendar, power.
     function controls(page: string): string {
@@ -1556,6 +1580,7 @@ Item {
   }
   signal expandRequested()
   signal historyRequested()
+  signal callNotesRequested()
 
   // The first Service to start is the island; the bar widget finds it here.
   Item {
