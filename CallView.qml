@@ -2,9 +2,9 @@ import QtQuick
 import Quickshell.Services.Pipewire
 
 // The ongoing call, opened by clicking the call pill: who it is, how long,
-// and four buttons — mute, sound output, notes (i), end. Notes turns the
-// view into a small form (name, number, time, purpose, notes) saved as a
-// Markdown file under ~/.local/share/omarchy/call-notes/.
+// and four buttons: mute, sound output, notes (i), end. Notes opens a notes
+// box; name, number and time come from the call and are saved with it, in
+// the call's Markdown file under ~/.local/share/omarchy/call-notes/.
 Item {
   id: root
 
@@ -30,17 +30,14 @@ Item {
     var c = call || {}
     noteCall = { name: String(c.name || ""), number: String(c.number || ""), activeSince: Number(c.activeSince) || 0 }
     noteTime = noteCall.activeSince > 0 ? noteCall.activeSince * 1000 : Date.now()
-    nameField.text = noteCall.name
-    numberField.text = noteCall.number
-    purposeField.text = ""
     notesField.text = ""
     notesOpen = true
-    Qt.callLater(function() { purposeField.input.forceActiveFocus() })
+    Qt.callLater(function() { notesField.forceActiveFocus() })
   }
   function saveNotes() {
-    s.saveCallNote({ name: nameField.text, number: numberField.text, time: noteTime,
+    s.saveCallNote({ name: noteCall.name, number: noteCall.number, time: noteTime,
       duration: noteCall.activeSince > 0 ? Date.now() / 1000 - noteCall.activeSince : 0,
-      purpose: purposeField.text, notes: notesField.text })
+      notes: notesField.text })
     notesOpen = false
     if (!call) closeRequested()
   }
@@ -184,41 +181,6 @@ Item {
   }
 
   // ------------------------------------------------ notes
-  component Field: Rectangle {
-    property alias text: input.text
-    property alias input: input
-    property string placeholder: ""
-    width: parent.width
-    height: 34
-    radius: 10
-    color: root.fieldFill
-    border.width: input.activeFocus ? 1 : 0
-    border.color: Qt.rgba(1, 1, 1, 0.3)
-    TextInput {
-      id: input
-      anchors.fill: parent
-      anchors.leftMargin: 12
-      anchors.rightMargin: 12
-      verticalAlignment: TextInput.AlignVCenter
-      font.family: root.s.textFont
-      font.pixelSize: 13
-      color: root.fg
-      selectByMouse: true
-      clip: true
-      maximumLength: 300
-      activeFocusOnTab: true
-      Text {
-        anchors.fill: parent
-        verticalAlignment: Text.AlignVCenter
-        visible: input.text === "" && !input.activeFocus
-        text: parent.parent.placeholder
-        font: input.font
-        color: root.dim
-        textFormat: Text.PlainText
-      }
-    }
-  }
-
   Column {
     id: notes
     visible: root.notesOpen
@@ -248,16 +210,18 @@ Item {
         textFormat: Text.PlainText
       }
     }
-    Row {
+    Text {
       width: parent.width
-      spacing: 8
-      Field { id: nameField; width: (parent.width - 8) / 2; placeholder: "Name" }
-      Field { id: numberField; width: (parent.width - 8) / 2; placeholder: "Number" }
+      text: [root.noteCall.name, root.noteCall.number].filter(function(v) { return v }).join("  ·  ") || "Unknown caller"
+      font.family: root.s.textFont
+      font.pixelSize: 13
+      color: root.dim
+      elide: Text.ElideRight
+      textFormat: Text.PlainText
     }
-    Field { id: purposeField; placeholder: "Purpose" }
     Rectangle {
       width: parent.width
-      height: 110
+      height: 140
       radius: 10
       color: root.fieldFill
       border.width: notesField.activeFocus ? 1 : 0
@@ -277,7 +241,6 @@ Item {
           wrapMode: TextEdit.Wrap
           selectByMouse: true
           textFormat: TextEdit.PlainText
-          activeFocusOnTab: true
           onCursorRectangleChanged: {
             if (cursorRectangle.y < notesFlick.contentY) notesFlick.contentY = cursorRectangle.y
             else if (cursorRectangle.y + cursorRectangle.height > notesFlick.contentY + notesFlick.height)

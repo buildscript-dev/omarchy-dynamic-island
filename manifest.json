@@ -43,6 +43,7 @@
       "showClock": true,
       "showHome": true,
       "showHistory": true,
+      "callTranscript": false,
       "outerShell": false,
       "shellGap": 4,
       "shellBand": 5,
@@ -223,6 +224,12 @@
         "type": "integer",
         "label": "Width of the glass band (px)",
         "defaultValue": 5
+      },
+      {
+        "key": "callTranscript",
+        "type": "boolean",
+        "label": "Record calls and add a transcript to the call's note (the other person may need to agree)",
+        "defaultValue": false
       },
       {
         "key": "showHistory",

@@ -1400,25 +1400,60 @@ Item {
   readonly property bool showHistory: setting("showHistory", true) === true
 
   // ------------------------------------------------ call notes
-  // One Markdown file per note, named by when the call started; the text
-  // goes in as an argument, never through the shell.
+  // One Markdown file per call, named by when it connected: the notes you
+  // write and, with callTranscript on, the transcript land in the same file.
+  // Text goes in as arguments, never through the shell.
   readonly property string callNotesDir: Quickshell.env("HOME") + "/.local/share/omarchy/call-notes"
-  function saveCallNote(n) {
-    function line(v, max) { return Model.clip(String(v || "").replace(/[\r\n]+/g, " ").trim(), max) }
-    var when = new Date(Number(n.time) || Date.now())
-    var name = line(n.name, 120), number = line(n.number, 40), purpose = line(n.purpose, 300)
-    var body = Model.clip(String(n.notes || "").trim(), 20000)
-    var md = "# Call with " + (name || number || "Unknown") + "\n\n" +
+  function callNotePath(startMs) {
+    return callNotesDir + "/" + Qt.formatDateTime(new Date(startMs), "yyyy-MM-dd_HH-mm-ss") + ".md"
+  }
+  function oneLine(v, max) { return Model.clip(String(v || "").replace(/[\r\n]+/g, " ").trim(), max) }
+  function callNoteHeader(name, number, startMs, duration) {
+    name = oneLine(name, 120); number = oneLine(number, 40)
+    return "# Call with " + (name || number || "Unknown") + "\n\n" +
       "- Name: " + name + "\n" +
       "- Number: " + number + "\n" +
-      "- Time: " + Qt.formatDateTime(when, "dddd d MMMM yyyy, HH:mm") + "\n" +
-      (n.duration > 0 ? "- Duration: " + Model.formatTime(n.duration) + "\n" : "") +
-      "- Purpose: " + purpose + "\n\n## Notes\n\n" + body + "\n"
-    var stamp = Qt.formatDateTime(when, "yyyy-MM-dd_HH-mm-ss")
-    root.fire(["bash", "-c", "umask 077; /usr/bin/mkdir -p -- \"$1\" || exit 1; f=\"$1/$2.md\"; i=1; " +
-      "while [ -e \"$f\" ]; do f=\"$1/$2-$i.md\"; i=$((i+1)); done; printf '%s' \"$3\" > \"$f\"",
-      "note", root.callNotesDir, stamp, md], 5)
-    logRecent("\uE2CE", "blue", "Call note", name || number || "Unknown")
+      "- Time: " + Qt.formatDateTime(new Date(startMs), "dddd d MMMM yyyy, HH:mm") + "\n" +
+      (duration > 0 ? "- Duration: " + Model.formatTime(duration) + "\n" : "")
+  }
+  // Appends under a lock, creating the file with its header first if needed.
+  function appendCallNote(path, header, section) {
+    root.fire(["bash", "-c", "umask 077; d=$(/usr/bin/dirname -- \"$1\"); /usr/bin/mkdir -p -- \"$d\" || exit 1; " +
+      "exec 9>>\"$d/.lock\"; /usr/bin/flock 9; [ -e \"$1\" ] || printf '%s' \"$2\" > \"$1\"; printf '%s' \"$3\" >> \"$1\"",
+      "note", path, header, section], 10)
+  }
+  function saveCallNote(n) {
+    var start = Number(n.time) || Date.now()
+    var body = Model.clip(String(n.notes || "").trim(), 20000)
+    if (body === "") return
+    appendCallNote(callNotePath(start), callNoteHeader(n.name, n.number, start, n.duration), "\n## Notes\n\n" + body + "\n")
+    logRecent("\uE2CE", "blue", "Call note", oneLine(n.name, 120) || oneLine(n.number, 40) || "Unknown")
+  }
+
+  // Transcripts: record both sides while a call is connected, transcribe
+  // with whisper-cli when it ends (call-transcript.sh). Off by default:
+  // recording a call can need the other person's consent.
+  readonly property bool callTranscript: setting("callTranscript", false) === true
+  readonly property string whisperModel: String(setting("whisperModel",
+    Quickshell.env("HOME") + "/.local/share/whisper-models/ggml-small.en.bin"))
+  readonly property string transcriptScript: String(Qt.resolvedUrl("call-transcript.sh")).replace(/^file:\/\//, "")
+  property var recordingCall: null
+  readonly property real connectedSince: currentCall && currentCall.state === "active" ? Number(currentCall.activeSince) || 0 : 0
+  onConnectedSinceChanged: {
+    if (recordingCall && recordingCall.since !== connectedSince) finishTranscript()
+    if (callTranscript && connectedSince > 0 && !recordingCall) {
+      recordingCall = { since: connectedSince, name: String(currentCall.name || ""), number: String(currentCall.number || "") }
+      root.launch(["bash", root.transcriptScript, "start"])
+    }
+  }
+  function finishTranscript() {
+    var c = recordingCall
+    recordingCall = null
+    if (!c) return
+    var start = c.since * 1000
+    root.launch(["bash", root.transcriptScript, "stop", callNotePath(start),
+      callNoteHeader(c.name, c.number, start, Date.now() / 1000 - c.since), root.whisperModel])
+    logRecent("\uE2CE", "blue", "Call transcript", c.name || c.number || "Unknown")
   }
 
   function clearHistory() {
