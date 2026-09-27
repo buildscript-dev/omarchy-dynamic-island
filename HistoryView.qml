@@ -46,20 +46,18 @@ Item {
     textFormat: Text.PlainText
   }
 
-  // The view scrolls itself rather than leaving the wheel to the list, so an
-  // up-scroll at the top can always hand back to the island (closeRequested).
-  WheelHandler {
-    onWheel: function(event) {
-      var dy = event.angleDelta.y !== 0 ? event.angleDelta.y : event.pixelDelta.y
-      var max = Math.max(0, list.contentHeight - list.height)
-      if (dy > 0 && list.targetY <= 0.5) {
-        list.overscroll += dy
-        if (list.overscroll >= 120) { list.overscroll = 0; root.closeRequested() }
-        return
-      }
-      list.overscroll = 0
-      list.targetY = Math.max(0, Math.min(max, list.targetY - dy))
+  // The island hands every scroll here (IslandWindow.islandWheel): it moves
+  // the list, and an up-scroll once the list is at its top closes History,
+  // back to the island's own size.
+  function wheel(dy) {
+    var max = Math.max(0, list.contentHeight - list.height)
+    if (dy > 0 && list.targetY <= 0.5) {
+      list.overscroll += dy
+      if (list.overscroll >= 120) { list.overscroll = 0; root.closeRequested() }
+      return
     }
+    list.overscroll = 0
+    list.targetY = Math.max(0, Math.min(max, list.targetY - dy))
   }
 
   ListView {

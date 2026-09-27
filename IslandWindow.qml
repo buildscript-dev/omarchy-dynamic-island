@@ -332,8 +332,9 @@ PanelWindow {
   property real wheelQuietUntil: 0
   function islandWheel(wheel) {
     var dy = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y * 4
-    // History scrolls its own list and hands back an up-scroll at the top.
-    if (dy === 0 || mode === "controls" || mode === "history") return
+    if (dy === 0 || mode === "controls") return
+    // History scrolls its list; an up-scroll at the top closes it.
+    if (mode === "history") { if (Date.now() >= wheelQuietUntil) historyView.wheel(dy); return }
     // Typing a call note: the notes box scrolls, the island stays put.
     if (mode === "callview" && callView.notesOpen) return
     var now = Date.now()
