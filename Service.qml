@@ -502,7 +502,10 @@ Item {
     else if (stopwatchSince > 0) { stopwatchHeld = (Date.now() - stopwatchSince) / 1000; stopwatchSince = 0 }
     else stopwatchSince = Date.now()
   }
-  function resetStopwatch() { stopwatchSince = 0; stopwatchHeld = -1 }
+  function resetStopwatch() {
+    if (stopwatchElapsed >= 1) logRecent(glyphs.stopwatch, "orange", "Stopwatch", Model.formatTime(stopwatchElapsed))
+    stopwatchSince = 0; stopwatchHeld = -1
+  }
 
   // ------------------------------------------------------------ alarm
   // One alarm. Its time is kept in the private run directory (the same 0700
@@ -595,6 +598,8 @@ Item {
     onExited: function(code) {
       var on = code === 0
       if (on && !root.recording) root.recordingSince = Date.now()
+      if (!on && root.recording && root.recordingSince > 0)
+        root.logRecent(root.glyphs.record, "red", "Screen recording", Model.formatTime((Date.now() - root.recordingSince) / 1000))
       root.recording = on
     }
   }
@@ -944,6 +949,8 @@ Item {
       value: Model.clip(t.value, 60), body: Model.clip(t.body, 2000),
       duration: Model.clamp(Number(t.duration) || 2500, 500, 30000)
     })
+    if (t.source === "timer-done" || t.source === "alarm-ring" || t.source === "call")
+      logRecent(t.icon, t.tint, t.title, t.value)
     // A ringing alarm keeps the island until someone acts on it: the rest
     // waits behind it, and a volume or brightness pill is skipped (the key
     // itself still works).
@@ -1362,6 +1369,36 @@ Item {
     }
     onExited: if (root.historyAgain) { root.historyAgain = false; root.readHistory() }
   }
+  // ------------------------------------------------------------ recent activity
+  // What the island did lately, newest first, for the History view: timers
+  // and alarms that went off, calls, recordings, stopwatch runs, songs.
+  // ponytail: in memory only, so a shell restart empties it; keep it in the
+  // private run directory if that ever matters.
+  property var recent: []
+  function logRecent(icon, tint, title, value) {
+    var e = { icon: Model.clip(icon, 16), tint: String(tint || "white"), title: Model.clip(title, 200),
+      value: Model.clip(value, 120), time: Date.now() }
+    var next = recent.slice(0, 39)
+    next.unshift(e)
+    recent = next
+  }
+  function removeRecent(e) { recent = recent.filter(function(r) { return r !== e }) }
+  function clearRecent() { recent = [] }
+  // A song counts once it has been playing for a few seconds, and only once
+  // in a row, so skipping through a playlist doesn't flood the list.
+  Timer {
+    id: songLog
+    interval: 8000
+    onTriggered: {
+      if (!root.isPlaying || root.trackTitle === "") return
+      var top = root.recent.length > 0 ? root.recent[0] : null
+      if (top && top.title === root.trackTitle) return
+      root.logRecent(root.glyphs.music, "white", root.trackTitle, root.trackArtist)
+    }
+  }
+  onTrackTitleChanged: if (trackTitle !== "") songLog.restart()
+  readonly property bool showHistory: setting("showHistory", true) === true
+
   function clearHistory() {
     root.fire(["omarchy-shell", "-q", "notifications", "clear"], 10)
     history = []
@@ -1450,6 +1487,7 @@ Item {
     }
     function ping(): string { return "ok" }
     function expand(): string { root.expandRequested(); return "ok" }
+    function history(): string { root.historyRequested(); return "ok" }
     // Open the Control Center, optionally on a page: wifi, bluetooth, audio,
     // buds, phone, notifications, calendar, power.
     function controls(page: string): string {
@@ -1517,6 +1555,7 @@ Item {
     }
   }
   signal expandRequested()
+  signal historyRequested()
 
   // The first Service to start is the island; the bar widget finds it here.
   Item {

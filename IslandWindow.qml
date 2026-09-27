@@ -69,12 +69,14 @@ PanelWindow {
   property bool hovered: false
   property bool expanded: false
   property bool controlsOpen: false
+  property bool historyOpen: false
   readonly property var t: s.activity
 
   readonly property string mode: {
     if (controlsOpen) return "controls"
     // A ringing phone beats everything else, like iOS's incoming-call banner.
     if (s.ringingCall) return "incoming"
+    if (historyOpen) return "history"
     // A new notification briefly takes over the expanded island; `expanded`
     // stays set, so the player/home view springs back once it's done.
     if (t && t.kind === "notification") return "notification"
@@ -193,6 +195,8 @@ PanelWindow {
     if (m === "controls")
       // The body has to grow with the page, or a wide one spills off the pill.
       return { w: Math.max(120, cc.preferredWidth), h: Math.max(120, cc.preferredHeight), rb: 34, rt: s.pill ? 0 : 10 }
+    if (m === "history")
+      return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
     var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth : alertContentWidth
     return Model.geometry(m, s.notchWidth, s.notchHeight, content, s.pill)
   }
@@ -276,6 +280,13 @@ PanelWindow {
     cc.page = page || "main"
   }
   function closeControls() { controlsOpen = false }
+  function openHistory() {
+    if (!s.showHistory || historyOpen) return
+    if (expanded) setExpanded(false)
+    closeControls()
+    s.expandedWindow = win
+    historyOpen = true
+  }
   // Tap outside the island to dismiss the Control Center, like iOS.
   // The grab starts a beat after opening: the surface first takes keyboard
   // focus, and a grab raced against that change is cleared immediately.
@@ -305,14 +316,15 @@ PanelWindow {
   }
   Connections {
     target: win.s
-    function onExpandedWindowChanged() { if (win.s.expandedWindow !== win) { win.setExpanded(false); win.closeControls() } }
-    function onCollapseAll() { win.setExpanded(false); win.closeControls() }
+    function onExpandedWindowChanged() { if (win.s.expandedWindow !== win) { win.setExpanded(false); win.closeControls(); win.historyOpen = false } }
+    function onCollapseAll() { win.setExpanded(false); win.closeControls(); win.historyOpen = false }
     function onControlsRequested(page) {
       if (win.isTarget()) {
         if (win.controlsOpen && (page === "main" || page === win.cc.page)) win.closeControls()
         else win.openControls(page)
       }
     }
+    function onHistoryRequested() { if (win.isTarget()) { if (win.historyOpen) win.historyOpen = false; else win.openHistory() } }
     function onExpandRequested() { if (win.isTarget()) { win.keyExpanded = true; win.setExpanded(true) } }
     function onRingingCallChanged() { if (win.s.ringingCall) win.setExpanded(false) }
   }
@@ -327,11 +339,12 @@ PanelWindow {
   }
   Timer {
     id: leaveTimer
-    interval: win.expanded ? 380 : 140
+    interval: win.expanded || win.historyOpen ? 380 : 140
     onTriggered: {
       win.hovered = false
       if (win.t) win.s.holdActivity(false)
       if (!win.controlsOpen) win.setExpanded(false)
+      win.historyOpen = false
     }
   }
 
@@ -392,7 +405,7 @@ PanelWindow {
           if (swiped) return
           var m = win.mode
           if (mouse.button === Qt.MiddleButton) { win.s.mediaToggle(); return }
-          if (m === "controls" || m === "incoming") return
+          if (m === "controls" || m === "incoming" || m === "history") return
           if (m === "compact" && win.s.live === "call") { win.openControls("call"); return }
           if (m === "alert" && win.t && win.t.source === "alarm-ring") {
             if (mouse.button === Qt.RightButton) win.s.snoozeAlarm()
@@ -427,7 +440,14 @@ PanelWindow {
             swipeReset.restart()
             return
           }
-          if (win.mode === "expanded" || win.mode === "controls" || win.mode === "hidden" || wheel.angleDelta.y === 0) return
+          if (win.mode === "history" || win.mode === "controls" || wheel.angleDelta.y === 0) return
+          // Scrolling down opens the history, like pulling down on an iPhone.
+          if (win.s.showHistory) {
+            wheelAccum = wheel.angleDelta.y < 0 ? wheelAccum + wheel.angleDelta.y : 0
+            if (wheelAccum <= -120) { wheelAccum = 0; dwellTimer.stop(); win.openHistory() }
+            return
+          }
+          if (win.mode === "expanded" || win.mode === "hidden") return
           // Scrolling says "adjust", not "open": hold off the hover-open.
           if (dwellTimer.running) dwellTimer.restart()
           wheelAccum += wheel.angleDelta.y
@@ -1108,6 +1128,25 @@ PanelWindow {
             keyboard: win.keyHeld && !win.controlsOpen
             onOutputClicked: win.openControls("audio")
             onCloseRequested: win.setExpanded(false)
+          }
+        }
+
+        // ------------------------------------------------ history
+        Reveal {
+          reduced: win.s.reduceMotion
+          shown: win.mode === "history"
+          width: historyView.preferredWidth
+          height: Math.max(0, win.bh)
+          anchors.horizontalCenter: parent.horizontalCenter
+          inDelay: 110
+          inDuration: 340
+
+          HistoryView {
+            id: historyView
+            anchors.fill: parent
+            s: win.s
+            active: win.mode === "history"
+            onCloseRequested: win.historyOpen = false
           }
         }
 

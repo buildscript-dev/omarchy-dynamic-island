@@ -42,6 +42,7 @@
       "monitor": "focused",
       "showClock": true,
       "showHome": true,
+      "showHistory": true,
       "outerShell": false,
       "shellGap": 4,
       "shellBand": 5,
@@ -222,6 +223,12 @@
         "type": "integer",
         "label": "Width of the glass band (px)",
         "defaultValue": 5
+      },
+      {
+        "key": "showHistory",
+        "type": "boolean",
+        "label": "Scroll down on the island for recent activity and notifications",
+        "defaultValue": true
       },
       {
         "key": "showHome",
