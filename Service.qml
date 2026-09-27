@@ -147,6 +147,13 @@ Item {
   readonly property color islandColor: style === "bar" ? Color.bar.background
     : style === "glass" ? Qt.rgba(0, 0, 0, 0.62)
     : "#000000"
+  // Outer shell: a frosted rim in the bar's own glass that flows out of the
+  // bar's bottom edge around the island (IslandModel.shellPath).
+  readonly property bool outerShell: setting("outerShell", false) === true
+  readonly property int shellGap: Math.max(2, Math.min(16, Number(setting("shellGap", 5))))
+  readonly property bool barGlass: barConfig.transparent === true
+  readonly property color shellFill: Qt.rgba(Color.bar.background.r, Color.bar.background.g, Color.bar.background.b, barGlass ? 0.68 : 1)
+  readonly property color shellEdge: Qt.rgba(Color.bar.text.r, Color.bar.text.g, Color.bar.text.b, 0.18)
   readonly property color textColor: style === "bar" ? Color.bar.text : "#ffffff"
   readonly property color secondaryText: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.58)
   readonly property color trackColor: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.18)

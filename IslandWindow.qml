@@ -534,6 +534,27 @@ PanelWindow {
       width: win.s.pill ? Math.max(0, win.bw) : shape.width
       height: Math.max(0, win.bh)
 
+      // Outer shell, behind the island: the bar's glass flowing around it.
+      Shape {
+        id: outerShell
+        readonly property real barEdge: win.s.barHeight - win.s.islandTop
+        visible: opacity > 0
+        opacity: win.s.outerShell && win.s.pill && win.mode !== "hidden" && !win.fullscreen ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+          strokeWidth: -1
+          fillColor: win.s.shellFill
+          PathSvg { path: Model.shellPath(win.bw, win.bh, win.brb, win.s.shellGap, 8, outerShell.barEdge, false) }
+        }
+        ShapePath {
+          strokeWidth: 1
+          strokeColor: win.s.shellEdge
+          fillColor: "transparent"
+          PathSvg { path: Model.shellPath(win.bw, win.bh, win.brb, win.s.shellGap, 8, outerShell.barEdge, true) }
+        }
+      }
+
       Item {
         id: shapeHolder
         layer.enabled: win.lift > 0.02

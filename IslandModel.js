@@ -494,3 +494,44 @@ function swipeAction(dx, dy, mode) {
   if ((mode === "notification" || mode === "alert" || mode === "hud") && dy <= -SWIPE_MIN && ay > 2 * ax) return "dismiss"
   return ""
 }
+
+// Outer shell: a rim `g` wide around the island (w x h, corner radius rb)
+// that grows out of the bar's bottom edge at y = yb with concave fillets of
+// radius r, so the bar looks like it parts and flows around the island.
+// Coordinates are the island's own (its top-left is 0,0). Only the part below
+// the bar is drawn. Returns an SVG path, open along the bar edge when `open`
+// (for the border stroke), or "" when the shell doesn't reach the bar.
+function shellPath(w, h, rb, g, r, yb, open) {
+  var left = -g, right = w + g, bottom = h + g
+  var R = Math.max(0, Math.min(rb + g, (w + 2 * g) / 2, (h + 2 * g) / 2))
+  var cy = bottom - R
+  if (w <= 0 || h <= 0 || yb >= bottom) return ""
+  function f(n) { return Math.round(n * 100) / 100 }
+  var d
+  if (yb + r <= cy) {
+    // The bar edge meets the straight sides: plain quarter-circle fillets.
+    d = "M " + f(left - r) + " " + f(yb) +
+      " A " + r + " " + r + " 0 0 1 " + f(left) + " " + f(yb + r) +
+      " L " + f(left) + " " + f(cy) +
+      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(left + R) + " " + f(bottom) +
+      " L " + f(right - R) + " " + f(bottom) +
+      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(right) + " " + f(cy) +
+      " L " + f(right) + " " + f(yb + r) +
+      " A " + r + " " + r + " 0 0 1 " + f(right + r) + " " + f(yb)
+  } else {
+    // The bar edge cuts the bottom corners: each fillet circle sits on the
+    // bar edge and touches the corner circle from outside.
+    var cx = left + R, dy = yb + r - cy, reach = R + r
+    if (Math.abs(dy) >= reach) return ""
+    var fx = cx - Math.sqrt(reach * reach - dy * dy)
+    var tx = cx + (fx - cx) * R / reach, ty = cy + dy * R / reach
+    var mx = w / 2
+    d = "M " + f(fx) + " " + f(yb) +
+      " A " + r + " " + r + " 0 0 1 " + f(tx) + " " + f(ty) +
+      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(cx) + " " + f(bottom) +
+      " L " + f(2 * mx - cx) + " " + f(bottom) +
+      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(2 * mx - tx) + " " + f(ty) +
+      " A " + r + " " + r + " 0 0 1 " + f(2 * mx - fx) + " " + f(yb)
+  }
+  return open ? d : d + " Z"
+}

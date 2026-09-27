@@ -42,6 +42,8 @@
       "monitor": "focused",
       "showClock": true,
       "showHome": true,
+      "outerShell": false,
+      "shellGap": 5,
       "controlCenter": true,
       "clockFormat": "HH:mm",
       "islandHeight": 30,
@@ -201,6 +203,18 @@
         "type": "boolean",
         "label": "Show a clock in the island",
         "defaultValue": true
+      },
+      {
+        "key": "outerShell",
+        "type": "boolean",
+        "label": "Glass rim that flows out of the bar around the island",
+        "defaultValue": false
+      },
+      {
+        "key": "shellGap",
+        "type": "integer",
+        "label": "Width of that rim (px)",
+        "defaultValue": 5
       },
       {
         "key": "showHome",
