@@ -156,6 +156,16 @@ Item {
   readonly property int shellGap: Math.max(0, Math.min(16, Number(setting("shellGap", 4))))
   readonly property int shellBand: Math.max(0, Math.min(16, Number(setting("shellBand", 5))))
   property var islandWindows: ({})
+  // The gap shows the real wallpaper, even where windows sit behind it.
+  readonly property string wallpaperLink: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
+  property int wallpaperVersion: 0
+  readonly property string wallpaperUrl: outerShell ? "file://" + wallpaperLink + "#" + wallpaperVersion : ""
+  FileView {
+    path: root.outerShell ? root.wallpaperLink : ""
+    preload: false
+    watchChanges: true
+    onFileChanged: root.wallpaperVersion++
+  }
   function registerWindow(name, win) {
     var next = Object.assign({}, islandWindows)
     if (win) next[name] = win

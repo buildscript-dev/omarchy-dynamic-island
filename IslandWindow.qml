@@ -559,6 +559,55 @@ PanelWindow {
       width: win.s.pill ? Math.max(0, win.bw) : shape.width
       height: Math.max(0, win.bh)
 
+      // The gap: the actual wallpaper, cut to the hole around the island, so
+      // it reads as a window onto the desktop even with apps behind it.
+      Item {
+        id: gapWall
+        visible: win.shellT > 0.01 && win.s.wallpaperUrl !== ""
+        x: -win.shellG
+        y: -win.shellG
+        width: Math.max(1, win.bw + 2 * win.shellG)
+        height: Math.max(1, win.bh + 2 * win.shellG)
+        clip: true
+        layer.enabled: visible
+        layer.effect: MultiEffect {
+          maskEnabled: true
+          maskSource: gapMask
+          maskThresholdMin: 0.5
+          maskSpreadAtMin: 1.0
+        }
+        Image {
+          x: -(win.islandX - win.shellG)
+          y: -(win.s.islandTop - win.shellG)
+          width: win.width
+          height: win.screen ? win.screen.height : 1080
+          source: win.s.wallpaperUrl
+          sourceSize: Qt.size(width, height)
+          fillMode: Image.PreserveAspectCrop
+          asynchronous: true
+          cache: true
+        }
+      }
+      Item {
+        id: gapMask
+        visible: false
+        x: gapWall.x
+        y: gapWall.y
+        width: gapWall.width
+        height: gapWall.height
+        layer.enabled: gapWall.visible
+        Shape {
+          x: win.shellG
+          y: win.shellG
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            strokeWidth: -1
+            fillColor: "white"
+            PathSvg { path: win.holeLocalPath }
+          }
+        }
+      }
+
       // Outer shell, below the bar: a see-through gap around the island, then
       // a band of the bar's glass that flows out of the bar's bottom edge.
       // The part inside the bar is the bar's own hole (barHolePath).
@@ -584,7 +633,7 @@ PanelWindow {
           // With no band the outer edge already traces the gap; a second
           // line on the same spot would draw it twice as bright.
           ShapePath {
-            strokeWidth: 1
+            strokeWidth: 0.5
             strokeColor: win.s.shellEdge
             fillColor: "transparent"
             PathSvg { path: win.s.shellBand > 0 ? win.holeLocalPath : "" }
@@ -606,7 +655,7 @@ PanelWindow {
           y: -edgeClip.y
           preferredRendererType: Shape.CurveRenderer
           ShapePath {
-            strokeWidth: 1
+            strokeWidth: 0.5
             strokeColor: win.s.shellEdge
             fillColor: "transparent"
             PathSvg { path: win.bandEdgePath }
