@@ -316,6 +316,7 @@ Item {
 
     // Sound output picker (and the earbuds' modes when they're connected).
     GlyphButton {
+      visible: root.s.controlCenter
       anchors.right: parent.right
       anchors.rightMargin: -8
       anchors.verticalCenter: transport.verticalCenter

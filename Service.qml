@@ -1356,6 +1356,10 @@ Item {
   readonly property string clockFormat: String(setting("clockFormat", "HH:mm"))
   readonly property string clockText: Qt.formatDateTime(root.now, root.clockFormat)
   readonly property bool showClock: setting("showClock", true) === true
+  // Off: the island only opens for Now Playing, never to the clock/calendar card.
+  readonly property bool showHome: setting("showHome", true) === true
+  // Off: no Control Center; only the phone pages (call, keypad, messages) still open.
+  readonly property bool controlCenter: setting("controlCenter", true) === true
 
   // ------------------------------------------------------------ control center
   signal controlsRequested(string page)

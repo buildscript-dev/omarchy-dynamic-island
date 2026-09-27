@@ -78,7 +78,7 @@ PanelWindow {
     // A new notification briefly takes over the expanded island; `expanded`
     // stays set, so the player/home view springs back once it's done.
     if (t && t.kind === "notification") return "notification"
-    if (expanded) return "expanded"
+    if (expanded && (s.hasMedia || s.showHome)) return "expanded"
     if (t) return t.kind
     if (fullscreen && s.hideInFullscreen && !hovered) return "hidden"
     if (s.live !== "") return "compact"
@@ -242,6 +242,7 @@ PanelWindow {
 
   // ---------------------------------------------------------------- behavior
   function openControls(page) {
+    if (!s.controlCenter && ["call", "phone", "messages", "thread"].indexOf(page || "main") < 0) return
     if (!controlsOpen) {
       if (expanded) setExpanded(false)
       s.expandedWindow = win

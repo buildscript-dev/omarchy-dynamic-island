@@ -41,6 +41,8 @@
       "reduceMotion": false,
       "monitor": "focused",
       "showClock": true,
+      "showHome": true,
+      "controlCenter": true,
       "clockFormat": "HH:mm",
       "islandHeight": 30,
       "showWorkspaces": true,
@@ -198,6 +200,18 @@
         "key": "showClock",
         "type": "boolean",
         "label": "Show a clock in the island",
+        "defaultValue": true
+      },
+      {
+        "key": "showHome",
+        "type": "boolean",
+        "label": "Open to a clock and calendar card when nothing plays",
+        "defaultValue": true
+      },
+      {
+        "key": "controlCenter",
+        "type": "boolean",
+        "label": "Control Center on right-click",
         "defaultValue": true
       },
       {

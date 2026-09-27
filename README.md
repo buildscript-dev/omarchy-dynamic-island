@@ -188,6 +188,8 @@ Changes apply as soon as you save the file — no restart:
 | `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on it, after this many ms |
 | `scrollVolume` | `true` | scroll on the island to change volume |
 | `reduceMotion` | `false` | the island still changes shape, but settles without bouncing, and content cross-fades instead of zooming and blurring in |
+| `showHome` | `true` | open to the clock, calendar and timer card when nothing plays; off, the island only opens for Now Playing |
+| `controlCenter` | `true` | Control Center (right-click, `island controls`); off, only the phone call, keypad and messages pages still open |
 | `showClock` / `clockFormat` | `true` / `HH:mm` | clock inside the island (Qt format: `HH:mm`, or `h:mm AP` for AM/PM) |
 | `showWorkspaces` | `true` | flash the workspace when you switch |
 | `artworkTint` | `true` | color the music view from the album art |
