@@ -438,6 +438,29 @@ Item {
   readonly property var psBt: ps.bluetooth || ({})
   readonly property var psKde: ps.kdeconnect || ({})
   readonly property bool callsReady: !!(ps.hfp && ps.hfp.ready)
+  // What the phone shares with this PC right now, each a one-tap toggle.
+  readonly property var psAudio: ps.audio || ({})
+  readonly property var psSharing: psKde.sharing || ({})
+  readonly property var shareItems: [
+    ["notifications", "\u{F009A}", "Notifications", "Phone notifications show here"],
+    ["sms", "\u{F0369}", "Messages", "SMS threads and replies"],
+    ["telephony", "\u{F03F2}", "Call alerts", "Incoming call pop-ups"],
+    ["contacts", "\u{F000E}", "Contacts", "Names for numbers"],
+    ["clipboard", "\u{F0147}", "Clipboard", "Copy on one, paste on the other"],
+    ["share", "\u{F0497}", "Files & links", "Send files both ways"],
+    ["mpriscontrol", "\u{F040E}", "Media controls", "Phone controls this PC's players"],
+    ["findmyphone", "\u{F009E}", "Find my phone", "Ring the phone from here"]
+  ]
+  function audioText() {
+    var where = psAudio.route === "pc" ? "this PC" : "the phone"
+    if (psAudio.mode === "pc") return "Pinned to this PC"
+    if (psAudio.mode === "phone") return "Pinned to the phone"
+    return "Auto · on " + where + " now" + (psAudio.playing ? " · playing" : "")
+  }
+  function cycleAudio() {
+    var next = { follow: "phone", phone: "pc", pc: "follow" }[psAudio.mode || "follow"]
+    if (phone) phone.setAudioMode(next)
+  }
   readonly property var call: s.currentCall || s.ringingCall
   property string dialNumber: ""
   property bool keypadInCall: false
@@ -1632,6 +1655,37 @@ Item {
           id: phoneList
           width: parent.width
           spacing: 2
+          SectionTitle { text: "SHARING NOW" }
+          Row2 {
+            glyph: "\u{F0989}"
+            title: "Screen"
+            subtitle: root.phoneRunning ? "Mirroring now" : "Not mirroring"
+            selected: root.phoneRunning
+            trailing: root.phoneRunning ? "Stop" : "Mirror"
+            onClicked: root.togglePhone()
+          }
+          Row2 {
+            visible: !!root.psBt.connected
+            glyph: root.psAudio.route === "pc" ? "\u{F057E}" : "\u{F036C}"
+            title: "Sound, calls & mic"
+            subtitle: root.audioText()
+            selected: root.psAudio.route === "pc"
+            trailing: ({ follow: "Auto", phone: "Phone", pc: "This PC" })[root.psAudio.mode || "follow"]
+            onClicked: root.cycleAudio()
+          }
+          Repeater {
+            model: root.psKde.reachable ? root.shareItems : []
+            delegate: Row2 {
+              required property var modelData
+              readonly property bool on: root.psSharing[modelData[0]] !== false
+              glyph: modelData[1]
+              title: modelData[2]
+              subtitle: on ? modelData[3] : "Off"
+              selected: on
+              trailing: on ? "\u{F0521}" : "\u{F0522}"  // toggle-switch on / off
+              onClicked: root.phone.phonedSend({ cmd: "plugin", name: modelData[0], on: !on })
+            }
+          }
           Row2 {
             visible: !!(root.phone && root.phone.onlinePeer)
             glyph: "󰖂"
