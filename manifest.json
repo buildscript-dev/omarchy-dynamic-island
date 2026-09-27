@@ -43,7 +43,8 @@
       "showClock": true,
       "showHome": true,
       "outerShell": false,
-      "shellGap": 5,
+      "shellGap": 4,
+      "shellBand": 5,
       "controlCenter": true,
       "clockFormat": "HH:mm",
       "islandHeight": 30,
@@ -213,7 +214,13 @@
       {
         "key": "shellGap",
         "type": "integer",
-        "label": "Width of that rim (px)",
+        "label": "See-through gap around the island (px)",
+        "defaultValue": 4
+      },
+      {
+        "key": "shellBand",
+        "type": "integer",
+        "label": "Width of the glass band (px)",
         "defaultValue": 5
       },
       {

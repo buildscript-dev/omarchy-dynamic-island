@@ -237,6 +237,31 @@ PanelWindow {
   Behavior on brb { id: brbBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
   Behavior on brt { id: brtBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
 
+  // ---------------------------------------------------------------- outer shell
+  // Grows in when the island shows, so the bar opens around it instead of
+  // snapping a hole; gap, band and fillets all scale with shellT.
+  readonly property bool shellOn: s.outerShell && s.pill && onThisScreen && mode !== "hidden"
+    && !fullscreen && s.barPosition === "top"
+  property real shellT: shellOn ? 1 : 0
+  Behavior on shellT { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+  readonly property real shellG: s.shellGap * shellT
+  readonly property real shellOut: (s.shellGap + s.shellBand) * shellT
+  readonly property real shellR: 8 * shellT
+  readonly property real barEdge: s.barHeight - s.islandTop
+  readonly property real islandX: Math.round((width - bw) / 2)
+  readonly property string holeLocalPath: shellT > 0.01
+    ? Model.roundRectPath(-shellG, -shellG, bw + 2 * shellG, bh + 2 * shellG, brb + shellG) : ""
+  readonly property string bandPath: shellT > 0.01
+    ? Model.shellPath(bw, bh, brb, shellOut, shellR, barEdge, false) + " " + holeLocalPath : ""
+  readonly property string bandEdgePath: shellT > 0.01
+    ? Model.shellPath(bw, bh, brb, shellOut, shellR, barEdge - 0.5, true) : ""
+  // For the bar, in this window's coordinates (the bar's, too: both span the
+  // screen's top edge): the hole to cut, and where its bottom border breaks.
+  readonly property string barHolePath: shellT > 0.01
+    ? Model.roundRectPath(islandX - shellG, s.islandTop - shellG, bw + 2 * shellG, bh + 2 * shellG, brb + shellG) : ""
+  readonly property real bandLeft: islandX + Model.shellLeft(bw, bh, brb, shellOut, shellR, barEdge)
+  readonly property real bandRight: 2 * islandX + bw - bandLeft
+
   // How far the island has grown past the bare notch; drives the shadow.
   readonly property real lift: Model.clamp((bh - s.notchHeight) / 60, 0, 1)
 
@@ -534,24 +559,56 @@ PanelWindow {
       width: win.s.pill ? Math.max(0, win.bw) : shape.width
       height: Math.max(0, win.bh)
 
-      // Outer shell, behind the island: the bar's glass flowing around it.
-      Shape {
-        id: outerShell
-        readonly property real barEdge: win.s.barHeight - win.s.islandTop
-        visible: opacity > 0
-        opacity: win.s.outerShell && win.s.pill && win.mode !== "hidden" && !win.fullscreen ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-          strokeWidth: -1
-          fillColor: win.s.shellFill
-          PathSvg { path: Model.shellPath(win.bw, win.bh, win.brb, win.s.shellGap, 8, outerShell.barEdge, false) }
+      // Outer shell, below the bar: a see-through gap around the island, then
+      // a band of the bar's glass that flows out of the bar's bottom edge.
+      // The part inside the bar is the bar's own hole (barHolePath).
+      Item {
+        id: bandClip
+        readonly property real pad: win.s.shellGap + win.s.shellBand + 16
+        x: -pad
+        y: win.barEdge
+        width: Math.max(0, win.bw + 2 * pad)
+        height: Math.max(0, win.bh + pad)
+        clip: true
+        visible: win.shellT > 0.01
+        Shape {
+          x: -bandClip.x
+          y: -bandClip.y
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            strokeWidth: -1
+            fillColor: win.s.shellFill
+            fillRule: ShapePath.OddEvenFill
+            PathSvg { path: win.bandPath }
+          }
+          ShapePath {
+            strokeWidth: 1
+            strokeColor: win.s.shellEdge
+            fillColor: "transparent"
+            PathSvg { path: win.holeLocalPath }
+          }
         }
-        ShapePath {
-          strokeWidth: 1
-          strokeColor: win.s.shellEdge
-          fillColor: "transparent"
-          PathSvg { path: Model.shellPath(win.bw, win.bh, win.brb, win.s.shellGap, 8, outerShell.barEdge, true) }
+      }
+      // The band's outer edge starts one row higher, on the bar's own bottom
+      // border row, so the two lines meet without a step.
+      Item {
+        id: edgeClip
+        x: bandClip.x
+        y: win.barEdge - 1
+        width: bandClip.width
+        height: bandClip.height + 1
+        clip: true
+        visible: bandClip.visible
+        Shape {
+          x: -edgeClip.x
+          y: -edgeClip.y
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            strokeWidth: 1
+            strokeColor: win.s.shellEdge
+            fillColor: "transparent"
+            PathSvg { path: win.bandEdgePath }
+          }
         }
       }
 

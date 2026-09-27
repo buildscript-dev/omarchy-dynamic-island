@@ -506,6 +506,7 @@ function shellPath(w, h, rb, g, r, yb, open) {
   var R = Math.max(0, Math.min(rb + g, (w + 2 * g) / 2, (h + 2 * g) / 2))
   var cy = bottom - R
   if (w <= 0 || h <= 0 || yb >= bottom) return ""
+  r = Math.max(0.01, r)
   function f(n) { return Math.round(n * 100) / 100 }
   var d
   if (yb + r <= cy) {
@@ -534,4 +535,26 @@ function shellPath(w, h, rb, g, r, yb, open) {
       " A " + r + " " + r + " 0 0 1 " + f(2 * mx - fx) + " " + f(yb)
   }
   return open ? d : d + " Z"
+}
+
+// Where shellPath's left fillet leaves the bar edge (island coordinates), so
+// the bar can stop its bottom border exactly there. NaN when there's no shell.
+function shellLeft(w, h, rb, g, r, yb) {
+  var d = shellPath(w, h, rb, g, r, yb, true)
+  return d === "" ? NaN : Number(d.split(" ")[1])
+}
+
+// Rounded rectangle with circular corners, absolute coordinates. The hole the
+// bar leaves around the island: concentric with the band drawn below the bar,
+// so the gap and the band keep an even width all the way round.
+function roundRectPath(x, y, w, h, r) {
+  if (w <= 0 || h <= 0) return ""
+  r = Math.max(0, Math.min(r, w / 2, h / 2))
+  function f(n) { return Math.round(n * 100) / 100 }
+  var a = " A " + f(r) + " " + f(r) + " 0 0 1 "
+  return "M " + f(x + r) + " " + f(y) +
+    " L " + f(x + w - r) + " " + f(y) + a + f(x + w) + " " + f(y + r) +
+    " L " + f(x + w) + " " + f(y + h - r) + a + f(x + w - r) + " " + f(y + h) +
+    " L " + f(x + r) + " " + f(y + h) + a + f(x) + " " + f(y + h - r) +
+    " L " + f(x) + " " + f(y + r) + a + f(x + r) + " " + f(y) + " Z"
 }

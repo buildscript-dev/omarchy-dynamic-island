@@ -24,3 +24,11 @@ assert.ok(n.every(Number.isFinite))
 assert.equal(shellPath(136, 10, 5, 5, 8, 26, false), "")
 assert.equal(shellPath(0, 30, 15, 5, 8, 20, false), "")
 console.log("shell ok")
+
+const more = new Function(src + "\nreturn { shellLeft, roundRectPath }")()
+assert.equal(more.shellLeft(400, 200, 34, 5, 8, 20), -13, "fillet starts r past the rim")
+assert.ok(Number.isNaN(more.shellLeft(136, 10, 5, 5, 8, 26)))
+assert.equal(more.roundRectPath(10, 2, 100, 40, 20),
+  "M 30 2 L 90 2 A 20 20 0 0 1 110 22 L 110 22 A 20 20 0 0 1 90 42 L 30 42 A 20 20 0 0 1 10 22 L 10 22 A 20 20 0 0 1 30 2 Z")
+assert.equal(more.roundRectPath(0, 0, 0, 10, 4), "")
+console.log("hole ok")

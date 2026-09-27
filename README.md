@@ -188,7 +188,7 @@ Changes apply as soon as you save the file — no restart:
 | `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on it, after this many ms |
 | `scrollVolume` | `true` | scroll on the island to change volume |
 | `reduceMotion` | `false` | the island still changes shape, but settles without bouncing, and content cross-fades instead of zooming and blurring in |
-| `outerShell` / `shellGap` | `false` / `5` | a rim in the bar's own colour (glass when the bar is transparent) flows out of the bar's bottom edge around the island, so the bar looks like it parts around it |
+| `outerShell` / `shellGap` / `shellBand` | `false` / `4` / `5` | the bar parts around the island: a see-through gap (`shellGap` px), then a band of the bar's own colour (`shellBand` px, glass when the bar is transparent) flowing out of the bar's bottom edge. The hole in the bar needs a bar that reads `islandWindow.barHolePath` from the island's bar widget; without one only the band shows |
 | `showHome` | `true` | open to the clock, calendar and timer card when nothing plays; off, the island only opens for Now Playing |
 | `controlCenter` | `true` | Control Center (right-click, `island controls`); off, only the phone call, keypad and messages pages still open |
 | `showClock` / `clockFormat` | `true` / `HH:mm` | clock inside the island (Qt format: `HH:mm`, or `h:mm AP` for AM/PM) |

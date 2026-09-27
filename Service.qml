@@ -9,6 +9,7 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import "IslandModel.js" as Model
+import "Registry.js" as Registry
 
 // Dynamic Island service. Owns every piece of shared state — media, the
 // activity queue (HUDs, alerts, notification peeks), live activities
@@ -147,10 +148,20 @@ Item {
   readonly property color islandColor: style === "bar" ? Color.bar.background
     : style === "glass" ? Qt.rgba(0, 0, 0, 0.62)
     : "#000000"
-  // Outer shell: a frosted rim in the bar's own glass that flows out of the
-  // bar's bottom edge around the island (IslandModel.shellPath).
+  // Outer shell: the bar parts around the island. A see-through gap
+  // (shellGap) rings the island, then a band of the bar's own glass
+  // (shellBand) flows out of the bar's bottom edge around it. The bar cuts
+  // its hole from islandWindows[screen].barHolePath; the band is drawn here.
   readonly property bool outerShell: setting("outerShell", false) === true
-  readonly property int shellGap: Math.max(2, Math.min(16, Number(setting("shellGap", 5))))
+  readonly property int shellGap: Math.max(0, Math.min(16, Number(setting("shellGap", 4))))
+  readonly property int shellBand: Math.max(2, Math.min(16, Number(setting("shellBand", 5))))
+  property var islandWindows: ({})
+  function registerWindow(name, win) {
+    var next = Object.assign({}, islandWindows)
+    if (win) next[name] = win
+    else delete next[name]
+    islandWindows = next
+  }
   readonly property bool barGlass: barConfig.transparent === true
   readonly property color shellFill: Qt.rgba(Color.bar.background.r, Color.bar.background.g, Color.bar.background.b, barGlass ? 0.68 : 1)
   readonly property color shellEdge: Qt.rgba(Color.bar.text.r, Color.bar.text.g, Color.bar.text.b, 0.18)
@@ -1497,6 +1508,12 @@ Item {
   }
   signal expandRequested()
 
+  // The first Service to start is the island; the bar widget finds it here.
+  Item {
+    Component.onCompleted: if (!Registry.current) Registry.current = root
+    Component.onDestruction: if (Registry.current === root) Registry.current = null
+  }
+
   // ------------------------------------------------------------ windows
   Variants {
     model: {
@@ -1511,6 +1528,8 @@ Item {
       screen: modelData
       screenName: modelData ? String(modelData.name) : ""
       service: root
+      Component.onCompleted: root.registerWindow(screenName, this)
+      Component.onDestruction: if (root.islandWindows[screenName] === this) root.registerWindow(screenName, null)
     }
   }
 }
