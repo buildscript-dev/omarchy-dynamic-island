@@ -1430,22 +1430,24 @@ Item {
     logRecent("\uE2CE", "blue", "Call note", oneLine(n.name, 120) || oneLine(n.number, 40) || "Unknown")
   }
 
-  // Transcripts: record both sides while a call is connected, transcribe
-  // with whisper-cli when it ends (call-transcript.sh). Off by default:
-  // recording a call can need the other person's consent.
+  // Transcripts: the call view's Transcript button records both sides until
+  // pressed again or the call ends, then whisper-cli writes the conversation
+  // into the call's file (call-transcript.sh). The button only shows with
+  // callTranscript on: recording a call can need the other person's consent.
   readonly property bool callTranscript: setting("callTranscript", false) === true
   readonly property string whisperModel: String(setting("whisperModel",
     Quickshell.env("HOME") + "/.local/share/whisper-models/ggml-small.en.bin"))
   readonly property string transcriptScript: String(Qt.resolvedUrl("call-transcript.sh")).replace(/^file:\/\//, "")
   property var recordingCall: null
   readonly property real connectedSince: currentCall && currentCall.state === "active" ? Number(currentCall.activeSince) || 0 : 0
-  onConnectedSinceChanged: {
-    if (recordingCall && recordingCall.since !== connectedSince) finishTranscript()
-    if (callTranscript && connectedSince > 0 && !recordingCall) {
-      recordingCall = { since: connectedSince, name: String(currentCall.name || ""), number: String(currentCall.number || "") }
-      root.launch(["bash", root.transcriptScript, "start"])
-    }
+  // The call it belongs to ended (or another one took over): finish it.
+  onConnectedSinceChanged: if (recordingCall && recordingCall.since !== connectedSince) finishTranscript()
+  function startTranscript() {
+    if (!callTranscript || recordingCall || connectedSince <= 0) return
+    recordingCall = { since: connectedSince, name: String(currentCall.name || ""), number: String(currentCall.number || "") }
+    root.launch(["bash", root.transcriptScript, "start"])
   }
+  function toggleTranscript() { if (recordingCall) finishTranscript(); else startTranscript() }
   function finishTranscript() {
     var c = recordingCall
     recordingCall = null

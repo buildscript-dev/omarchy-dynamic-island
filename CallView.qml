@@ -122,15 +122,18 @@ Item {
     Row {
       anchors.horizontalCenter: parent.horizontalCenter
       y: 80
-      spacing: 18
+      spacing: 10
       Repeater {
+        // Transcript only shows when callTranscript is on.
         model: [
           { act: "mute", glyph: root.phone && root.phone.micMuted ? "" : "", label: root.phone && root.phone.micMuted ? "Unmute" : "Mute",
             on: !!(root.phone && root.phone.micMuted), color: "white" },
           { act: "sound", glyph: "", label: root.sinkName(root.sink), on: false, color: "white" },
           { act: "notes", glyph: "", label: "Notes", on: false, color: "white" },
+          { act: "transcript", glyph: "\uE3EE", label: root.s.recordingCall ? "Recording" : "Transcript",
+            on: !!root.s.recordingCall, color: root.s.recordingCall ? "red" : "white" },
           { act: "end", glyph: "", label: "End", on: true, color: "red" }
-        ]
+        ].filter(function(b) { return b.act !== "transcript" || root.s.callTranscript })
         delegate: Column {
           required property var modelData
           spacing: 4
@@ -160,13 +163,14 @@ Item {
                 if (a === "mute" && root.phone) root.phone.toggleMute()
                 else if (a === "sound") root.nextSink()
                 else if (a === "notes") root.openNotes()
+                else if (a === "transcript") root.s.toggleTranscript()
                 else if (a === "end" && root.phone) root.phone.hangup(root.call ? String(root.call.path || "") : "")
               }
             }
           }
           Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            width: 64
+            width: 58
             horizontalAlignment: Text.AlignHCenter
             text: modelData.label
             font.family: root.s.textFont

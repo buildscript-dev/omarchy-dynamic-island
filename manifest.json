@@ -228,7 +228,7 @@
       {
         "key": "callTranscript",
         "type": "boolean",
-        "label": "Record calls and add a transcript to the call's note (the other person may need to agree)",
+        "label": "Transcript button in the call view (the other person may need to agree to recording)",
         "defaultValue": false
       },
       {

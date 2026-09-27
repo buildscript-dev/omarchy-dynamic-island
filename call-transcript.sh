@@ -6,8 +6,9 @@
 #       output (the other person, carried over Bluetooth hands-free) and the
 #       microphone (you). 16 kHz mono WAVs in the private run directory.
 #   call-transcript.sh stop <note-file> <header> <model>
-#       Stop recording, transcribe each side with whisper-cli, interleave the
-#       lines by time as "Caller:" / "Me:", and append a Transcript section to
+#       Stop recording, transcribe each side with whisper-cli, put the lines
+#       in time order and join each speaker's run into one turn (Caller / Me,
+#       turn by turn, as said), and append a Transcript section to
 #       the call's note (created with <header> if it doesn't exist yet). The
 #       recordings are deleted afterwards either way.
 set -u
@@ -53,7 +54,11 @@ stop)
   out=$( { [ -s "$run/them.wav" ] && lines "$run/them.wav" "$model" "Caller"
            [ -s "$run/me.wav" ] && lines "$run/me.wav" "$model" "Me"; } |
          /usr/bin/sort -t $'\t' -k1,1n |
-         /usr/bin/awk -F '\t' '{ m = int($1 / 60); s = int($1 % 60); printf "- [%02d:%02d] **%s:** %s\n", m, s, $2, $3 }')
+         /usr/bin/awk -F '\t' '
+           $2 != who { if (who != "") printf "\n\n"; who = $2
+                       printf "**%s** (%02d:%02d): %s", who, int($1 / 60), int($1 % 60), $3; next }
+           { printf " %s", $3 }
+           END { if (who != "") printf "\n" }')
   rm -f -- "$run"/*.wav
   umask 077
   /usr/bin/mkdir -p -- "$(dirname -- "$note")" || exit 1
