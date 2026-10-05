@@ -25,8 +25,14 @@ stop_recorders() {
 
 # whisper-cli's "[00:01:02.340 --> 00:01:04.000]  text" lines, as
 # "<seconds>\t<who>\t<text>" so both sides can be sorted together.
+# A multilingual model (not *.en) translates to English, so a Hindi caller
+# comes out as English lines. Language is fixed to Hindi: auto-detect fails on
+# narrowband phone audio, and English speech still comes out right with it.
+# ponytail: one language; make it a setting if calls in other languages matter.
 lines() {
-  /usr/bin/whisper-cli -m "$2" -f "$1" -np -t 4 2>/dev/null | /usr/bin/awk -v who="$3" '
+  local lang=()
+  case "$2" in *.en.bin) ;; *) lang=(-l hi -tr) ;; esac
+  /usr/bin/whisper-cli -m "$2" -f "$1" -np -t 4 "${lang[@]}" 2>/dev/null | /usr/bin/awk -v who="$3" '
     match($0, /^\[([0-9]+):([0-9]+):([0-9.]+) -->/, t) {
       text = substr($0, index($0, "]") + 1)
       gsub(/^[ \t]+|[ \t]+$/, "", text)

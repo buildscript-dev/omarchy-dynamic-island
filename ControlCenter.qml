@@ -19,7 +19,7 @@ Item {
   id: root
 
   property var s: null
-  property var win: null
+  property var islandWin: null
   property bool active: false
   property string page: "main"   // main | wifi | bluetooth | audio | buds | phone | call | messages | thread | notifications | calendar | power
 
@@ -28,7 +28,7 @@ Item {
   // The island sizes itself to this, so each page gets exactly its height.
   // Reading a conversation needs room, so those pages get a bigger panel.
   readonly property bool roomy: page === "thread"
-  readonly property int preferredWidth: Math.min(roomy ? 620 : 440, Math.max(360, (win ? win.width : 640) - 48))
+  readonly property int preferredWidth: Math.min(roomy ? 620 : 440, Math.max(360, (islandWin ? islandWin.width : 640) - 48))
   readonly property int preferredHeight: Math.min(roomy ? 760 : 560, Math.ceil(pageHeight) + pad * 2)
   readonly property real pageHeight: page === "main" ? mainPage.implicitHeight
     : page === "wifi" ? wifiPage.implicitHeight
@@ -53,7 +53,7 @@ Item {
   }
   // Esc steps back a page, then closes — the keyboard way out.
   focus: true
-  Keys.onEscapePressed: { if (page !== "main") back(); else win.closeControls() }
+  Keys.onEscapePressed: { if (page !== "main") back(); else islandWin.closeControls() }
   onPageChanged: {
     cancelPassword(); armedAction = ""
     keypadInCall = false
@@ -330,7 +330,7 @@ Item {
 
   // ================================================================ brightness
   property real brightness: -1
-  readonly property string monitorName: win && win.screenName ? win.screenName : ""
+  readonly property string monitorName: islandWin && islandWin.screenName ? islandWin.screenName : ""
   SafeProcess {
     id: brightRead
     // Always the island's own screen, not wherever the pointer happens to be.
@@ -438,6 +438,29 @@ Item {
   readonly property var psBt: ps.bluetooth || ({})
   readonly property var psKde: ps.kdeconnect || ({})
   readonly property bool callsReady: !!(ps.hfp && ps.hfp.ready)
+  // What the phone shares with this PC right now, each a one-tap toggle.
+  readonly property var psAudio: ps.audio || ({})
+  readonly property var psSharing: psKde.sharing || ({})
+  readonly property var shareItems: [
+    ["notifications", "\u{F009A}", "Notifications", "Phone notifications show here"],
+    ["sms", "\u{F0369}", "Messages", "SMS threads and replies"],
+    ["telephony", "\u{F03F2}", "Call alerts", "Incoming call pop-ups"],
+    ["contacts", "\u{F000E}", "Contacts", "Names for numbers"],
+    ["clipboard", "\u{F0147}", "Clipboard", "Copy on one, paste on the other"],
+    ["share", "\u{F0497}", "Files & links", "Send files both ways"],
+    ["mpriscontrol", "\u{F040E}", "Media controls", "Phone controls this PC's players"],
+    ["findmyphone", "\u{F009E}", "Find my phone", "Ring the phone from here"]
+  ]
+  function audioText() {
+    var where = psAudio.route === "pc" ? "this PC" : "the phone"
+    if (psAudio.mode === "pc") return "Pinned to this PC"
+    if (psAudio.mode === "phone") return "Pinned to the phone"
+    return "Auto · on " + where + " now" + (psAudio.playing ? " · playing" : "")
+  }
+  function cycleAudio() {
+    var next = { follow: "phone", phone: "pc", pc: "follow" }[psAudio.mode || "follow"]
+    if (phone) phone.setAudioMode(next)
+  }
   readonly property var call: s.currentCall || s.ringingCall
   property string dialNumber: ""
   property bool keypadInCall: false
@@ -449,13 +472,13 @@ Item {
     // Clicking the peek asked for a reply; open that card's box.
     // Clicking the peek asked for the whole notification; open it here.
     function onPendingNotifChanged() {
-      if (!root.s.pendingNotif || !root.win.isTarget()) return
+      if (!root.s.pendingNotif || !root.islandWin.isTarget()) return
       root.activateNotif(root.s.pendingNotif)
       Qt.callLater(function() { root.s.pendingNotif = null })
     }
     function onPendingThreadChanged() {
       // Every monitor has an island; only the one showing it opens the thread.
-      if (!root.s.pendingThread || !root.win.isTarget()) return
+      if (!root.s.pendingThread || !root.islandWin.isTarget()) return
       root.openThread(root.s.pendingThread)
       Qt.callLater(function() { root.s.pendingThread = null })
     }
@@ -473,7 +496,7 @@ Item {
   Connections {
     target: root.s
     function onPendingDialChanged() {
-      if (root.s.pendingDial === "" || !root.win.isTarget()) return
+      if (root.s.pendingDial === "" || !root.islandWin.isTarget()) return
       root.dialNumber = root.s.pendingDial
       Qt.callLater(function() { root.s.pendingDial = "" })
     }
@@ -1053,7 +1076,7 @@ Item {
               Glyph { anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 13; color: "#ffffff" }
               Label { anchors.verticalCenter: parent.verticalCenter; text: "Update"; color: "#ffffff"; font.pixelSize: 12; font.weight: Font.DemiBold }
             }
-            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.win.closeControls(); root.s.runUpdate() } }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.islandWin.closeControls(); root.s.runUpdate() } }
           }
           Round {
             width: 34; height: 34
@@ -1200,10 +1223,10 @@ Item {
         Round { glyph: ""; on: root.stayAwake; accent: root.onColor("yellow"); onClicked: root.toggleAwake(); hint: "Awake" }
         Round { glyph: root.profileGlyph(root.powerProfile); visible: root.hasBuds && root.hasPhone; on: root.powerProfile !== "balanced" && root.powerProfile !== ""; accent: root.onColor("orange"); onClicked: root.cycleProfile(); hint: root.profileLabel(root.powerProfile) }
         // Both run as long as the user takes over them, so no deadline.
-        Round { glyph: ""; onClicked: { root.win.closeControls(); root.s.launch(["omarchy-capture-screenshot"]) }
+        Round { glyph: ""; onClicked: { root.islandWin.closeControls(); root.s.launch(["omarchy-capture-screenshot"]) }
           hint: "Screenshot"
         }
-        Round { glyph: root.s.glyphs.record; on: root.s.recording; accent: root.onColor("red"); onClicked: { root.win.closeControls(); if (root.s.recording) root.s.stopRecording(); else root.s.launch(["omarchy-capture-screenrecording"]) }
+        Round { glyph: root.s.glyphs.record; on: root.s.recording; accent: root.onColor("red"); onClicked: { root.islandWin.closeControls(); if (root.s.recording) root.s.stopRecording(); else root.s.launch(["omarchy-capture-screenrecording"]) }
           hint: "Record"
         }
         Round { glyph: ""; accent: root.onColor("red"); onClicked: root.go("power"); hint: "Power" }
@@ -1699,6 +1722,37 @@ Item {
           id: phoneList
           width: parent.width
           spacing: 2
+          SectionTitle { text: "SHARING NOW" }
+          Row2 {
+            glyph: "\u{F0989}"
+            title: "Screen"
+            subtitle: root.phoneRunning ? "Mirroring now" : "Not mirroring"
+            selected: root.phoneRunning
+            trailing: root.phoneRunning ? "Stop" : "Mirror"
+            onClicked: root.togglePhone()
+          }
+          Row2 {
+            visible: !!root.psBt.connected
+            glyph: root.psAudio.route === "pc" ? "\u{F057E}" : "\u{F036C}"
+            title: "Sound, calls & mic"
+            subtitle: root.audioText()
+            selected: root.psAudio.route === "pc"
+            trailing: ({ follow: "Auto", phone: "Phone", pc: "This PC" })[root.psAudio.mode || "follow"]
+            onClicked: root.cycleAudio()
+          }
+          Repeater {
+            model: root.psKde.reachable ? root.shareItems : []
+            delegate: Row2 {
+              required property var modelData
+              readonly property bool on: root.psSharing[modelData[0]] !== false
+              glyph: modelData[1]
+              title: modelData[2]
+              subtitle: on ? modelData[3] : "Off"
+              selected: on
+              trailing: on ? "\u{F0521}" : "\u{F0522}"  // toggle-switch on / off
+              onClicked: root.phone.phonedSend({ cmd: "plugin", name: modelData[0], on: !on })
+            }
+          }
           Row2 {
             visible: !!(root.phone && root.phone.onlinePeer)
             glyph: ""
@@ -2377,7 +2431,7 @@ Item {
                 // Destructive actions ask for a second click, like a slide-to-confirm.
                 if (pw.modelData[3] === "confirm" && !pw.armed) { root.armedAction = pw.modelData[1]; armTimer.restart(); return }
                 root.armedAction = ""
-                root.win.closeControls()
+                root.islandWin.closeControls()
                 if (pw.modelData[1] === "Sleep") root.run(pw.modelData[2], false)
                 else root.s.launch(pw.modelData[2])
               }

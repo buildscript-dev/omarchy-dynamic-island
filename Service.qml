@@ -493,6 +493,7 @@ Item {
   // it's always visible while an assistant is driving the phone.
   property real aiUntil: 0
   property string aiText: ""
+  property string aiLabel: "Phone"   // who is at work: "Phone" for Taildroid, a dot's name for BuildDots
   readonly property bool aiActive: { root.now; return aiUntil > Date.now() }
 
   // ------------------------------------------------------------ stopwatch
@@ -1636,7 +1637,13 @@ Item {
       return "ok"
     }
     function timerCancel(): string { root.cancelTimer(); return "ok" }
+    function dotActivity(name: string, text: string): string {
+      var r = aiActivity(text)
+      root.aiLabel = Model.clip(name, 12) || "Phone"
+      return r
+    }
     function aiActivity(text: string): string {
+      root.aiLabel = "Phone"
       root.aiText = Model.clip(text, 48)
       root.aiUntil = Date.now() + 8000
       root.now = new Date()

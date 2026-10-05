@@ -75,6 +75,11 @@ PanelWindow {
   readonly property alias callView: callView
   readonly property var t: s.activity
 
+  // When the island last changed shape. A notification that grows under a
+  // pointer already resting at the top is not a hover, and a click that lands
+  // as it pops in is not meant for it.
+  property double modeSince: 0
+  onModeChanged: modeSince = Date.now()
   readonly property string mode: {
     if (controlsOpen) return "controls"
     // A ringing phone beats everything else, like iOS's incoming-call banner.
@@ -178,7 +183,7 @@ PanelWindow {
   readonly property string trailText: s.live === "call" ? s.callElapsed(s.currentCall)
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
     : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
-    : s.live === "ai" ? "Phone"
+    : s.live === "ai" ? s.aiLabel
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
@@ -541,7 +546,7 @@ PanelWindow {
           leaveTimer.stop()
           win.hovered = true
           win.hoverSince = Date.now()
-          if (win.t) win.s.holdActivity(true)
+          if (win.t && Date.now() - win.modeSince > 400) win.s.holdActivity(true)
           if (win.s.openOnHover && (win.mode === "idle" || win.mode === "compact")) dwellTimer.restart()
         } else {
           dwellTimer.stop()
@@ -584,6 +589,7 @@ PanelWindow {
         onClicked: function(mouse) {
           if (swiped) return
           var m = win.mode
+          if (win.t && Date.now() - win.modeSince < 450) return
           if (mouse.button === Qt.MiddleButton) { win.s.mediaToggle(); return }
           if (m === "controls" || m === "incoming" || m === "history" || m === "callview") return
           if (m === "compact" && win.s.live === "call") { win.openCall(); return }
@@ -964,7 +970,7 @@ PanelWindow {
             kind: "ai"
             tone: "purple"
             glyph: win.s.glyphs.robot
-            trail: "Phone"
+            trail: win.s.aiLabel
             pulsing: true
           }
 
@@ -1387,7 +1393,7 @@ PanelWindow {
               active: win.s.controlCenter
               sourceComponent: ControlCenter {
                 s: win.s
-                win: win
+                islandWin: win
                 active: win.controlsOpen
               }
             }
