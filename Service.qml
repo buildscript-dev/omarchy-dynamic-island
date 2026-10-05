@@ -97,6 +97,8 @@ Item {
   readonly property bool openOnHover: setting("openOnHover", true) === true
   readonly property int hoverDelay: Number(setting("hoverDelay", 320))
   readonly property bool showNotifications: setting("showNotifications", true) === true
+  // Where BuildDots answers on this machine (for the Approve and Deny buttons on a dot's note).
+  readonly property int dotsPort: Math.max(1, Math.min(65535, Number(setting("dotsPort", 3100)) || 3100))
   // The phone's own screen is on this desktop while it is mirrored, and it
   // shows its notifications, its messages and its status itself. The island
   // stays out of the way until the mirror closes.
@@ -934,6 +936,14 @@ Item {
     root.fire(["omarchy-shell", "-q", "notifications", "invokeLast"], 10)
     finishActivity()
   }
+  // The answer to a dot's card goes to BuildDots on this machine, which checks that the card still waits.
+  function answerCard(choice) {
+    var id = activity ? Model.cardId(activity.card) : ""
+    if (id !== "" && (choice === "approve" || choice === "deny"))
+      root.fire(["curl", "-fsS", "-m", "5", "-X", "POST", "-H", "X-Dots: island", "-H", "Content-Type: application/json",
+        "-d", JSON.stringify({ id: id, choice: choice }), "http://127.0.0.1:" + root.dotsPort + "/api/card"], 8)
+    finishActivity()
+  }
   function notificationDismiss() {
     root.fire(["omarchy-shell", "-q", "notifications", "dismissOne"], 10)
     finishActivity()
@@ -1663,6 +1673,14 @@ Item {
     }
     function hud(icon: string, percent: string): string {
       root.pushActivity(Model.osdTransient({ icon: Model.clip(icon, 32), value: Model.clip(percent, 8) }))
+      return "ok"
+    }
+    // A BuildDots dot waits for a yes or no: the note stays longer and carries the two buttons.
+    function dotCard(name: string, body: string, card: string): string {
+      var id = Model.cardId(card)
+      if (id === "") return "bad-card"
+      root.pushActivity({ kind: "notification", source: "dot-card", file: "", app: Model.clip(name, 24) || "BuildDots",
+        title: "Needs your approval", body: Model.clip(body, 400), image: "", urgent: false, card: id, duration: 20000 })
       return "ok"
     }
     function notify(title: string, body: string): string {

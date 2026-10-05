@@ -1242,11 +1242,52 @@ PanelWindow {
               glyphColor: win.lastNotif.urgent ? win.s.tint("red") : win.s.textColor
               fallbackColor: Qt.rgba(1, 1, 1, 0.12)
             }
+            // A dot's approval card: deny and approve, in the look of the incoming call's two buttons.
+            Row {
+              id: cardButtons
+              visible: !!win.lastNotif.card
+              anchors.right: parent.right
+              anchors.rightMargin: 14
+              anchors.verticalCenter: notifImage.verticalCenter
+              spacing: 10
+              Repeater {
+                model: [
+                  { glyph: win.s.glyphs.cross, color: "red", act: "deny", label: "Deny" },
+                  { glyph: win.s.glyphs.check, color: "green", act: "approve", label: "Approve" }
+                ]
+                delegate: Rectangle {
+                  required property var modelData
+                  width: 36
+                  height: width
+                  radius: width / 2
+                  color: win.s.tint(modelData.color)
+                  scale: cardTap.pressed ? 0.88 : cardTap.containsMouse ? 1.06 : 1
+                  Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
+                  Accessible.role: Accessible.Button
+                  Accessible.name: modelData.label
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.centerIn: parent
+                    text: modelData.glyph
+                    font.family: win.s.iconFont
+                    font.pixelSize: 17
+                    color: "#ffffff"
+                  }
+                  MouseArea {
+                    id: cardTap
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: win.s.answerCard(modelData.act)
+                  }
+                }
+              }
+            }
             Column {
               anchors.left: notifImage.right
               anchors.leftMargin: 12
-              anchors.right: parent.right
-              anchors.rightMargin: 20
+              anchors.right: cardButtons.visible ? cardButtons.left : parent.right
+              anchors.rightMargin: cardButtons.visible ? 12 : 20
               anchors.verticalCenter: notifImage.verticalCenter
               spacing: 1
 
