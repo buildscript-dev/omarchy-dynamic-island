@@ -247,7 +247,7 @@ PanelWindow {
 
   // Reduce motion: the shape still morphs, but settles without a bounce.
   readonly property real springK: s.reduceMotion ? 7 : growing ? 3.3 : 4.4
-  readonly property real springD: s.reduceMotion ? 1 : growing ? 0.25 : 0.42
+  readonly property real springD: s.reduceMotion ? 1 : growing ? 0.33 : 0.42
   Behavior on bw { id: bwBehavior; SpringAnimation { spring: win.springK; damping: win.springD; epsilon: 0.25 } }
   Behavior on bh { id: bhBehavior; SpringAnimation { spring: win.springK * 1.08; damping: win.springD; epsilon: 0.25 } }
   Behavior on brb { id: brbBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
@@ -579,14 +579,30 @@ PanelWindow {
           else if (act === "dismiss") win.s.finishActivity()
           return act !== ""
         }
-        onPressed: function(mouse) { pressAt = Qt.point(mouse.x, mouse.y); swiped = false }
+        onPressed: function(mouse) { pressAt = Qt.point(mouse.x, mouse.y); swiped = false; held = false; holdTimer.restart() }
+        onReleased: holdTimer.stop()
         onPositionChanged: function(mouse) {
           if (pressed && !swiped && mouse.buttons & Qt.LeftButton)
             swiped = swipe(mouse.x - pressAt.x, mouse.y - pressAt.y)
         }
         Timer { id: swipeReset; interval: 300; onTriggered: parent.swipeX = 0 }
+        // Apple: press and hold opens the island. The release then does nothing,
+        // so a long press is not also a tap.
+        property bool held: false
+        Timer {
+          id: holdTimer
+          interval: 450
+          onTriggered: {
+            if (parent.swiped || parent.held) return
+            if (win.mode !== "idle" && win.mode !== "compact") return
+            parent.held = true
+            dwellTimer.stop()
+            win.setExpanded(true)
+          }
+        }
         cursorShape: win.mode === "hidden" ? Qt.ArrowCursor : Qt.PointingHandCursor
         onClicked: function(mouse) {
+          if (held) { held = false; return }
           if (swiped) return
           var m = win.mode
           if (win.t && Date.now() - win.modeSince < 450) return
