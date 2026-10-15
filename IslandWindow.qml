@@ -629,18 +629,31 @@ PanelWindow {
     // iOS "minimal" presentation: with two live activities the second one
     // detaches into a small round bubble beside the island.
     readonly property bool bubbleShown: win.s.secondLive !== "" && (win.mode === "idle" || win.mode === "compact")
+    // Gooey split: the bubble starts behind the island, springs out, and a neck of
+    // the same black stretches between them, thinning until it lets go. It
+    // runs in reverse when the second activity ends.
+    property real split: bubbleShown ? 1 : 0
+    Behavior on split { SpringAnimation { spring: 3.6; damping: win.s.reduceMotion ? 1 : 0.35; epsilon: 0.002 } }
+    readonly property real pillRight: Math.round((win.width + win.bw) / 2)
+    Rectangle {
+      readonly property real t: Math.max(0, Math.min(1, stage.split))
+      visible: stage.split > 0.02 && t < 0.97
+      color: win.s.islandColor
+      x: stage.pillRight - 8
+      width: Math.max(0, bubble.x + bubble.width / 2 - x)
+      height: Math.max(0, bubble.height * 0.8 * (1 - t))
+      y: win.s.islandTop + (bubble.height - height) / 2
+      radius: height / 2
+    }
     Item {
       id: bubble
       readonly property int size: win.s.notchHeight
-      x: Math.round((win.width + win.bw) / 2) + 8
+      x: stage.pillRight - width / 2 + (width / 2 + 8) * stage.split
       y: win.s.islandTop
       width: win.s.bubbleWidth
       height: size
-      opacity: stage.bubbleShown ? 1 : 0
-      scale: stage.bubbleShown ? 1 : 0.3
-      Behavior on opacity { NumberAnimation { duration: stage.bubbleShown ? 240 : 120 } }
-      Behavior on scale { SpringAnimation { spring: 3.6; damping: win.s.reduceMotion ? 1 : 0.28; epsilon: 0.005 } }
-      visible: opacity > 0.01
+      scale: 0.6 + 0.4 * stage.split
+      visible: stage.split > 0.02
 
       Rectangle {
         anchors.fill: parent
