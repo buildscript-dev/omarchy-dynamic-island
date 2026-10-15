@@ -685,6 +685,36 @@ Item {
     })
   }
 
+  // ------------------------------------------------------------ night light, stay awake
+  // The iPhone shows a pill when a Focus or a mode flips. Omarchy's two modes
+  // are flipped from keybinds and menus, so ask for their state. ponytail: a 5 s
+  // poll (two short processes); a file watch would do if they ever get a state file
+  // we can watch for night light.
+  property int modeLoaded: 0
+  property bool nightOn: false
+  property bool awakeOn: false
+  Timer { interval: 5000; repeat: true; running: true; triggeredOnStart: true
+    onTriggered: { if (!nightRead.running) nightRead.running = true; if (!awakeRead.running) awakeRead.running = true } }
+  function modeChanged(flag, on, glyph, tint, title) {
+    if (root.settled && (root.modeLoaded & flag) && on !== (flag === 1 ? root.nightOn : root.awakeOn))
+      root.pushActivity({ kind: "alert", source: "mode-" + flag, icon: glyph, tint: tint, title: title, value: on ? "On" : "Off", duration: 1800 })
+    root.modeLoaded |= flag
+  }
+  SafeProcess {
+    id: nightRead
+    command: Model.bounded(["omarchy-toggle-nightlight", "--status"], 5, 4096)
+    stdout: StdioCollector { onStreamFinished: {
+      try { var on = !!JSON.parse(Model.capped(text, 4096)).enabled; root.modeChanged(1, on, root.glyphs.sun, "orange", "Night Light"); root.nightOn = on } catch (e) {}
+    } }
+  }
+  SafeProcess {
+    id: awakeRead
+    command: Model.bounded(["omarchy-toggle-idle", "--status"], 5, 4096)
+    stdout: StdioCollector { onStreamFinished: {
+      try { var on = !!JSON.parse(Model.capped(text, 4096)).enabled; root.modeChanged(2, on, root.glyphs.coffee, "yellow", "Stay Awake"); root.awakeOn = on } catch (e) {}
+    } }
+  }
+
   // ------------------------------------------------------------ do not disturb
   property bool dnd: false
   property bool dndLoaded: false
