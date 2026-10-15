@@ -9,8 +9,7 @@ notifications, charging, Bluetooth, timers, screen recording. A built-in
 Control Center covers Wi-Fi, Bluetooth, sound, brightness, tray and power.
 
 A floating bubble at the top of the screen, like the iPhone's. It follows your Omarchy theme and bar
-(height, colors, font scale), uses Hyprland blur for the translucent
-styles, and tucks away over fullscreen windows.
+(height, colors, font scale) and tucks away over fullscreen windows.
 
 ## Install
 
@@ -39,9 +38,6 @@ Two optional steps:
   While `replaceOsd` is on the island answers the `osd` IPC target itself,
   so `omarchy osd` lands in the island; with it off the island answers on
   `dynamic-island-osd` instead and the stock OSD keeps its own target.
-- For blur on the `glass` and `bar` styles, add a layer rule in
-  `~/.config/hypr/looknfeel.lua` (or your Hyprland config) for the layer
-  namespace `omarchy-dynamic-island`.
 
 Requires Omarchy with `omarchy-shell` (Quickshell). No other dependencies,
 no root, no installer, no background daemon. It never edits your config for
@@ -170,12 +166,11 @@ Every setting goes on the island's entry in `~/.config/omarchy/shell.json`.
 Changes apply as soon as you save the file — no restart:
 
 ```json
-{ "id": "io.github.buildscript-dev.dynamic-island", "style": "glass", "palette": "theme" }
+{ "id": "io.github.buildscript-dev.dynamic-island", "palette": "theme" }
 ```
 
 | Setting | Default | What it does |
 |---|---|---|
-| `style` | `black` | `black` = solid black, like a real notch · `bar` = your bar's color · `glass` = see-through and blurred |
 | `palette` | `apple` | `apple` = Apple's colors (green charging, orange timer, red recording) · `theme` = your Omarchy theme's colors |
 | `showWhenIdle` | `true` | keep the island on screen with nothing happening. Turn it **off** for the standalone look: it hides itself and comes back for music, alerts and notifications, or when you touch the top edge |
 | `monitor` | `focused` | `focused` = follows the monitor you are working on · `external` = the external monitor, or the built-in one when nothing is plugged in · `all` = one per monitor · or a connector name such as `HDMI-A-1` |

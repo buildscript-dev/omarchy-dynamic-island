@@ -24,7 +24,6 @@
     "defaults": {
       "islandWidth": 96,
       "pillInset": 6,
-      "style": "black",
       "palette": "apple",
       "openOnHover": true,
       "hoverDelay": 320,
@@ -74,18 +73,6 @@
         "min": 0,
         "max": 20,
         "step": 1
-      },
-      {
-        "key": "style",
-        "type": "enum",
-        "label": "Island background",
-        "description": "black: solid black, like a real notch. bar: your bar's color. glass: see-through and blurred.",
-        "options": [
-          "black",
-          "bar",
-          "glass"
-        ],
-        "defaultValue": "black"
       },
       {
         "key": "palette",

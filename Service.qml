@@ -87,7 +87,6 @@ Item {
     return v === undefined || v === null || v === "" ? fallback : v
   }
 
-  readonly property string style: String(setting("style", "black"))           // black | bar | glass
   readonly property string paletteName: String(setting("palette", "apple"))   // apple | theme (QQuickItem already owns "palette")
   // iPhone 15/16 Pro size (HIG: 36.67 pt tall, camera about 126 wide). The gap above stays your pillInset: a desktop has no bezel to spend it on.
   readonly property bool appleSize: setting("appleSize", false) === true
@@ -145,10 +144,9 @@ Item {
   readonly property int notchHeight: appleSize ? 37 : Math.max(20, Number(setting("islandHeight", 30)))
 
   // ------------------------------------------------------------ look
-  readonly property color islandColor: style === "bar" ? Color.bar.background
-    : style === "glass" ? Qt.rgba(0, 0, 0, 0.62)
-    : "#000000"
-  readonly property color textColor: style === "bar" ? Color.bar.text : "#ffffff"
+  // Pure black, like the iPhone: it melts into the camera and the bezel.
+  readonly property color islandColor: "#000000"
+  readonly property color textColor: "#ffffff"
   readonly property color secondaryText: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.58)
   readonly property color trackColor: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.18)
   readonly property color controlFill: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1)
@@ -1592,7 +1590,7 @@ Item {
         timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", alarmRinging: root.alarmRinging, tucked: Object.keys(root.tucked), recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
-        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, reduceMotion: root.reduceMotion, font: root.textFont, notchHeight: root.notchHeight
+        monitor: root.monitor, palette: root.paletteName, reduceMotion: root.reduceMotion, font: root.textFont, notchHeight: root.notchHeight
       })
     }
     function ping(): string { return "ok" }
