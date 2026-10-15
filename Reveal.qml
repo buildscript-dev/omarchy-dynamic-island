@@ -11,8 +11,11 @@ Item {
   property bool shown: false
   property real reveal: 0
   // Delay before the incoming content starts resolving, so the shape leads.
-  property int inDelay: 110
-  property int inDuration: 340
+  // Measured on 30 fps iPhone footage: content sharpness stays flat until the
+  // shape is about 90 % open (about 150 ms), then climbs about linearly to full
+  // in about 190 ms.
+  property int inDelay: 150
+  property int inDuration: 190
   property int outDuration: 120
   // Reduce motion: a plain cross-fade, no zoom and no blur.
   property bool reduced: false
@@ -44,7 +47,7 @@ Item {
   SequentialAnimation {
     id: showAnim
     PauseAnimation { duration: root.inDelay }
-    NumberAnimation { target: root; property: "reveal"; to: 1; duration: root.inDuration; easing.type: Easing.OutCubic }
+    NumberAnimation { target: root; property: "reveal"; to: 1; duration: root.inDuration; easing.type: Easing.OutQuad }
   }
   NumberAnimation {
     id: hideAnim
