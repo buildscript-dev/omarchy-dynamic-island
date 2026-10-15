@@ -144,9 +144,11 @@ function osdTransient(p) {
 // leading/trailing views around the iPhone's camera.
 // apple: the HIG's Dynamic Island sizes (393 pt wide screen): the expanded
 // presentation is 371 wide and at most 160 high.
-function geometry(mode, w, h, contentWidth, apple) {
+// Measured on iPhone footage: the call banner is 371 wide too (height / width 0.213).
+function geometry(mode, w, h, contentWidth, apple, player) {
   var round = Math.ceil(h / 2)
-  if (apple && mode === "expanded") return { w: 371, h: 160, rb: 44, rt: 0 }
+  if (apple && player && mode === "expanded") return { w: 371, h: 160, rb: 44, rt: 0 }
+  if (apple && mode === "incoming") { var ah2 = h + 42; return { w: 371, h: ah2, rb: Math.ceil(ah2 / 2), rt: 0 } }
   switch (mode) {
   case "compact":
     return { w: contentWidth > 0 ? contentWidth : w + (h - 2) * 2, h: h, rb: round, rt: 0 }
