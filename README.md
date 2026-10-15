@@ -1,6 +1,6 @@
 # Dynamic Island for Omarchy (`io.github.buildscript-dev.dynamic-island`)
 
-![The island going from its idle pill to a volume HUD, a charging alert and the expanded card](demo.gif)
+![The island: idle pill, expanded card and Control Center](preview.png)
 
 An iPhone-style Dynamic Island that runs natively inside `omarchy-shell`
 (Quickshell). A floating black bubble sits at the top of the screen and

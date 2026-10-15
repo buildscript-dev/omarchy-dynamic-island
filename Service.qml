@@ -1123,13 +1123,6 @@ Item {
     addPlayers()
     return out
   }
-  // One scroll step through the running activities; false past either end.
-  function stepLive(dir) {
-    var i = liveOrder.indexOf(live) + dir
-    if (i < 0 || i >= liveOrder.length) return false
-    pinnedLive = liveOrder[i]
-    return true
-  }
   onActiveLivesChanged: {
     var t = {}, changed = false
     for (var k in tucked) { if (activeLives.indexOf(k) !== -1) t[k] = true; else changed = true }
