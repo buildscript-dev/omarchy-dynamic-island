@@ -519,11 +519,82 @@ PanelWindow {
   }
   // The window shrinks as the island swells: full size far away, 30 % on arrival.
   onDockPullChanged: if (dockTracking) {
-    var E = Model.geometry("expanded", s.notchWidth, s.notchHeight, 0, s.appleSize, true)
-    s.dockShrink(dockPull, E.w * 0.9, E.h * 0.78)
+    if (ghostOn) s.dockShrink(dockPull, 60, 40)      // the copy is what you see; the real window shrinks to a speck
+    else if (ghostFailed) {
+      var E = Model.geometry("expanded", s.notchWidth, s.notchHeight, 0, s.appleSize, true)
+      s.dockShrink(dockPull, E.w * 0.9, E.h * 0.78)
+    }
   }
   // Dragging a window here is not a hover: the music card must not open under the drop label.
   onDockTrackingChanged: if (dockTracking && expanded) setExpanded(false)
+
+  // ---- the ghost: a live copy of the dragged window, centred under the pointer ----
+  // Hyprland's own drag fixes the window's corner to the pointer, so a shrinking real window
+  // drifts aside. Once you pull up a little the island takes a snapshot, the real window shrinks
+  // to a speck, and this copy (Ghost.qml) follows the pointer, shrinking into the drop shape.
+  property string ghostUrl: ""
+  property var ghostRes: null
+  property bool ghostFailed: false
+  property int ghostTries: 0
+  property bool ghostHold: false      // kept alive while it fades after a release elsewhere
+  readonly property bool ghostOn: ghostUrl !== ""
+  readonly property bool ghostWanted: ghostHold || (dockTracking && dockPull > 0.03 && !!s.dragWin && !ghostFailed)
+  readonly property var ghostShape: Model.geometry("expanded", s.notchWidth, s.notchHeight, 0, s.appleSize, true)
+  readonly property real ghostEase: 1 - Math.pow(1 - dockPull, 2.6)
+  readonly property real ghostW: s.dragWin ? s.dragWin.w + (Math.min(s.dragWin.w, ghostShape.w * 0.9) - s.dragWin.w) * ghostEase : 0
+  readonly property real ghostH: s.dragWin ? s.dragWin.h + (Math.min(s.dragWin.h, ghostShape.h * 0.78) - s.dragWin.h) * ghostEase : 0
+  // Exactly under the pointer for most of the pull, then drawn into the middle of the
+  // island's drop shape over the last stretch (smoothstep from 60 % to 100 %).
+  readonly property real ghostPull: { var t = Model.clamp((dockPull - 0.6) / 0.4, 0, 1); return t * t * (3 - 2 * t) }
+  readonly property real ghostCx: hyprMonitor ? (s.dockPointer.x - hyprMonitor.x) * (1 - ghostPull) + (width / 2) * ghostPull : 0
+  readonly property real ghostCy: hyprMonitor ? (s.dockPointer.y - hyprMonitor.y) * (1 - ghostPull) + (s.islandTop + bh / 2) * ghostPull : 0
+  Timer {
+    interval: 25
+    repeat: true
+    running: win.ghostWanted && !win.ghostOn && !win.ghostFailed
+    onTriggered: {
+      var g = ghostLoader.item
+      win.ghostTries++
+      if (g && g.hasContent && !g.grabbing) {
+        g.grabbing = true
+        g.grab(function(res) { win.ghostRes = res; win.ghostUrl = String(res.url) })
+      } else if (win.ghostTries > 40) win.ghostFailed = true     // no picture in a second: the old shrink instead
+    }
+  }
+  LazyLoader {
+    id: ghostLoader
+    active: win.ghostWanted
+    Ghost {
+      screen: win.screen
+      toplevel: s.dragWin ? win.findToplevel(s.dragWin.address) : null
+      srcW: s.dragWin ? s.dragWin.w : 100
+      srcH: s.dragWin ? s.dragWin.h : 100
+      frozen: win.ghostUrl
+      cx: win.ghostCx
+      cy: win.ghostCy
+      w: win.ghostW
+      h: win.ghostH
+    }
+  }
+  function ghostReset() { ghostUrl = ""; ghostRes = null; ghostFailed = false; ghostTries = 0; ghostHold = false }
+  // Let go anywhere but the island: the copy grows back and fades while the real window returns.
+  function ghostFade() {
+    if (!ghostOn) { ghostReset(); return }
+    ghostHold = true
+    if (ghostLoader.item) ghostLoader.item.fade = 0
+    ghostClear.restart()
+  }
+  Timer { id: ghostClear; interval: 260; onTriggered: win.ghostReset() }
+  // A drop on the island: the flight starts from the copy, and the real speck is parked.
+  function dockMinimizeGhost() {
+    var d = s.dragWin
+    if (!d || !hyprMonitor || !ghostRes) { s.dockUnshrink(); ghostFade(); return }
+    var r = Qt.rect(ghostCx - ghostW / 2, ghostCy - ghostH / 2, ghostW, ghostH)
+    var entry = { address: d.address, cls: d.cls, title: d.title, rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+      orig: { w: d.w, h: d.h }, tiled: s.forcedFloat, ws: d.ws, snap: ghostRes }
+    flight = { restore: false, ghost: true, entry: entry, toplevel: null, rect: r, snap: ghostUrl, started: false }
+    flightFallback.restart()
+  }
 
   property var flight: null   // the genie in the air: { restore, entry, toplevel, rect, snap, started }
   function findToplevel(address) {
@@ -534,8 +605,10 @@ PanelWindow {
   }
   function dockDropHere() {
     var over = dockOver
+    var ghosted = ghostOn
     s.dockEnd()
-    if (!over || flight) { s.dockUnshrink(); return }
+    if (over && ghosted && !flight) { dockMinimizeGhost(); return }
+    if (!over || flight) { s.dockUnshrink(); ghostFade(); return }
     activeRead.running = false
     activeRead.running = true
   }
@@ -590,6 +663,10 @@ PanelWindow {
     if (flight.restore) {
       g.play(0, 520)
       restoreMove.restart()
+    } else if (flight.ghost) {
+      s.dockMove(flight.entry.address, "special:island", false)
+      g.play(1, 560)
+      ghostReset()        // the genie draws the same picture from here
     } else {
       g.grab(function(res) {
         if (!win.flight) return

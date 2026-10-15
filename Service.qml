@@ -1254,7 +1254,7 @@ Item {
             // The window is the one under the pointer when the drag began; a focus change
             // mid-drag must not move the target.
             if (root.dragWin) { if (root.dragWin.address === String(w.address)) root.dragWin.floating = w.floating === true }
-            else root.dragWin = { address: String(w.address), cls: Model.clip(String(w.class || ""), 28), w: Number(w.size[0]), h: Number(w.size[1]), floating: w.floating === true }
+            else root.dragWin = { address: String(w.address), cls: Model.clip(String(w.class || ""), 28), title: Model.clip(String(w.title || ""), 80), ws: String(w.workspace && w.workspace.name || ""), mon: Number(w.monitor), w: Number(w.size[0]), h: Number(w.size[1]), floating: w.floating === true }
           console.log("DOCKDRAG window floating=" + (w && w.floating) + " size=" + (w && w.size))
         } catch (e) { root.dragWin = null }
       }
@@ -1307,7 +1307,7 @@ Item {
       }
       var e = 1 - Math.pow(1 - root.dragScale, 2.6)
       var W = root.dragWin.w, H = root.dragWin.h
-      var tw = Math.min(W, Math.max(160, root.pullW)), th = Math.min(H, Math.max(90, root.pullH))
+      var tw = Math.min(W, Math.max(60, root.pullW)), th = Math.min(H, Math.max(40, root.pullH))
       var nw = W + (tw - W) * e, nh = H + (th - H) * e
       if (root.dragWin.floating && W >= 160 && H >= 90) root.dockResize(root.dragWin.address, nw, nh)
     }
