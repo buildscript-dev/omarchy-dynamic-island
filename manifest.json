@@ -53,7 +53,8 @@
       "alertSound": true,
       "showWorkspaces": true,
       "onlineExtras": true,
-      "muteWhileMirrored": true
+      "muteWhileMirrored": true,
+      "haptics": true
     },
     "schema": [
       {
@@ -258,6 +259,13 @@
         "type": "boolean",
         "label": "Play a sound with notifications",
         "defaultValue": true
+      },
+      {
+        "key": "haptics",
+        "type": "boolean",
+        "label": "Soft tick on press, hold and swipe",
+        "defaultValue": true,
+        "description": "A desktop has no haptic motor; this plays a very short quiet click instead."
       },
       {
         "key": "showWorkspaces",

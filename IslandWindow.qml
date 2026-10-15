@@ -549,6 +549,7 @@ PanelWindow {
         property real swipeX: 0
         function swipe(dx, dy) {
           var act = Model.swipeAction(dx, dy, win.mode)
+          if (act !== "") win.s.tick()
           if (act === "tuck") win.s.tuckLive()
           else if (act === "dismiss") win.s.finishActivity()
           return act !== ""
@@ -570,6 +571,7 @@ PanelWindow {
             if (parent.swiped || parent.held) return
             if (win.mode !== "idle" && win.mode !== "compact") return
             parent.held = true
+            win.s.tick()
             dwellTimer.stop()
             win.setExpanded(true)
           }
@@ -603,6 +605,7 @@ PanelWindow {
             if (mouse.button === Qt.LeftButton) win.setExpanded(true)
             return
           }
+          win.s.tick()
           if (win.s.tapOpensApp && m === "compact" && win.s.live === "media" && mouse.button === Qt.LeftButton && win.s.openPlayerApp()) return
           dwellTimer.stop()
           win.setExpanded(!win.expanded)

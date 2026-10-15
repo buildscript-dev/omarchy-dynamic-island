@@ -198,6 +198,7 @@ Changes apply as soon as you save the file — no restart:
 | `appleSize` | `false` | iPhone Pro size from Apple's HIG: 126 x 37. Overrides `islandWidth` and `islandHeight`; `pillInset` still sets the gap |
 | `tapOpensApp` | `false` | iOS gesture model: tap the playing track to open its player, touch and hold (450 ms) to expand |
 | `alertSound` | `true` | play the notification sound with each notification (not in Do Not Disturb) |
+| `haptics` | `true` | a very short quiet click on press, touch-and-hold and swipe, standing in for haptics (a desktop has no motor) |
 | `notchWidth` | `200` | width of the notch (`notch` shape only) |
 
 Omarchy's settings UI reads the same list, so you can also change these from

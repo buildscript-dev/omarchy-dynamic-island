@@ -95,6 +95,13 @@ Item {
   readonly property bool tapOpensApp: setting("tapOpensApp", false) === true
   // iOS: an alert lights the screen and plays the notification sound.
   readonly property bool alertSound: setting("alertSound", true) === true
+  // A desktop has no haptic motor: a soft tick on press, hold and swipe stands in for it.
+  readonly property bool haptics: setting("haptics", true) === true
+  readonly property string tickFile: String(Qt.resolvedUrl("sounds/tick.wav")).replace(/^file:\/\//, "")
+  function tick() {
+    if (haptics && /^\/[A-Za-z0-9._\/-]+\.wav$/.test(tickFile))
+      root.fire(["pw-play", "--volume=0.4", tickFile], 3)
+  }
   readonly property bool openOnHover: setting("openOnHover", true) === true
   readonly property int hoverDelay: Number(setting("hoverDelay", 320))
   readonly property bool showNotifications: setting("showNotifications", true) === true
@@ -867,6 +874,9 @@ Item {
 
   // No reply handle (Gmail, GPay…): the next best thing is that app on this
   // machine — most of them are Omarchy webapps, which open on the right service.
+  readonly property string focusKeep: 'pos=$(/usr/bin/hyprctl cursorpos) || exit 1; x=${pos%%,*}; y=${pos##*, }; '
+    + '[[ $x =~ ^-?[0-9]+$ && $y =~ ^-?[0-9]+$ ]] || exit 1; /usr/share/omarchy/bin/omarchy-launch-or-focus "$1" "$2"; sleep 0.08; '
+    + '/usr/bin/hyprctl dispatch "hl.dsp.cursor.move({ x = $x, y = $y })" >/dev/null 2>&1'
   function openForApp(app) {
     var name = String(app || "").trim()
     if (name === "") return false
@@ -878,7 +888,9 @@ Item {
     // session unit, so the app gets the session's environment.
     var cls = String(entry.startupClass || id)
     if (!/^[A-Za-z0-9._-]{1,128}$/.test(cls)) cls = id
-    root.launch(["omarchy-launch-or-focus", cls, "uwsm-app -- gtk-launch " + id + ".desktop"])
+    // Focusing warps the cursor to the window; put it back, so a click on the
+    // island leaves the pointer where it was.
+    root.launch(["bash", "-c", root.focusKeep, "focus-keep", cls, "uwsm-app -- gtk-launch " + id + ".desktop"])
     return true
   }
 
