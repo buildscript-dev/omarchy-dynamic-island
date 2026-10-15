@@ -1303,7 +1303,13 @@ Item {
   function dockMove(address, workspace, follow) {
     if (!validAddress(address) || !/^(special:island|[A-Za-z0-9_:. -]{1,40})$/.test(String(workspace))) return
     root.fire(["hyprctl", "dispatch", "hl.dsp.window.move({ workspace = \"" + workspace + "\", follow = " + (follow ? "true" : "false") + ", window = \"address:" + address + "\" })"], 5)
+    if (workspace === "special:island") dockHideSpecial()
   }
+  // Moving a window to special:island can leave that workspace showing, and a shown
+  // special workspace dims everything in front of it (decoration:dim_special), the island
+  // included. Hide it again, on whichever monitor it opened; it is a toggle, so look first.
+  readonly property string hideSpecialScript: "sleep 0.35; for i in 1 2 3; do n=$(/usr/bin/hyprctl monitors -j | /usr/bin/jq -r '[.[]|select(.specialWorkspace.name==\"special:island\")]|length'); [ \"$n\" = \"0\" ] && break; /usr/bin/hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"island\")' >/dev/null; sleep 0.5; done"
+  function dockHideSpecial() { root.fire(["bash", "-c", root.hideSpecialScript], 10) }
   function dockFocus(address) {
     if (!validAddress(address)) return
     root.fire(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + address + "\" })"], 5)
@@ -1314,7 +1320,7 @@ Item {
   // The list lives in memory; a shell restart must not strand a window on the
   // special workspace, so rebuild it from Hyprland once the shell is up. Windows
   // found this way have no picture, so they come back without the flight.
-  Timer { interval: 4000; running: true; onTriggered: dockScan.running = true }
+  Timer { interval: 4000; running: true; onTriggered: { dockScan.running = true; root.dockHideSpecial() } }
   SafeProcess {
     id: dockScan
     command: Model.bounded(["hyprctl", "clients", "-j"], 5, 262144)
