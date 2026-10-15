@@ -26,15 +26,20 @@ Item {
 
   readonly property int pad: 22
   readonly property int stripHeight: s.notchHeight
+  // Apple's 371 x 160 player: no strip row, the art and title share the first row
+  // with the waveform at the right.
+  readonly property bool tight: s.appleSize && s.hasMedia
 
   // ---------------------------------------------------------------- top strip
   Item {
     id: strip
     x: root.pad
+    y: root.tight ? 18 : 0
     width: parent.width - root.pad * 2
-    height: root.stripHeight
+    height: root.tight ? 16 : root.stripHeight
 
     Row {
+      visible: !root.tight
       anchors.verticalCenter: parent.verticalCenter
       spacing: 6
 
@@ -137,15 +142,15 @@ Item {
     id: player
     visible: root.s.hasMedia
     x: root.pad
-    y: root.stripHeight + 8
+    y: root.tight ? 14 : root.stripHeight + 8
     width: parent.width - root.pad * 2
     height: parent.height - y - 14
 
     Artwork {
       id: art
-      width: 72
-      height: 72
-      radius: 14
+      width: root.tight ? 56 : 72
+      height: width
+      radius: root.tight ? 12 : 14
       source: root.s.artLocal
       fallbackGlyph: root.s.glyphs.music
       glyphFont: root.s.iconFont
@@ -164,6 +169,7 @@ Item {
       anchors.left: art.right
       anchors.leftMargin: 14
       anchors.right: parent.right
+      anchors.rightMargin: root.tight ? 44 : 0
       anchors.verticalCenter: art.verticalCenter
       spacing: 2
 
@@ -204,7 +210,7 @@ Item {
     Item {
       id: progress
       anchors.top: art.bottom
-      anchors.topMargin: 12
+      anchors.topMargin: root.tight ? 8 : 12
       width: parent.width
       height: 14
       visible: root.s.trackLength > 0

@@ -142,8 +142,11 @@ function osdTransient(p) {
 // The iPhone bubble: fully rounded, no ears, and sized to its content. A
 // compact live activity only grows by one icon on each side, like the
 // leading/trailing views around the iPhone's camera.
-function geometry(mode, w, h, contentWidth) {
+// apple: the HIG's Dynamic Island sizes (393 pt wide screen): the expanded
+// presentation is 371 wide and at most 160 high.
+function geometry(mode, w, h, contentWidth, apple) {
   var round = Math.ceil(h / 2)
+  if (apple && mode === "expanded") return { w: 371, h: 160, rb: 44, rt: 0 }
   switch (mode) {
   case "compact":
     return { w: contentWidth > 0 ? contentWidth : w + (h - 2) * 2, h: h, rb: round, rt: 0 }

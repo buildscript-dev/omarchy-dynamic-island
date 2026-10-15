@@ -210,7 +210,7 @@ PanelWindow {
       return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: 0 }
     var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth
       : m === "notification" ? s.notificationWidth : alertContentWidth
-    return Model.geometry(m, s.notchWidth, s.notchHeight, content)
+    return Model.geometry(m, s.notchWidth, s.notchHeight, content, s.appleSize && s.hasMedia)
   }
   readonly property var geom: {
     var g = geometryFor(mode)
