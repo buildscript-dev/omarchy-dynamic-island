@@ -864,9 +864,12 @@ Item {
     var entry = typeof DesktopEntries.heuristicLookup === "function" ? DesktopEntries.heuristicLookup(name) : null
     var id = entry ? String(entry.id || "") : ""
     if (!/^[A-Za-z0-9._-]{1,128}$/.test(id)) return false
-    // The way Omarchy's launcher starts apps: as a session unit, so the app
-    // gets the session's environment rather than the shell's.
-    root.launch(["uwsm-app", "--", "gtk-launch", id + ".desktop"])
+    // Focus the app's open window; only start it when it has none. Omarchy's
+    // own helper, and the launch is the way its launcher starts apps: a
+    // session unit, so the app gets the session's environment.
+    var cls = String(entry.startupClass || id)
+    if (!/^[A-Za-z0-9._-]{1,128}$/.test(cls)) cls = id
+    root.launch(["omarchy-launch-or-focus", cls, "uwsm-app -- gtk-launch " + id + ".desktop"])
     return true
   }
 

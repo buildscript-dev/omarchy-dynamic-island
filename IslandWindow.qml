@@ -820,7 +820,7 @@ PanelWindow {
               anchors.verticalCenter: parent.verticalCenter
               width: win.artSize
               height: width
-              radius: width / 2
+              radius: Math.round(width * 0.28)
               source: win.s.artLocal
               fallbackGlyph: win.s.glyphs.music
               glyphFont: win.s.iconFont

@@ -84,14 +84,10 @@ Item {
       width: list.width
       height: modelData.head ? 24 : card.height
 
-      // Where this row sits in the viewport; drives the stack effect.
+      // Where this row sits in the viewport; rows fade at the edges but keep full width so every card lines up.
       readonly property real viewTop: y - list.contentY
       readonly property real viewBelow: viewTop + height - list.height
-      readonly property real stackScale: viewTop < 0 ? Math.max(0.86, 1 + viewTop / 360)
-        : viewBelow > 0 ? Math.max(0.9, 1 - viewBelow / 420) : 1
-      scale: root.s.reduceMotion ? 1 : stackScale
       opacity: viewTop < 0 ? Math.max(0, 1 + viewTop / (height * 1.1)) : viewBelow > 0 ? Math.max(0.25, 1 - viewBelow / 160) : 1
-      transformOrigin: viewTop < 0 ? Item.Bottom : Item.Top
 
       // ------------------------------------------------ section header
       Item {
