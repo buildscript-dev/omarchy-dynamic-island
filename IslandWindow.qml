@@ -219,8 +219,9 @@ PanelWindow {
     // Hover "breath": the notch swells slightly under the pointer, inviting
     // a click — the tactile cue macOS notch apps use in place of haptics.
     if (dockNear > 0.02 && (mode === "idle" || mode === "compact")) {
-      var dh = g.h + 10 * dockNear
-      return { w: g.w + 90 * dockNear, h: dh, rb: Math.ceil(dh / 2), rt: 0 }
+      var E = Model.geometry("expanded", s.notchWidth, s.notchHeight, 0, s.appleSize, true)
+      var k = dockGrow
+      return { w: g.w + (E.w - g.w) * k, h: g.h + (E.h - g.h) * k, rb: g.rb + (E.rb - g.rb) * k, rt: 0 }
     }
     if (hovered && (mode === "idle" || mode === "compact"))
       return { w: g.w + 10, h: g.h, rb: g.rb, rt: 0 }
@@ -254,8 +255,8 @@ PanelWindow {
   // Growing: fitted to 30 fps footage of a real iPhone opening its music island
   // (peak 1.8 % over target, settled by about 450 ms; RMS 0.013 against the frames).
   // Closing: no overshoot, 90 % in about 215 ms (same footage, RMS 0.0135; the old 4.4 / 0.42 scored 0.062).
-  readonly property real springK: s.reduceMotion ? 7 : growing ? 4.0 : 2.6
-  readonly property real springD: s.reduceMotion ? 1 : growing ? 0.36 : 0.33
+  readonly property real springK: s.reduceMotion ? 7 : dockNear > 0.02 ? 4.2 : growing ? 4.0 : 2.6
+  readonly property real springD: s.reduceMotion ? 1 : dockNear > 0.02 ? 0.3 : growing ? 0.36 : 0.33
   Behavior on bw { id: bwBehavior; SpringAnimation { spring: win.springK; damping: win.springD; epsilon: 0.25 } }
   Behavior on bh { id: bhBehavior; SpringAnimation { spring: win.springK * 1.08; damping: win.springD; epsilon: 0.25 } }
   Behavior on brb { id: brbBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
@@ -496,13 +497,20 @@ PanelWindow {
   readonly property bool dockTracking: s.dockDragging && s.dockPointer.x > -9000 && !!hyprMonitor && isTarget()
   readonly property real dockDist: {
     if (!dockTracking) return 99999
+    var top = hyprMonitor.y + s.islandTop
     var dx = Math.max(0, Math.abs(s.dockPointer.x - dockCx) - bw / 2)
-    var dy = Math.max(0, Math.abs(s.dockPointer.y - dockCy) - s.notchHeight / 2)
+    var dy = s.dockPointer.y < top ? top - s.dockPointer.y : (s.dockPointer.y > top + bh ? s.dockPointer.y - top - bh : 0)
     return Math.sqrt(dx * dx + dy * dy)
   }
-  // 0 far away, 1 on the island: the island leans toward the window as it comes.
-  readonly property real dockNear: dockTracking ? Model.clamp(1 - dockDist / 240, 0, 1) : 0
-  readonly property bool dockOver: dockTracking && dockDist <= 44
+  // 0 far away, 1 on the island: the island leans toward the window as it comes,
+  // and grows toward the size of the music island, so the drop target is big.
+  readonly property real dockNear: dockTracking ? Model.clamp(1 - dockDist / 280, 0, 1) : 0
+  readonly property real dockGrow: Model.clamp((dockNear - 0.2) / 0.55, 0, 1)
+  readonly property bool dockOver: dockTracking && dockDist <= 14
+  // The window shrinks as the island swells: full size far away, 30 % on arrival.
+  onDockGrowChanged: if (dockTracking) s.dockShrink(1 - 0.7 * dockGrow)
+  // Dragging a window here is not a hover: the music card must not open under the drop label.
+  onDockTrackingChanged: if (dockTracking && expanded) setExpanded(false)
 
   property var flight: null   // the genie in the air: { restore, entry, toplevel, rect, snap, started }
   function findToplevel(address) {
@@ -514,7 +522,7 @@ PanelWindow {
   function dockDropHere() {
     var over = dockOver
     s.dockEnd()
-    if (!over || flight) return
+    if (!over || flight) { s.dockUnshrink(); return }
     activeRead.running = false
     activeRead.running = true
   }
@@ -646,7 +654,7 @@ PanelWindow {
   Timer {
     id: dwellTimer
     interval: win.s.hoverDelay
-    onTriggered: if (win.hovered && (win.mode === "idle" || win.mode === "compact")) win.setExpanded(true)
+    onTriggered: if (win.hovered && !win.s.dockDragging && (win.mode === "idle" || win.mode === "compact")) win.setExpanded(true)
   }
   Timer {
     id: leaveTimer
@@ -977,30 +985,66 @@ PanelWindow {
         }
       }
 
-      // Drag hint: as a window nears, the island leans toward it, then asks to be fed.
-      Row {
+      // Drop target, for a window dragged here: ripples that spread out from the island
+      // while the pointer is over it, and a label that names the window.
+      Repeater {
+        model: 2
+        Rectangle {
+          required property int index
+          anchors.fill: parent
+          color: "transparent"
+          radius: win.brb
+          border.width: 2
+          border.color: win.s.tint("blue")
+          opacity: 0
+          visible: win.dockOver
+          transformOrigin: Item.Center
+          SequentialAnimation {
+            running: win.dockOver && !win.s.reduceMotion
+            loops: Animation.Infinite
+            PauseAnimation { duration: index * 420 }
+            ParallelAnimation {
+              NumberAnimation { target: parent; property: "scale"; from: 1; to: 1.16; duration: 840; easing.type: Easing.OutCubic }
+              NumberAnimation { target: parent; property: "opacity"; from: 0.6; to: 0; duration: 840; easing.type: Easing.OutQuad }
+            }
+          }
+        }
+      }
+      Column {
         id: dockHint
         z: 30
         anchors.centerIn: parent
-        spacing: 7
-        opacity: Model.clamp((win.dockNear - 0.55) / 0.35, 0, 1)
+        spacing: 4
+        opacity: Model.clamp((win.dockGrow - 0.35) / 0.4, 0, 1)
         visible: opacity > 0.02
+        // The icon leans in a little when the pointer is over the island.
+        scale: win.dockOver ? 1.06 : 1
+        Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
         Text {
           textFormat: Text.PlainText
-          anchors.verticalCenter: parent.verticalCenter
+          anchors.horizontalCenter: parent.horizontalCenter
           text: win.s.glyphs.window
           font.family: win.s.iconFont
-          font.pixelSize: Model.TYPE.callout
+          font.pixelSize: win.dockGrow > 0.6 ? Model.TYPE.large : Model.TYPE.title2
           color: win.s.tint("blue")
         }
         Text {
           textFormat: Text.PlainText
-          anchors.verticalCenter: parent.verticalCenter
-          text: win.dockOver ? "Release to minimize" : "Minimize"
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: win.dockOver ? "Release to minimize" : "Drop here to minimize"
           font.family: win.s.textFont
-          font.pixelSize: Model.TYPE.subhead
+          font.pixelSize: Model.TYPE.callout
           font.weight: Font.DemiBold
           color: win.s.textColor
+        }
+        Text {
+          textFormat: Text.PlainText
+          anchors.horizontalCenter: parent.horizontalCenter
+          visible: text !== ""
+          text: win.s.dragWin ? win.s.dragWin.cls : ""
+          font.family: win.s.textFont
+          font.pixelSize: Model.TYPE.footnote
+          color: win.s.secondaryText
         }
       }
 

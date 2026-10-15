@@ -1209,8 +1209,67 @@ Item {
     dockPointer = Qt.point(-99999, -99999)
     dragPoll.running = false
     dragPoll.running = true
+    dragScale = 1
+    pendingScale = 1
+    dragShrunk = false
+    dragWin = null
+    dragWinRead.running = false
+    dragWinRead.running = true
   }
-  function dockEnd() { dockDragging = false; dragPoll.running = false }
+  function dockEnd() { dockDragging = false; dragPoll.running = false; shrinkTimer.stop() }
+  // The window under the drag, and how far it is shrunk. It shrinks as the pointer
+  // nears the island (a floating window only: a tiled one has no size of its own to
+  // give), and goes back to its size when you let go anywhere else.
+  property var dragWin: null            // { address, w, h, floating }
+  property real dragScale: 1
+  property real pendingScale: 1
+  property bool dragShrunk: false
+  SafeProcess {
+    id: dragWinRead
+    command: Model.bounded(["hyprctl", "activewindow", "-j"], 4, 16384)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var w = JSON.parse(Model.capped(text, 16384))
+          if (w && root.validAddress(w.address) && w.size)
+            root.dragWin = { address: String(w.address), cls: Model.clip(String(w.class || ""), 28), w: Number(w.size[0]), h: Number(w.size[1]), floating: w.floating === true }
+          console.log("DOCKDRAG window floating=" + (w && w.floating) + " size=" + (w && w.size))
+        } catch (e) { root.dragWin = null }
+      }
+    }
+  }
+  function dockResize(address, w, h) {
+    if (!validAddress(address)) return
+    root.fire(["hyprctl", "dispatch", "hl.dsp.window.resize({ x = " + Math.round(w) + ", y = " + Math.round(h) + ", exact = true, window = \"address:" + address + "\" })"], 5)
+  }
+  function dockShrink(scale) {
+    pendingScale = Math.max(0.3, Math.min(1, Number(scale) || 1))
+    if (!shrinkTimer.running && dockDragging) shrinkTimer.start()
+  }
+  Timer {
+    id: shrinkTimer
+    interval: 40
+    repeat: true
+    onTriggered: {
+      if (!root.dockDragging || !root.dragWin) { stop(); return }
+      if (Math.abs(root.pendingScale - root.dragScale) < 0.02) return
+      root.dragScale = root.pendingScale
+      root.dragShrunk = root.dragScale < 0.995
+      console.log("DOCKDRAG resize scale=" + root.dragScale + " floating=" + root.dragWin.floating)
+      // Never below a usable size, and never a window that was already tiny.
+      var nw = Math.min(root.dragWin.w, Math.max(root.dragWin.w * root.dragScale, 240))
+      var nh = Math.min(root.dragWin.h, Math.max(root.dragWin.h * root.dragScale, 150))
+      if (root.dragWin.floating && root.dragWin.w >= 240 && root.dragWin.h >= 150) root.dockResize(root.dragWin.address, nw, nh)
+    }
+  }
+  function dockUnshrink() {
+    if (dragShrunk && dragWin && dragWin.floating) dockResize(dragWin.address, dragWin.w, dragWin.h)
+    dragShrunk = false
+    dragScale = 1
+    pendingScale = 1
+  }
+  // A drag that never reports its release must not leave a window small.
+  Timer { interval: 10500; running: root.dockDragging; onTriggered: { root.dockEnd(); root.dockUnshrink() } }
   // One short-lived loop for the length of a drag (the deadline ends it if the
   // release is ever missed), instead of a poll that runs all day.
   SafeProcess {
