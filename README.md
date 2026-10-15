@@ -8,8 +8,7 @@ springs open for whatever is happening: music, volume and brightness,
 notifications, charging, Bluetooth, timers, screen recording. A built-in
 Control Center covers Wi-Fi, Bluetooth, sound, brightness, tray and power.
 
-Two shapes: `pill` (the default, a floating bubble) and `notch` (a MacBook
-notch hanging from the top edge). It follows your Omarchy theme and bar
+A floating bubble at the top of the screen, like the iPhone's. It follows your Omarchy theme and bar
 (height, colors, font scale), uses Hyprland blur for the translucent
 styles, and tucks away over fullscreen windows.
 
@@ -58,7 +57,7 @@ shape is still settling. This is the same order Apple uses.
 
 | Mode | Size | Triggered by |
 |---|---|---|
-| **Idle** | a small bubble (`pill`), or a notch with concave "ears" into the top edge (`notch`) | nothing happening |
+| **Idle** | a small floating bubble | nothing happening |
 | **Compact live activity** | widens sideways: leading + trailing content | music playing (art + waveform tinted by the album color), timer (orange countdown), screen recording (pulsing red dot + elapsed) |
 | **Alert pill** | wide, a little taller | charging / on battery / low battery, Bluetooth connect/disconnect, Do Not Disturb, timer done, `omarchy osd -m` messages |
 | **HUD** | drops down with a level bar | volume, brightness, keyboard backlight: every `omarchy osd -p` |
@@ -155,6 +154,7 @@ Bluetooth, Pipewire and the `omarchy-*` helpers), so actions behave the same.
 ## Gestures
 
 - **Hover** on the notch: opens after a short pause (`openOnHover`, `hoverDelay`).
+- **Touch and hold** (450 ms) on the idle or compact island: expands it, like iOS.
 - **Left click**: open or close. On a notification it runs the default
   action. On a HUD or alert it closes it and opens the island.
 - **Right click** on a notification: dismisses it. Anywhere else: opens the Control Center.
@@ -175,7 +175,6 @@ Changes apply as soon as you save the file — no restart:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `shape` | `pill` | `pill` = a floating bubble at the top of the screen · `notch` = a MacBook-style notch attached to the top edge |
 | `style` | `black` | `black` = solid black, like a real notch · `bar` = your bar's color · `glass` = see-through and blurred |
 | `palette` | `apple` | `apple` = Apple's colors (green charging, orange timer, red recording) · `theme` = your Omarchy theme's colors |
 | `showWhenIdle` | `true` | keep the island on screen with nothing happening. Turn it **off** for the standalone look: it hides itself and comes back for music, alerts and notifications, or when you touch the top edge |
@@ -188,7 +187,6 @@ Changes apply as soon as you save the file — no restart:
 | `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on it, after this many ms |
 | `scrollVolume` | `true` | scroll on the island to change volume |
 | `reduceMotion` | `false` | the island still changes shape, but settles without bouncing, and content cross-fades instead of zooming and blurring in |
-| `outerShell` / `shellGap` / `shellBand` | `false` / `4` / `5` | the bar parts around the island: a see-through gap (`shellGap` px), then a band of the bar's own colour (`shellBand` px, glass when the bar is transparent; `0` leaves just a hairline border) flowing out of the bar's bottom edge. The hole in the bar needs a bar that reads `islandWindow.barHolePath` from the island's bar widget; without one only the band shows |
 | call view | — | click the call pill during a call: mute, sound output (steps through this PC's outputs), notes (i) and end. Notes is one text box; the caller's name, number and the time are filled in for you. Each call gets one Markdown file in `~/.local/share/omarchy/call-notes/`; `island callNotes` opens the box any time |
 | `callTranscript` / `whisperModel` | `false` / `~/.local/share/whisper-models/ggml-small.en.bin` | adds a Transcript button to the call view. Press it to record both sides (PC output = caller, microphone = you) until you press it again or the call ends; then `whisper-cli` writes the conversation turn by turn (`**Caller** (00:05): …`, `**Me** (00:09): …`) into that call's file under its name, number, time and duration. Recordings live in `$XDG_RUNTIME_DIR` and are deleted after transcribing. Recording a call can require the other person's consent where you live |
 | `notificationWidth` | `340` | how wide the island opens for a notification (px, 300-700); History uses the same width, at least 380 |
@@ -201,7 +199,10 @@ Changes apply as soon as you save the file — no restart:
 | `showWorkspaces` | `true` | flash the workspace when you switch |
 | `artworkTint` | `true` | color the music view from the album art |
 | `showMicIndicator` | `true` | orange dot while the microphone is in use |
-| `islandWidth` / `islandHeight` / `pillInset` | `96` / `30` / `6` | size of the bubble and its gap from the top edge (`pill`) |
+| `islandWidth` / `islandHeight` / `pillInset` | `96` / `30` / `6` | size of the bubble and its gap from the top edge |
+| `appleSize` | `false` | iPhone Pro proportions from Apple's HIG: 126 x 37, 11 from the top. Overrides the three above |
+| `tapOpensApp` | `false` | iOS gesture model: tap the playing track to open its player, touch and hold (450 ms) to expand |
+| `alertSound` | `true` | play the notification sound with each notification (not in Do Not Disturb) |
 | `notchWidth` | `200` | width of the notch (`notch` shape only) |
 
 Omarchy's settings UI reads the same list, so you can also change these from

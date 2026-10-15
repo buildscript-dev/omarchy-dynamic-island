@@ -139,38 +139,10 @@ function osdTransient(p) {
   return { kind: "alert", source: kind, icon: icon, tint: tint, title: message, value: "", duration: duration }
 }
 
-// Island geometry per mode. `h` is the notch height (the bar height, like the
-// MacBook notch which is exactly as tall as the menu bar) and `w` the notch
-// width. Values mirror the proportions of the macOS Dynamic Island apps and
-// the SketchyBar reference (expand height ≈ 1.5× notch for HUDs, ≈ 2.3× for
-// music info, ≈ 7× for the full player).
-function geometry(mode, w, h, contentWidth, pill) {
-  if (pill) return pillGeometry(mode, w, h, contentWidth)
-  var side = h + 12
-  switch (mode) {
-  case "compact":
-    return { w: w + side * 2, h: h, rb: Math.round(h * 0.42), rt: 6 }
-  case "alert":
-    return { w: Math.max(w + 150, Math.min(560, contentWidth || 0)), h: h + 14, rb: Math.round((h + 14) * 0.45), rt: 7 }
-  case "hud":
-    return { w: w + 170, h: h + 38, rb: 20, rt: 8 }
-  case "notification":
-    return { w: Math.max(w + 210, 420), h: h + 68, rb: 26, rt: 9 }
-  case "expanded":
-    return { w: Math.max(w + 380, 600), h: h + 174, rb: 32, rt: 10 }
-  case "incoming":
-    return { w: Math.max(w + 250, 440), h: h + 56, rb: 30, rt: 9 }
-  case "hidden":
-    return { w: w, h: 0, rb: 0, rt: 0 }
-  default:
-    return { w: w, h: h, rb: Math.round(h * 0.42), rt: 6 }
-  }
-}
-
 // The iPhone bubble: fully rounded, no ears, and sized to its content. A
 // compact live activity only grows by one icon on each side, like the
 // leading/trailing views around the iPhone's camera.
-function pillGeometry(mode, w, h, contentWidth) {
+function geometry(mode, w, h, contentWidth) {
   var round = Math.ceil(h / 2)
   switch (mode) {
   case "compact":
@@ -502,68 +474,4 @@ function swipeAction(dx, dy, mode) {
   if (mode === "compact" && ax >= SWIPE_MIN && ax > 2 * ay) return "tuck"
   if ((mode === "notification" || mode === "alert" || mode === "hud") && dy <= -SWIPE_MIN && ay > 2 * ax) return "dismiss"
   return ""
-}
-
-// Outer shell: a rim `g` wide around the island (w x h, corner radius rb)
-// that grows out of the bar's bottom edge at y = yb with concave fillets of
-// radius r, so the bar looks like it parts and flows around the island.
-// Coordinates are the island's own (its top-left is 0,0). Only the part below
-// the bar is drawn. Returns an SVG path, open along the bar edge when `open`
-// (for the border stroke), or "" when the shell doesn't reach the bar.
-function shellPath(w, h, rb, g, r, yb, open) {
-  var left = -g, right = w + g, bottom = h + g
-  var R = Math.max(0, Math.min(rb + g, (w + 2 * g) / 2, (h + 2 * g) / 2))
-  var cy = bottom - R
-  if (w <= 0 || h <= 0 || yb >= bottom) return ""
-  r = Math.max(0.01, r)
-  function f(n) { return Math.round(n * 100) / 100 }
-  var d
-  if (yb + r <= cy) {
-    // The bar edge meets the straight sides: plain quarter-circle fillets.
-    d = "M " + f(left - r) + " " + f(yb) +
-      " A " + r + " " + r + " 0 0 1 " + f(left) + " " + f(yb + r) +
-      " L " + f(left) + " " + f(cy) +
-      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(left + R) + " " + f(bottom) +
-      " L " + f(right - R) + " " + f(bottom) +
-      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(right) + " " + f(cy) +
-      " L " + f(right) + " " + f(yb + r) +
-      " A " + r + " " + r + " 0 0 1 " + f(right + r) + " " + f(yb)
-  } else {
-    // The bar edge cuts the bottom corners: each fillet circle sits on the
-    // bar edge and touches the corner circle from outside.
-    var cx = left + R, dy = yb + r - cy, reach = R + r
-    if (Math.abs(dy) >= reach) return ""
-    var fx = cx - Math.sqrt(reach * reach - dy * dy)
-    var tx = cx + (fx - cx) * R / reach, ty = cy + dy * R / reach
-    var mx = w / 2
-    d = "M " + f(fx) + " " + f(yb) +
-      " A " + r + " " + r + " 0 0 1 " + f(tx) + " " + f(ty) +
-      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(cx) + " " + f(bottom) +
-      " L " + f(2 * mx - cx) + " " + f(bottom) +
-      " A " + f(R) + " " + f(R) + " 0 0 0 " + f(2 * mx - tx) + " " + f(ty) +
-      " A " + r + " " + r + " 0 0 1 " + f(2 * mx - fx) + " " + f(yb)
-  }
-  return open ? d : d + " Z"
-}
-
-// Where shellPath's left fillet leaves the bar edge (island coordinates), so
-// the bar can stop its bottom border exactly there. NaN when there's no shell.
-function shellLeft(w, h, rb, g, r, yb) {
-  var d = shellPath(w, h, rb, g, r, yb, true)
-  return d === "" ? NaN : Number(d.split(" ")[1])
-}
-
-// Rounded rectangle with circular corners, absolute coordinates. The hole the
-// bar leaves around the island: concentric with the band drawn below the bar,
-// so the gap and the band keep an even width all the way round.
-function roundRectPath(x, y, w, h, r) {
-  if (w <= 0 || h <= 0) return ""
-  r = Math.max(0, Math.min(r, w / 2, h / 2))
-  function f(n) { return Math.round(n * 100) / 100 }
-  var a = " A " + f(r) + " " + f(r) + " 0 0 1 "
-  return "M " + f(x + r) + " " + f(y) +
-    " L " + f(x + w - r) + " " + f(y) + a + f(x + w) + " " + f(y + r) +
-    " L " + f(x + w) + " " + f(y + h - r) + a + f(x + w - r) + " " + f(y + h) +
-    " L " + f(x + r) + " " + f(y + h) + a + f(x) + " " + f(y + h - r) +
-    " L " + f(x) + " " + f(y + r) + a + f(x + r) + " " + f(y) + " Z"
 }

@@ -22,12 +22,10 @@
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "shape": "pill",
       "islandWidth": 96,
       "pillInset": 6,
       "style": "black",
       "palette": "apple",
-      "notchWidth": 200,
       "openOnHover": true,
       "hoverDelay": 320,
       "showNotifications": true,
@@ -48,28 +46,17 @@
       "reserveSpace": false,
       "reserveGap": 4,
       "callTranscript": false,
-      "outerShell": false,
-      "shellGap": 4,
-      "shellBand": 5,
       "controlCenter": true,
       "clockFormat": "HH:mm",
       "islandHeight": 30,
+      "appleSize": false,
+      "tapOpensApp": false,
+      "alertSound": true,
       "showWorkspaces": true,
       "onlineExtras": true,
       "muteWhileMirrored": true
     },
     "schema": [
-      {
-        "key": "shape",
-        "type": "enum",
-        "label": "Island shape",
-        "description": "pill: a floating bubble at the top of the screen. notch: a MacBook-style notch attached to the top edge.",
-        "options": [
-          "pill",
-          "notch"
-        ],
-        "defaultValue": "pill"
-      },
       {
         "key": "islandWidth",
         "type": "integer",
@@ -110,15 +97,6 @@
           "theme"
         ],
         "defaultValue": "apple"
-      },
-      {
-        "key": "notchWidth",
-        "type": "integer",
-        "label": "Notch width (px, notch shape only)",
-        "defaultValue": 200,
-        "min": 120,
-        "max": 400,
-        "step": 10
       },
       {
         "key": "openOnHover",
@@ -212,24 +190,6 @@
         "defaultValue": true
       },
       {
-        "key": "outerShell",
-        "type": "boolean",
-        "label": "Glass rim that flows out of the bar around the island",
-        "defaultValue": false
-      },
-      {
-        "key": "shellGap",
-        "type": "integer",
-        "label": "See-through gap around the island (px)",
-        "defaultValue": 4
-      },
-      {
-        "key": "shellBand",
-        "type": "integer",
-        "label": "Width of the glass band (px)",
-        "defaultValue": 5
-      },
-      {
         "key": "callTranscript",
         "type": "boolean",
         "label": "Transcript button in the call view (the other person may need to agree to recording)",
@@ -292,6 +252,25 @@
         "min": 20,
         "max": 44,
         "step": 1
+      },
+      {
+        "key": "appleSize",
+        "type": "boolean",
+        "label": "Apple proportions (126 x 37, 11 from the top)",
+        "defaultValue": false,
+        "description": "iPhone Pro Dynamic Island size. Overrides island width, height and top gap."
+      },
+      {
+        "key": "tapOpensApp",
+        "type": "boolean",
+        "label": "Tap opens the player; touch and hold expands",
+        "defaultValue": false
+      },
+      {
+        "key": "alertSound",
+        "type": "boolean",
+        "label": "Play a sound with notifications",
+        "defaultValue": true
       },
       {
         "key": "showWorkspaces",

@@ -23,11 +23,7 @@ BarWidget {
     triggeredOnStart: true
     onTriggered: root.registryService = Registry.current
   }
-  // Handed to the bar so it can cut its hole around the island (outerShell).
-  readonly property var hostWindow: root.QsWindow.window
-  readonly property var islandWindow: root.service && root.service.islandWindows && hostWindow && hostWindow.screen
-    ? root.service.islandWindows[hostWindow.screen.name] || null : null
-  readonly property int footprint: root.service ? root.service.barFootprint : Number(root.setting("notchWidth", 200)) + 12
+  readonly property int footprint: root.service ? root.service.barFootprint : Number(root.setting("islandWidth", 96)) + 12
 
   visible: !root.vertical
   implicitWidth: root.vertical ? 0 : root.footprint + 8

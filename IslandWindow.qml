@@ -179,7 +179,7 @@ PanelWindow {
   }
 
   TextMetrics { id: trailMetrics; font.family: s.textFont; font.pixelSize: s.notchHeight >= 28 ? 14 : 13; font.weight: Font.DemiBold; font.features: { "tnum": 1 }; text: win.trailText }
-  readonly property int edge: s.pill ? Math.max(4, Math.round((s.notchHeight - 16) / 2)) : 10
+  readonly property int edge: Math.max(4, Math.round((s.notchHeight - 16) / 2))
   readonly property string trailText: s.live === "call" ? s.callElapsed(s.currentCall)
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
     : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
@@ -203,22 +203,21 @@ PanelWindow {
   function geometryFor(m) {
     if (m === "controls")
       // The body has to grow with the page, or a wide one spills off the pill.
-      return { w: Math.max(120, cc ? cc.preferredWidth : 0), h: Math.max(120, cc ? cc.preferredHeight : 0), rb: 34, rt: s.pill ? 0 : 10 }
+      return { w: Math.max(120, cc ? cc.preferredWidth : 0), h: Math.max(120, cc ? cc.preferredHeight : 0), rb: 34, rt: 0 }
     if (m === "callview")
-      return { w: callView.preferredWidth, h: callView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
+      return { w: callView.preferredWidth, h: callView.preferredHeight, rb: 34, rt: 0 }
     if (m === "history")
-      return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: s.pill ? 0 : 10 }
+      return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: 0 }
     var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth
       : m === "notification" ? s.notificationWidth : alertContentWidth
-    return Model.geometry(m, s.notchWidth, s.notchHeight, content, s.pill)
+    return Model.geometry(m, s.notchWidth, s.notchHeight, content)
   }
   readonly property var geom: {
     var g = geometryFor(mode)
     // Hover "breath": the notch swells slightly under the pointer, inviting
     // a click — the tactile cue macOS notch apps use in place of haptics.
     if (hovered && (mode === "idle" || mode === "compact"))
-      return s.pill ? { w: g.w + 10, h: g.h, rb: g.rb, rt: 0 }
-        : { w: g.w + 18, h: g.h + 4, rb: g.rb + 2, rt: g.rt + 1 }
+      return { w: g.w + 10, h: g.h, rb: g.rb, rt: 0 }
     return g
   }
 
@@ -253,31 +252,6 @@ PanelWindow {
   Behavior on brb { id: brbBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
   Behavior on brt { id: brtBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
 
-  // ---------------------------------------------------------------- outer shell
-  // Grows in when the island shows, so the bar opens around it instead of
-  // snapping a hole; gap, band and fillets all scale with shellT.
-  readonly property bool shellOn: s.outerShell && s.pill && onThisScreen && mode !== "hidden"
-    && !fullscreen && s.barPosition === "top"
-  property real shellT: shellOn ? 1 : 0
-  Behavior on shellT { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-  readonly property real shellG: s.shellGap * shellT
-  readonly property real shellOut: (s.shellGap + s.shellBand) * shellT
-  readonly property real shellR: 8 * shellT
-  readonly property real barEdge: s.barHeight - s.islandTop
-  readonly property real islandX: Math.round((width - bw) / 2)
-  readonly property string holeLocalPath: shellT > 0.01
-    ? Model.roundRectPath(-shellG, -shellG, bw + 2 * shellG, bh + 2 * shellG, brb + shellG) : ""
-  readonly property string bandPath: shellT > 0.01
-    ? Model.shellPath(bw, bh, brb, shellOut, shellR, barEdge, false) + " " + holeLocalPath : ""
-  readonly property string bandEdgePath: shellT > 0.01
-    ? Model.shellPath(bw, bh, brb, shellOut, shellR, barEdge - 0.5, true) : ""
-  // For the bar, in this window's coordinates (the bar's, too: both span the
-  // screen's top edge): the hole to cut, and where its bottom border breaks.
-  readonly property string barHolePath: shellT > 0.01
-    ? Model.roundRectPath(islandX - shellG, s.islandTop - shellG, bw + 2 * shellG, bh + 2 * shellG, brb + shellG) : ""
-  readonly property real bandLeft: islandX + Model.shellLeft(bw, bh, brb, shellOut, shellR, barEdge)
-  readonly property real bandRight: 2 * islandX + bw - bandLeft
-
   // How far the island has grown past the bare notch; drives the shadow.
   readonly property real lift: Model.clamp((bh - s.notchHeight) / 60, 0, 1)
 
@@ -305,7 +279,7 @@ PanelWindow {
   // It only reserves space; it draws nothing and takes no input.
   PanelWindow {
     screen: win.screen
-    visible: win.s.reserveSpace && win.onThisScreen && win.s.pill && win.s.barPosition === "top"
+    visible: win.s.reserveSpace && win.onThisScreen && win.s.barPosition === "top"
     anchors { top: true; left: true; right: true }
     implicitHeight: 1
     color: "transparent"
@@ -629,6 +603,7 @@ PanelWindow {
             if (mouse.button === Qt.LeftButton) win.setExpanded(true)
             return
           }
+          if (win.s.tapOpensApp && m === "compact" && win.s.live === "media" && mouse.button === Qt.LeftButton && win.s.openPlayerApp()) return
           dwellTimer.stop()
           win.setExpanded(!win.expanded)
         }
@@ -659,7 +634,7 @@ PanelWindow {
       readonly property int size: win.s.notchHeight
       x: Math.round((win.width + win.bw) / 2) + 8
       y: win.s.islandTop
-      width: size
+      width: win.s.bubbleWidth
       height: size
       opacity: stage.bubbleShown ? 1 : 0
       scale: stage.bubbleShown ? 1 : 0.3
@@ -669,7 +644,7 @@ PanelWindow {
 
       Rectangle {
         anchors.fill: parent
-        radius: width / 2
+        radius: height / 2
         color: win.s.islandColor
       }
       // Timer: a ring that drains; recording: pulsing dot; phone: glyph; music: art.
@@ -711,9 +686,14 @@ PanelWindow {
         textFormat: Text.PlainText
         visible: win.s.secondLive === "stopwatch"
         anchors.centerIn: parent
-        text: win.s.glyphs.stopwatch
-        font.family: win.s.iconFont
-        font.pixelSize: 13
+        width: parent.width - 8
+        horizontalAlignment: Text.AlignHCenter
+        text: Model.formatTime(win.s.stopwatchElapsed)
+        font.family: win.s.textFont
+        font.pixelSize: 12
+        font.weight: Font.DemiBold
+        fontSizeMode: Text.Fit
+        minimumPixelSize: 8
         color: win.s.tint("orange")
       }
       Text {
@@ -767,7 +747,7 @@ PanelWindow {
       id: island
       x: Math.round((win.width - width) / 2)
       y: win.s.islandTop
-      width: win.s.pill ? Math.max(0, win.bw) : shape.width
+      width: Math.max(0, win.bw)
       height: Math.max(0, win.bh)
       // The squish: a touch wider and shorter, anchored at the top edge.
       transform: Scale {
@@ -775,110 +755,6 @@ PanelWindow {
         origin.y: 0
         xScale: 1 + 0.05 * win.squish
         yScale: 1 - 0.1 * win.squish
-      }
-
-      // The gap: the actual wallpaper, cut to the hole around the island, so
-      // it reads as a window onto the desktop even with apps behind it.
-      Item {
-        id: gapWall
-        visible: win.shellT > 0.01 && win.s.wallpaperUrl !== ""
-        x: -win.shellG
-        y: -win.shellG
-        width: Math.max(1, win.bw + 2 * win.shellG)
-        height: Math.max(1, win.bh + 2 * win.shellG)
-        clip: true
-        layer.enabled: visible
-        layer.effect: MultiEffect {
-          maskEnabled: true
-          maskSource: gapMask
-          maskThresholdMin: 0.5
-          maskSpreadAtMin: 1.0
-        }
-        Image {
-          x: -(win.islandX - win.shellG)
-          y: -(win.s.islandTop - win.shellG)
-          width: win.width
-          height: win.screen ? win.screen.height : 1080
-          source: win.s.wallpaperUrl
-          sourceSize: Qt.size(width, height)
-          fillMode: Image.PreserveAspectCrop
-          asynchronous: true
-          cache: true
-        }
-      }
-      Item {
-        id: gapMask
-        visible: false
-        x: gapWall.x
-        y: gapWall.y
-        width: gapWall.width
-        height: gapWall.height
-        layer.enabled: gapWall.visible
-        Shape {
-          x: win.shellG
-          y: win.shellG
-          preferredRendererType: Shape.CurveRenderer
-          ShapePath {
-            strokeWidth: -1
-            fillColor: "white"
-            PathSvg { path: win.holeLocalPath }
-          }
-        }
-      }
-
-      // Outer shell, below the bar: a see-through gap around the island, then
-      // a band of the bar's glass that flows out of the bar's bottom edge.
-      // The part inside the bar is the bar's own hole (barHolePath).
-      Item {
-        id: bandClip
-        readonly property real pad: win.s.shellGap + win.s.shellBand + 16
-        x: -pad
-        y: win.barEdge
-        width: Math.max(0, win.bw + 2 * pad)
-        height: Math.max(0, win.bh + pad)
-        clip: true
-        visible: win.shellT > 0.01
-        Shape {
-          x: -bandClip.x
-          y: -bandClip.y
-          preferredRendererType: Shape.CurveRenderer
-          ShapePath {
-            strokeWidth: -1
-            fillColor: win.s.shellFill
-            fillRule: ShapePath.OddEvenFill
-            PathSvg { path: win.bandPath }
-          }
-          // With no band the outer edge already traces the gap; a second
-          // line on the same spot would draw it twice as bright.
-          ShapePath {
-            strokeWidth: 0.5
-            strokeColor: win.s.shellEdge
-            fillColor: "transparent"
-            PathSvg { path: win.s.shellBand > 0 ? win.holeLocalPath : "" }
-          }
-        }
-      }
-      // The band's outer edge starts one row higher, on the bar's own bottom
-      // border row, so the two lines meet without a step.
-      Item {
-        id: edgeClip
-        x: bandClip.x
-        y: win.barEdge - 1
-        width: bandClip.width
-        height: bandClip.height + 1
-        clip: true
-        visible: bandClip.visible
-        Shape {
-          x: -edgeClip.x
-          y: -edgeClip.y
-          preferredRendererType: Shape.CurveRenderer
-          ShapePath {
-            strokeWidth: 0.5
-            strokeColor: win.s.shellEdge
-            fillColor: "transparent"
-            PathSvg { path: win.bandEdgePath }
-          }
-        }
       }
 
       Item {
@@ -899,7 +775,6 @@ PanelWindow {
         // iPhone bubble: fully round while it's small; opened up, its corners
         // are continuous-curvature (squircle) like iOS, not circular arcs.
         Shape {
-          visible: win.s.pill
           width: Math.max(0, win.bw)
           height: Math.max(0, win.bh)
           preferredRendererType: Shape.CurveRenderer
@@ -911,24 +786,12 @@ PanelWindow {
             PathSvg { path: Model.squirclePath(win.bw, win.bh, win.brb, 0.6) }
           }
         }
-
-        NotchShape {
-          id: shape
-          visible: !win.s.pill
-          bodyWidth: Math.max(0, win.bw)
-          bodyHeight: Math.max(0, win.bh)
-          rb: win.brb
-          rt: win.brt
-          fillColor: win.s.islandColor
-          Behavior on fillColor { ColorAnimation { duration: 300 } }
-        }
       }
 
       // Content area: the body of the notch, clipped so views are revealed by
       // the growing shape rather than drawn ahead of it.
       Item {
         id: body
-        x: win.s.pill ? 0 : shape._rt
         width: Math.max(0, win.bw)
         height: Math.max(0, win.bh)
         clip: true
@@ -957,7 +820,7 @@ PanelWindow {
               anchors.verticalCenter: parent.verticalCenter
               width: win.artSize
               height: width
-              radius: win.s.pill ? width / 2 : 5
+              radius: width / 2
               source: win.s.artLocal
               fallbackGlyph: win.s.glyphs.music
               glyphFont: win.s.iconFont
@@ -1189,10 +1052,10 @@ PanelWindow {
             Item {
               anchors.left: parent.left
               anchors.right: parent.right
-              anchors.leftMargin: win.s.pill ? 14 : 20
-              anchors.rightMargin: win.s.pill ? 16 : 20
-              y: win.s.pill ? 0 : win.s.notchHeight + 2
-              height: win.s.pill ? parent.height : parent.height - win.s.notchHeight - 12
+              anchors.leftMargin: 14
+              anchors.rightMargin: 16
+              y: 0
+              height: parent.height
 
               Text {
                 textFormat: Text.PlainText

@@ -89,11 +89,13 @@ Item {
 
   readonly property string style: String(setting("style", "black"))           // black | bar | glass
   readonly property string paletteName: String(setting("palette", "apple"))   // apple | theme (QQuickItem already owns "palette")
-  // pill: a floating iPhone-style bubble inside the bar · notch: a MacBook
-  // notch hanging from the top edge.
-  readonly property string shape: String(setting("shape", "pill"))
-  readonly property bool pill: shape !== "notch"
-  readonly property int notchWidth: pill ? Number(setting("islandWidth", 96)) : Number(setting("notchWidth", 200))
+  // iPhone 15/16 Pro proportions (HIG: 36.67 pt tall, ~11 pt down, camera about 126 wide).
+  readonly property bool appleSize: setting("appleSize", false) === true
+  readonly property int notchWidth: appleSize ? 126 : Number(setting("islandWidth", 96))
+  // iOS: tap a live activity opens its app, touch and hold expands it.
+  readonly property bool tapOpensApp: setting("tapOpensApp", false) === true
+  // iOS: an alert lights the screen and plays the notification sound.
+  readonly property bool alertSound: setting("alertSound", true) === true
   readonly property bool openOnHover: setting("openOnHover", true) === true
   readonly property int hoverDelay: Number(setting("hoverDelay", 320))
   readonly property bool showNotifications: setting("showNotifications", true) === true
@@ -137,46 +139,15 @@ Item {
   // ------------------------------------------------------------ bar geometry
   readonly property var barConfig: root.liveBarConfig || (root.shell && root.shell.barConfig ? root.shell.barConfig : ({}))
   readonly property string barPosition: String(barConfig.position || "top")
-  // The notch is exactly as tall as the menu bar, like on a MacBook.
   readonly property int barHeight: barPosition === "top" ? Style.bar.sizeHorizontal : Math.max(26, Style.bar.sizeHorizontal)
-  // The pill floats inside the bar with a small inset all round, centered
-  // on the bar's own widgets; the notch is exactly as tall as the bar.
-  // The pill floats a little below the top edge, iPhone-style, at its own
-  // height (it no longer has a bar to fit inside); the notch matches the bar.
-  readonly property int islandTop: pill ? Math.max(0, Number(setting("pillInset", 6))) : 0
-  readonly property int notchHeight: pill ? Math.max(20, Number(setting("islandHeight", 30))) : barHeight
+  // The island floats a little below the top edge, iPhone-style, at its own height.
+  readonly property int islandTop: appleSize ? 11 : Math.max(0, Number(setting("pillInset", 6)))
+  readonly property int notchHeight: appleSize ? 37 : Math.max(20, Number(setting("islandHeight", 30)))
 
   // ------------------------------------------------------------ look
   readonly property color islandColor: style === "bar" ? Color.bar.background
     : style === "glass" ? Qt.rgba(0, 0, 0, 0.62)
     : "#000000"
-  // Outer shell: the bar parts around the island. A see-through gap
-  // (shellGap) rings the island, then a band of the bar's own glass
-  // (shellBand) flows out of the bar's bottom edge around it. The bar cuts
-  // its hole from islandWindows[screen].barHolePath; the band is drawn here.
-  readonly property bool outerShell: setting("outerShell", false) === true
-  readonly property int shellGap: Math.max(0, Math.min(16, Number(setting("shellGap", 4))))
-  readonly property int shellBand: Math.max(0, Math.min(16, Number(setting("shellBand", 5))))
-  property var islandWindows: ({})
-  // The gap shows the real wallpaper, even where windows sit behind it.
-  readonly property string wallpaperLink: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
-  property int wallpaperVersion: 0
-  readonly property string wallpaperUrl: outerShell ? "file://" + wallpaperLink + "#" + wallpaperVersion : ""
-  FileView {
-    path: root.outerShell ? root.wallpaperLink : ""
-    preload: false
-    watchChanges: true
-    onFileChanged: root.wallpaperVersion++
-  }
-  function registerWindow(name, win) {
-    var next = Object.assign({}, islandWindows)
-    if (win) next[name] = win
-    else delete next[name]
-    islandWindows = next
-  }
-  readonly property bool barGlass: barConfig.transparent === true
-  readonly property color shellFill: Qt.rgba(Color.bar.background.r, Color.bar.background.g, Color.bar.background.b, barGlass ? 0.68 : 1)
-  readonly property color shellEdge: Qt.rgba(Color.bar.text.r, Color.bar.text.g, Color.bar.text.b, 0.18)
   readonly property color textColor: style === "bar" ? Color.bar.text : "#ffffff"
   readonly property color secondaryText: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.58)
   readonly property color trackColor: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.18)
@@ -799,6 +770,7 @@ Item {
     root.recentMessages = Model.rememberMessage(root.recentMessages, line, Date.now(), root.duplicateWindow)
     var iconUrl = root.notifIcon(d, summary)
     var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
+    if (root.alertSound && !root.dnd) root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"], 5)
     root.pushActivity({
       kind: "notification", source: "notification", file: file,
       app: root.notifApp(d, summary),
@@ -896,6 +868,13 @@ Item {
     // gets the session's environment rather than the shell's.
     root.launch(["uwsm-app", "--", "gtk-launch", id + ".desktop"])
     return true
+  }
+
+  // Tap on the playing track: bring up its player. ponytail: gtk-launch, so a player
+  // without single-instance handling opens a second window; focus by class if that bites.
+  function openPlayerApp() {
+    var p = root.player
+    return p ? root.openForApp(String(p.desktopEntry || p.identity || "")) : false
   }
 
   // Many apps send no icon at all; fall back to the app's own desktop-entry
@@ -1557,7 +1536,9 @@ Item {
   // the macOS menu bar flows around the camera housing.
   // The window on the focused screen reports its resting width here.
   property int restingWidth: notchWidth
-  readonly property int barFootprint: restingWidth + (secondLive !== "" ? notchHeight + 8 : 0) * 2
+  // iOS minimal: round, or an oval when the content is wider than a glyph (the stopwatch time).
+  readonly property int bubbleWidth: secondLive === "stopwatch" ? Math.round(notchHeight * 1.25) : notchHeight
+  readonly property int barFootprint: restingWidth + (secondLive !== "" ? bubbleWidth + 8 : 0) * 2
 
   // ------------------------------------------------------------ IPC
   IpcHandler {
@@ -1714,8 +1695,6 @@ Item {
       screen: modelData
       screenName: modelData ? String(modelData.name) : ""
       service: root
-      Component.onCompleted: root.registerWindow(screenName, this)
-      Component.onDestruction: if (root.islandWindows[screenName] === this) root.registerWindow(screenName, null)
     }
   }
 }
