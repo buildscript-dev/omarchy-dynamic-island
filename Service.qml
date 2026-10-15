@@ -685,6 +685,61 @@ Item {
     })
   }
 
+  // ------------------------------------------------------------ Wi-Fi, Tailscale, USB
+  // One short check every 5 s (NetworkManager's device list and the names of the
+  // USB devices): a pill when the Wi-Fi network changes, Tailscale goes up or
+  // down (that is the link to the phone), or a USB device comes or goes.
+  // ponytail: a poll, not udev / D-Bus events; swap for `nmcli monitor` + udev if
+  // 5 s ever feels slow. A change must hold for two reads, so a suspend or a
+  // roam does not flash "Disconnected" then "Connected".
+  property bool hwLoaded: false
+  property string wifiNow: ""
+  property string wifiSeen: ""
+  property int wifiHold: 0
+  property bool tailNow: false
+  property bool tailSeen: false
+  property int tailHold: 0
+  property var usbNow: []
+  Timer { interval: 5000; repeat: true; running: true; triggeredOnStart: true
+    onTriggered: if (!hwRead.running) hwRead.running = true }
+  SafeProcess {
+    id: hwRead
+    command: Model.bounded(["bash", "-c", "/usr/bin/nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>/dev/null; echo ===USB; for d in /sys/bus/usb/devices/*/product; do [ -f \"$d\" ] && /usr/bin/cat -- \"$d\"; done"], 5, 16384)
+    stdout: StdioCollector { onStreamFinished: root.hwLoad(Model.capped(text, 16384)) }
+  }
+  function hwPill(icon, tint, title, value) {
+    pushActivity({ kind: "alert", source: "hw", icon: icon, tint: tint, title: Model.clip(title, 40), value: value, duration: 2400 })
+  }
+  function hwLoad(t) {
+    if (t === null || t === "") return
+    var parts = String(t).split("===USB\n")
+    var wifi = "", tail = false
+    var net = parts[0].split("\n")
+    for (var i = 0; i < net.length; i++) {
+      var f = net[i].split(/(?<!\\):/)
+      if (f.length < 4) continue
+      if (f[1] === "wifi" && f[2] === "connected") wifi = f[3].replace(/\\:/g, ":")
+      if (f[0] === "tailscale0") tail = /^connected/.test(f[2])
+    }
+    var usb = (parts[1] || "").split("\n").map(function(x) { return x.trim() })
+      .filter(function(x) { return x !== "" && !/host controller|root hub/i.test(x) })
+    var first = !hwLoaded
+    var live = !first && settled
+    // Wi-Fi: a new state has to be read twice before it counts.
+    if (wifi !== wifiSeen) { wifiHold++; if (wifiHold >= 2 || first) { if (live) hwPill(glyphs.wifi, wifi !== "" ? "green" : "secondary", wifi !== "" ? wifi : "Wi-Fi", wifi !== "" ? "Connected" : "Disconnected"); wifiSeen = wifi; wifiHold = 0 } }
+    else wifiHold = 0
+    if (tail !== tailSeen) { tailHold++; if (tailHold >= 2 || first) { if (live) hwPill(glyphs.check, tail ? "green" : "secondary", "Tailscale", tail ? "Connected" : "Disconnected"); tailSeen = tail; tailHold = 0 } }
+    else tailHold = 0
+    if (live) {
+      var added = usb.filter(function(x) { return usbNow.indexOf(x) === -1 })
+      var gone = usbNow.filter(function(x) { return usb.indexOf(x) === -1 })
+      if (added.length > 0) hwPill(glyphs.power, "green", added[0], "Connected")
+      else if (gone.length > 0) hwPill(glyphs.power, "secondary", gone[0], "Removed")
+    }
+    usbNow = usb
+    hwLoaded = true
+  }
+
   // ------------------------------------------------------------ night light, stay awake
   // The iPhone shows a pill when a Focus or a mode flips. Omarchy's two modes
   // are flipped from keybinds and menus, so ask for their state. ponytail: a 5 s
