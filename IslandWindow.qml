@@ -507,8 +507,21 @@ PanelWindow {
   readonly property real dockNear: dockTracking ? Model.clamp(1 - dockDist / 280, 0, 1) : 0
   readonly property real dockGrow: Model.clamp((dockNear - 0.2) / 0.55, 0, 1)
   readonly property bool dockOver: dockTracking && dockDist <= 14
+  // How far up the pointer has been pulled from where the drag began, toward the island:
+  // 0 at the start, 1 on the island. The dragged window shrinks with it.
+  readonly property real dockPull: {
+    if (!dockTracking || s.dockOrigin.x < -9000) return 0
+    var m = hyprMonitor
+    if (s.dockPointer.x < m.x || s.dockPointer.x > m.x + m.width) return 0
+    var targetY = m.y + s.islandTop + s.notchHeight
+    var span = Math.max(150, s.dockOrigin.y - targetY)
+    return Model.clamp((s.dockOrigin.y - s.dockPointer.y) / span, 0, 1)
+  }
   // The window shrinks as the island swells: full size far away, 30 % on arrival.
-  onDockGrowChanged: if (dockTracking) s.dockShrink(1 - 0.7 * dockGrow)
+  onDockPullChanged: if (dockTracking) {
+    var E = Model.geometry("expanded", s.notchWidth, s.notchHeight, 0, s.appleSize, true)
+    s.dockShrink(dockPull, E.w * 0.9, E.h * 0.78)
+  }
   // Dragging a window here is not a hover: the music card must not open under the drop label.
   onDockTrackingChanged: if (dockTracking && expanded) setExpanded(false)
 
@@ -536,8 +549,14 @@ PanelWindow {
     var wsName = String(w.workspace && w.workspace.name || "")
     if (wsName.indexOf("special:") === 0 || Number(w.monitor) !== hyprMonitor.id) return
     var r = Qt.rect(w.at[0] - hyprMonitor.x, w.at[1] - hyprMonitor.y, w.size[0], w.size[1])
+    var orig = s.dragWin && s.dragWin.address === String(w.address) ? { w: s.dragWin.w, h: s.dragWin.h } : null
+    // A drag keeps the window's corner, not the pointer, so a shrunken window sits off to
+    // one side: the flight starts from where it belongs, centred under the pointer.
+    if (s.dragShrunk && s.dockPointer.x > -9000)
+      r = Qt.rect(Model.clamp(s.dockPointer.x - hyprMonitor.x - r.width / 2, 0, hyprMonitor.width - r.width),
+                  Model.clamp(s.dockPointer.y - hyprMonitor.y - r.height / 2, 0, hyprMonitor.height - r.height), r.width, r.height)
     var entry = { address: String(w.address), cls: Model.clip(String(w.class || ""), 60), title: Model.clip(String(w.title || ""), 80),
-      rect: { x: r.x, y: r.y, w: r.width, h: r.height }, ws: wsName, snap: null }
+      rect: { x: r.x, y: r.y, w: r.width, h: r.height }, orig: orig, tiled: s.forcedFloat, ws: wsName, snap: null }
     var tl = findToplevel(entry.address)
     if (!tl || !tl.wayland || s.reduceMotion) {
       s.dockMove(entry.address, "special:island", false)
@@ -555,6 +574,7 @@ PanelWindow {
     var ws = hyprMonitor.activeWorkspace ? String(hyprMonitor.activeWorkspace.id) : entry.ws
     if (!entry.snap || s.reduceMotion) {
       s.dockMove(address, ws, false); s.dockDrop(address); s.dockFocus(address)
+      s.dockReturnShape(address, entry.tiled, entry.orig ? entry.orig.w : 0, entry.orig ? entry.orig.h : 0)
       return
     }
     flight = { restore: true, entry: entry, toplevel: null, rect: Qt.rect(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h),
@@ -596,7 +616,7 @@ PanelWindow {
       if (!win.flight || win.flight.started) return
       var f = win.flight
       win.flight = null
-      if (f.restore) { win.s.dockMove(f.entry.address, f.ws, false); win.s.dockDrop(f.entry.address); win.s.dockFocus(f.entry.address) }
+      if (f.restore) { win.s.dockMove(f.entry.address, f.ws, false); win.s.dockDrop(f.entry.address); win.s.dockFocus(f.entry.address); win.s.dockReturnShape(f.entry.address, f.entry.tiled, f.entry.orig ? f.entry.orig.w : 0, f.entry.orig ? f.entry.orig.h : 0) }
       else { win.s.dockMove(f.entry.address, "special:island", false); win.s.dockAdd(f.entry) }
     }
   }
@@ -618,7 +638,7 @@ PanelWindow {
   function flightDone(swallowed) {
     var f = flight
     if (!f) return
-    if (f.restore) { s.dockFocus(f.entry.address); s.dockDrop(f.entry.address) }
+    if (f.restore) { s.dockFocus(f.entry.address); s.dockReturnShape(f.entry.address, f.entry.tiled, f.entry.orig ? f.entry.orig.w : 0, f.entry.orig ? f.entry.orig.h : 0); s.dockDrop(f.entry.address) }
     else if (swallowed) {
       s.dockAdd(f.entry)
       s.pushActivity({ kind: "alert", source: "dock", icon: s.glyphs.window, tint: "blue", title: f.entry.cls || "Window", value: "Minimized", duration: 1600 })

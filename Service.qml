@@ -1210,19 +1210,24 @@ Item {
   property var docked: []            // [{ address, cls, title, rect: {x,y,w,h}, ws, snap }]
   readonly property int dockCount: docked.length
   property bool dockDragging: false
-  property point dockPointer: Qt.point(-99999, -99999)   // layout coordinates, as hyprctl prints them
+  property point dockPointer: Qt.point(-99999, -99999)
+  property point dockOrigin: Qt.point(-99999, -99999)   // where the pointer was when the drag began   // layout coordinates, as hyprctl prints them
   signal dockDropRequested()
   signal dockMinimizeRequested()
   signal dockRestoreRequested(string address)
   function dockStart() {
+    // A drag that never reported its release must not leave a window shrunk.
+    if (dockDragging && !forcedFloat) dockUnshrink()
     dockDragging = true
     dockPointer = Qt.point(-99999, -99999)
+    dockOrigin = Qt.point(-99999, -99999)
     dragPoll.running = false
     dragPoll.running = true
-    dragScale = 1
-    pendingScale = 1
+    dragScale = 0
+    pendingPull = 0
     dragShrunk = false
-    dragWin = null
+    // Mid-pull on a window we floated, a second press must not lose what that window was.
+    if (!forcedFloat) dragWin = null
     dragWinRead.running = false
     dragWinRead.running = true
   }
@@ -1231,8 +1236,11 @@ Item {
   // nears the island (a floating window only: a tiled one has no size of its own to
   // give), and goes back to its size when you let go anywhere else.
   property var dragWin: null            // { address, w, h, floating }
-  property real dragScale: 1
-  property real pendingScale: 1
+  property real dragScale: 0            // how far along the pull the window is shrunk (0 none, 1 all)
+  // A tiled window has no size of its own to give, so it is floated while it is pulled
+  // toward the island and tiled again if you let go anywhere else.
+  readonly property bool shrinkTiled: setting("shrinkTiled", true) === true
+  property bool forcedFloat: false
   property bool dragShrunk: false
   SafeProcess {
     id: dragWinRead
@@ -1242,41 +1250,80 @@ Item {
         try {
           var w = JSON.parse(Model.capped(text, 16384))
           if (w && root.validAddress(w.address) && w.size)
-            root.dragWin = { address: String(w.address), cls: Model.clip(String(w.class || ""), 28), w: Number(w.size[0]), h: Number(w.size[1]), floating: w.floating === true }
+            // Read again later for its floating state; the first size is the true one.
+            // The window is the one under the pointer when the drag began; a focus change
+            // mid-drag must not move the target.
+            if (root.dragWin) { if (root.dragWin.address === String(w.address)) root.dragWin.floating = w.floating === true }
+            else root.dragWin = { address: String(w.address), cls: Model.clip(String(w.class || ""), 28), w: Number(w.size[0]), h: Number(w.size[1]), floating: w.floating === true }
           console.log("DOCKDRAG window floating=" + (w && w.floating) + " size=" + (w && w.size))
         } catch (e) { root.dragWin = null }
       }
     }
   }
+  // Resizes go one at a time, newest last: separate processes can finish out of order
+  // and leave the window at an old size.
+  property var resizeNext: null
+  SafeProcess {
+    id: resizeProc
+    onExited: { if (root.resizeNext) { var n = root.resizeNext; root.resizeNext = null; root.dockResizeNow(n) } }
+  }
+  function dockResizeNow(n) {
+    resizeProc.command = Model.bounded(["hyprctl", "dispatch", "hl.dsp.window.resize({ x = " + Math.round(n.w) + ", y = " + Math.round(n.h) + ", exact = true, window = \"address:" + n.address + "\" })"], 5, 0)
+    resizeProc.running = true
+  }
   function dockResize(address, w, h) {
     if (!validAddress(address)) return
-    root.fire(["hyprctl", "dispatch", "hl.dsp.window.resize({ x = " + Math.round(w) + ", y = " + Math.round(h) + ", exact = true, window = \"address:" + address + "\" })"], 5)
+    var n = { address: address, w: w, h: h }
+    if (resizeProc.running) resizeNext = n
+    else dockResizeNow(n)
   }
-  function dockShrink(scale) {
-    pendingScale = Math.max(0.3, Math.min(1, Number(scale) || 1))
+  // pull: 0 where the drag began, 1 on the island. The window goes from its own size
+  // to (tw, th), the shape of the drop area, with a fast start: the first move upward
+  // already makes it visibly smaller.
+  property real pendingPull: 0
+  property real pullW: 0
+  property real pullH: 0
+  function dockShrink(pull, tw, th) {
+    pendingPull = Math.max(0, Math.min(1, Number(pull) || 0))
+    pullW = tw
+    pullH = th
     if (!shrinkTimer.running && dockDragging) shrinkTimer.start()
   }
   Timer {
     id: shrinkTimer
-    interval: 40
+    interval: 33
     repeat: true
     onTriggered: {
       if (!root.dockDragging || !root.dragWin) { stop(); return }
-      if (Math.abs(root.pendingScale - root.dragScale) < 0.02) return
-      root.dragScale = root.pendingScale
-      root.dragShrunk = root.dragScale < 0.995
-      console.log("DOCKDRAG resize scale=" + root.dragScale + " floating=" + root.dragWin.floating)
-      // Never below a usable size, and never a window that was already tiny.
-      var nw = Math.min(root.dragWin.w, Math.max(root.dragWin.w * root.dragScale, 240))
-      var nh = Math.min(root.dragWin.h, Math.max(root.dragWin.h * root.dragScale, 150))
-      if (root.dragWin.floating && root.dragWin.w >= 240 && root.dragWin.h >= 150) root.dockResize(root.dragWin.address, nw, nh)
+      if (!root.dragWin.floating && !dragWinRead.running && root.pendingPull > 0.01) dragWinRead.running = true
+      if (Math.abs(root.pendingPull - root.dragScale) < 0.008) return
+      root.dragScale = root.pendingPull
+      root.dragShrunk = root.dragScale > 0.004
+      if (root.shrinkTiled && !root.dragWin.floating && root.dragScale > 0.03) {
+        root.dragWin.floating = true
+        root.forcedFloat = true
+        console.log("DOCKDRAG floating a tiled window for the pull")
+        root.fire(["hyprctl", "dispatch", "hl.dsp.window.float({ action = \"enable\", window = \"address:" + root.dragWin.address + "\" })"], 5)
+      }
+      var e = 1 - Math.pow(1 - root.dragScale, 2.6)
+      var W = root.dragWin.w, H = root.dragWin.h
+      var tw = Math.min(W, Math.max(160, root.pullW)), th = Math.min(H, Math.max(90, root.pullH))
+      var nw = W + (tw - W) * e, nh = H + (th - H) * e
+      if (root.dragWin.floating && W >= 160 && H >= 90) root.dockResize(root.dragWin.address, nw, nh)
     }
   }
+  // Give a window its shape back: re-tile one we floated, else its own size.
+  function dockReturnShape(address, tiled, w, h) {
+    if (!validAddress(address)) return
+    if (tiled) root.fire(["hyprctl", "dispatch", "hl.dsp.window.float({ action = \"disable\", window = \"address:" + address + "\" })"], 5)
+    else if (w > 0 && h > 0) dockResize(address, w, h)
+  }
   function dockUnshrink() {
-    if (dragShrunk && dragWin && dragWin.floating) dockResize(dragWin.address, dragWin.w, dragWin.h)
+    if (dragShrunk && dragWin) dockReturnShape(dragWin.address, forcedFloat, dragWin.w, dragWin.h)
+    forcedFloat = false
     dragShrunk = false
-    dragScale = 1
-    pendingScale = 1
+    dragScale = 0
+    pendingPull = 0
   }
   // A drag that never reports its release must not leave a window small.
   Timer { interval: 10500; running: root.dockDragging; onTriggered: { root.dockEnd(); root.dockUnshrink() } }
@@ -1290,7 +1337,7 @@ Item {
     stdout: SplitParser {
       onRead: function(line) {
         var m = /^(-?\d+), (-?\d+)$/.exec(String(line).trim())
-        if (m) root.dockPointer = Qt.point(Number(m[1]), Number(m[2]))
+        if (m) { root.dockPointer = Qt.point(Number(m[1]), Number(m[2])); if (root.dockOrigin.x < -9000) root.dockOrigin = root.dockPointer }
       }
     }
   }
@@ -1308,8 +1355,8 @@ Item {
   // Moving a window to special:island can leave that workspace showing, and a shown
   // special workspace dims everything in front of it (decoration:dim_special), the island
   // included. Hide it again, on whichever monitor it opened; it is a toggle, so look first.
-  readonly property string hideSpecialScript: "sleep 0.35; for i in 1 2 3; do n=$(/usr/bin/hyprctl monitors -j | /usr/bin/jq -r '[.[]|select(.specialWorkspace.name==\"special:island\")]|length'); [ \"$n\" = \"0\" ] && break; /usr/bin/hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"island\")' >/dev/null; sleep 0.5; done"
-  function dockHideSpecial() { root.fire(["bash", "-c", root.hideSpecialScript], 10) }
+  readonly property string hideSpecialScript: "for i in 1 2 3 4 5 6 7 8; do sleep 0.45; n=$(/usr/bin/hyprctl monitors -j | /usr/bin/jq -r '[.[]|select(.specialWorkspace.name==\"special:island\")]|length'); [ \"$n\" = \"0\" ] && continue; /usr/bin/hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"island\")' >/dev/null; done"
+  function dockHideSpecial() { root.fire(["bash", "-c", root.hideSpecialScript], 12) }
   function dockFocus(address) {
     if (!validAddress(address)) return
     root.fire(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + address + "\" })"], 5)

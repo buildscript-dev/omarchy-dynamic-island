@@ -54,7 +54,8 @@
       "showWorkspaces": true,
       "onlineExtras": true,
       "muteWhileMirrored": true,
-      "haptics": true
+      "haptics": true,
+      "shrinkTiled": true
     },
     "schema": [
       {
@@ -253,6 +254,13 @@
         "type": "boolean",
         "label": "Tap opens the player; touch and hold expands",
         "defaultValue": false
+      },
+      {
+        "key": "shrinkTiled",
+        "type": "boolean",
+        "label": "Dragged tiled windows float and shrink toward the island",
+        "defaultValue": true,
+        "description": "Super + drag upward: a tiled window is floated while you pull it toward the island and tiled again if you let go elsewhere. Turn off if a drag ever misbehaves."
       },
       {
         "key": "alertSound",
