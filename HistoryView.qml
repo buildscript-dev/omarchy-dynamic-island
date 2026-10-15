@@ -1,4 +1,5 @@
 import QtQuick
+import "IslandModel.js" as Model
 
 // History: what the island did lately (Activity) and past notifications,
 // opened by scrolling down on the island. Cards scroll the way the iPhone
@@ -41,7 +42,7 @@ Item {
     anchors.centerIn: parent
     text: "No recent activity"
     font.family: root.s.textFont
-    font.pixelSize: 13
+    font.pixelSize: Model.TYPE.subhead
     color: root.dim
     textFormat: Text.PlainText
   }
@@ -99,7 +100,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           text: row.modelData.head || ""
           font.family: root.s.textFont
-          font.pixelSize: 15
+          font.pixelSize: Model.TYPE.callout
           font.weight: Font.Bold
           color: root.fg
           textFormat: Text.PlainText
@@ -110,7 +111,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           text: "Clear"
           font.family: root.s.textFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           color: clearMouse.containsMouse ? root.fg : root.dim
           textFormat: Text.PlainText
           MouseArea {
@@ -203,7 +204,7 @@ Item {
               id: when
               text: root.s.timeAgo(card.e.time || 0)
               font.family: root.s.textFont
-              font.pixelSize: 11
+              font.pixelSize: Model.TYPE.caption
               color: root.dim
               textFormat: Text.PlainText
             }
@@ -213,7 +214,7 @@ Item {
             visible: text !== ""
             text: card.isNotif ? (card.e.title || "") : (card.e.value || "")
             font.family: root.s.textFont
-            font.pixelSize: 13
+            font.pixelSize: Model.TYPE.subhead
             font.weight: card.isNotif ? Font.DemiBold : Font.Normal
             color: card.isNotif ? (card.e.urgent ? root.s.tint("red") : root.fg) : root.dim
             elide: Text.ElideRight
@@ -224,7 +225,7 @@ Item {
             visible: card.isNotif && text !== ""
             text: card.isNotif ? (card.e.body || "") : ""
             font.family: root.s.textFont
-            font.pixelSize: 12
+            font.pixelSize: Model.TYPE.footnote
             color: root.dim
             wrapMode: Text.WordWrap
             maximumLineCount: 2

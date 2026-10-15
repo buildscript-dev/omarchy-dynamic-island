@@ -83,7 +83,7 @@ Item {
       width: parent.width
       text: root.info.title
       font.family: root.s.textFont
-      font.pixelSize: 17
+      font.pixelSize: Model.TYPE.body
       font.weight: Font.DemiBold
       color: root.fg
       elide: Text.ElideRight
@@ -93,7 +93,7 @@ Item {
       width: parent.width
       text: root.info.sub
       font.family: root.s.textFont
-      font.pixelSize: 12
+      font.pixelSize: Model.TYPE.footnote
       color: root.dim
       elide: Text.ElideRight
       textFormat: Text.PlainText
@@ -106,7 +106,7 @@ Item {
     anchors.verticalCenter: badge.verticalCenter
     text: root.info.value
     font.family: root.s.textFont
-    font.pixelSize: 34
+    font.pixelSize: Model.TYPE.large
     font.weight: Font.Light
     font.features: { "tnum": 1 }
     color: root.s.tint(root.info.tint)
@@ -143,7 +143,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: modelData.label
             font.family: root.s.textFont
-            font.pixelSize: 13
+            font.pixelSize: Model.TYPE.subhead
             font.weight: Font.DemiBold
             color: modelData.red ? root.s.tint("red") : root.fg
             textFormat: Text.PlainText

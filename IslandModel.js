@@ -167,6 +167,11 @@ function geometry(mode, w, h, contentWidth) {
   }
 }
 
+// Type scale, in px, named after the iOS text styles it stands in for. Every
+// font size in the island is one of these; odd sizes were snapped down a step.
+var TYPE = { caption2: 10, caption: 11, footnote: 12, subhead: 13, callout: 15, body: 17,
+  title3: 20, title2: 22, title1: 26, large: 34, hero: 46 }
+
 function formatTime(seconds) {
   var s = Math.max(0, Math.floor(seconds || 0))
   var h = Math.floor(s / 3600)

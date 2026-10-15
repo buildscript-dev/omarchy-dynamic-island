@@ -53,7 +53,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: Qt.formatDateTime(root.s.now, "ddd d MMM")
         font.family: root.s.textFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         font.weight: Font.Medium
         color: root.s.secondaryText
       }
@@ -63,7 +63,7 @@ Item {
         leftPadding: 8
         visible: root.s.timerActive && root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("orange")
       }
       IconLabel {
@@ -72,7 +72,7 @@ Item {
         leftPadding: 8
         visible: root.s.stopwatchActive && root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("orange")
       }
     }
@@ -104,7 +104,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.glyphs.moon
         font.family: root.s.iconFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("indigo")
       }
       Waveform {
@@ -172,7 +172,7 @@ Item {
         width: parent.width
         text: root.s.trackTitle || "Unknown"
         font.family: root.s.textFont
-        font.pixelSize: 16
+        font.pixelSize: Model.TYPE.callout
         font.weight: Font.DemiBold
         color: root.s.textColor
         elide: Text.ElideRight
@@ -183,7 +183,7 @@ Item {
         text: root.s.trackArtist
         visible: text !== ""
         font.family: root.s.textFont
-        font.pixelSize: 13
+        font.pixelSize: Model.TYPE.subhead
         color: root.s.secondaryText
         elide: Text.ElideRight
       }
@@ -194,7 +194,7 @@ Item {
         text: root.s.lyricLine || root.s.trackAlbum
         visible: text !== ""
         font.family: root.s.textFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: Qt.rgba(root.s.textColor.r, root.s.textColor.g, root.s.textColor.b, 0.38)
         elide: Text.ElideRight
       }
@@ -218,7 +218,7 @@ Item {
         width: 40
         text: Model.formatTime(root.s.trackPosition)
         font.family: root.s.textFont
-        font.pixelSize: 11
+        font.pixelSize: Model.TYPE.caption
         font.features: { "tnum": 1 }
         color: root.s.secondaryText
       }
@@ -231,7 +231,7 @@ Item {
         horizontalAlignment: Text.AlignRight
         text: "-" + Model.formatTime(root.s.trackLength - root.s.trackPosition)
         font.family: root.s.textFont
-        font.pixelSize: 11
+        font.pixelSize: Model.TYPE.caption
         font.features: { "tnum": 1 }
         color: root.s.secondaryText
       }
@@ -350,7 +350,7 @@ Item {
         textFormat: Text.PlainText
         text: Qt.formatDateTime(root.s.now, "HH:mm")
         font.family: root.s.displayFont
-        font.pixelSize: 46
+        font.pixelSize: Model.TYPE.hero
         font.weight: Font.Light
         font.features: { "tnum": 1 }
         color: root.s.textColor
@@ -359,7 +359,7 @@ Item {
         textFormat: Text.PlainText
         text: Qt.formatDateTime(root.s.now, "dddd, d MMMM")
         font.family: root.s.textFont
-        font.pixelSize: 13
+        font.pixelSize: Model.TYPE.subhead
         color: root.s.secondaryText
       }
     }
@@ -381,7 +381,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             text: modelData.label
             font.family: root.s.textFont
-            font.pixelSize: 10
+            font.pixelSize: Model.TYPE.caption2
             font.weight: Font.Medium
             color: root.s.secondaryText
           }
@@ -396,7 +396,7 @@ Item {
               anchors.centerIn: parent
               text: modelData.day
               font.family: root.s.textFont
-              font.pixelSize: 12
+              font.pixelSize: Model.TYPE.footnote
               font.weight: modelData.today ? Font.Bold : Font.Normal
               color: modelData.today ? "white" : root.s.textColor
             }
@@ -417,7 +417,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.glyphs.timer
         font.family: root.s.iconFont
-        font.pixelSize: 15
+        font.pixelSize: Model.TYPE.callout
         color: root.s.tint("orange")
       }
       Repeater {
@@ -437,7 +437,7 @@ Item {
             anchors.centerIn: parent
             text: modelData + " min"
             font.family: root.s.textFont
-            font.pixelSize: 12
+            font.pixelSize: Model.TYPE.footnote
             font.weight: Font.DemiBold
             color: root.s.tint("orange")
           }
@@ -465,7 +465,7 @@ Item {
         label: Model.clockText(root.s.alarmAt)
         visible: root.s.alarmAt > 0
         anchors.verticalCenter: parent.verticalCenter
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("orange")
       }
     }
@@ -481,7 +481,7 @@ Item {
         glyph: root.s.glyphs.stopwatch
         label: Model.formatTime(root.s.stopwatchElapsed)
         anchors.verticalCenter: parent.verticalCenter
-        font.pixelSize: 22
+        font.pixelSize: Model.TYPE.title2
         color: root.s.tint("orange")
         opacity: root.s.stopwatchHeld >= 0 ? 0.6 : 1
       }
@@ -507,7 +507,7 @@ Item {
           anchors.centerIn: parent
           text: "Reset"
           font.family: root.s.textFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           font.weight: Font.DemiBold
           color: root.s.textColor
         }
@@ -531,7 +531,7 @@ Item {
         glyph: root.s.glyphs.timer
         label: Model.formatTime(Math.ceil(root.s.timerLeft))
         anchors.verticalCenter: parent.verticalCenter
-        font.pixelSize: 22
+        font.pixelSize: Model.TYPE.title2
         color: root.s.tint("orange")
         opacity: root.s.timerPausedLeft >= 0 ? 0.6 : 1
       }
@@ -557,7 +557,7 @@ Item {
           anchors.centerIn: parent
           text: "Cancel"
           font.family: root.s.textFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           font.weight: Font.DemiBold
           color: root.s.textColor
         }
@@ -589,7 +589,7 @@ Item {
           anchors.centerIn: parent
           text: "● Stop recording"
           font.family: root.s.textFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           font.weight: Font.DemiBold
           color: root.s.tint("red")
         }
@@ -612,7 +612,7 @@ Item {
           label: "Focus"
           id: dndLabel
           anchors.centerIn: parent
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           color: root.s.dnd ? root.s.tint("indigo") : root.s.secondaryText
         }
         MouseArea {

@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell.Services.Pipewire
+import "IslandModel.js" as Model
 
 // The ongoing call, opened by clicking the call pill: who it is, how long,
 // and four buttons: mute, sound output, notes (i), end. Notes opens a notes
@@ -85,7 +86,7 @@ Item {
         anchors.centerIn: parent
         text: root.call && root.call.name ? root.call.name.charAt(0).toUpperCase() : "?"
         font.family: root.s.textFont
-        font.pixelSize: 19
+        font.pixelSize: Model.TYPE.body
         font.weight: Font.DemiBold
         color: root.fg
         textFormat: Text.PlainText
@@ -102,7 +103,7 @@ Item {
         width: parent.width
         text: root.s.callTitle(root.call)
         font.family: root.s.textFont
-        font.pixelSize: 16
+        font.pixelSize: Model.TYPE.callout
         font.weight: Font.DemiBold
         color: root.fg
         elide: Text.ElideRight
@@ -112,7 +113,7 @@ Item {
         width: parent.width
         text: root.call ? ((root.call.name && root.call.number ? root.call.number + "  ·  " : "") + root.s.callElapsed(root.call)) : "Call ended"
         font.family: root.s.textFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("green")
         elide: Text.ElideRight
         textFormat: Text.PlainText
@@ -149,7 +150,7 @@ Item {
               anchors.centerIn: parent
               text: modelData.glyph
               font.family: root.s.iconFont
-              font.pixelSize: 20
+              font.pixelSize: Model.TYPE.title3
               color: modelData.on && modelData.color !== "red" ? "black" : "white"
               textFormat: Text.PlainText
             }
@@ -174,7 +175,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             text: modelData.label
             font.family: root.s.textFont
-            font.pixelSize: 10
+            font.pixelSize: Model.TYPE.caption2
             color: root.dim
             elide: Text.ElideRight
             textFormat: Text.PlainText
@@ -199,7 +200,7 @@ Item {
         width: parent.width - timeLabel.width
         text: "Call Notes"
         font.family: root.s.textFont
-        font.pixelSize: 16
+        font.pixelSize: Model.TYPE.callout
         font.weight: Font.Bold
         color: root.fg
         textFormat: Text.PlainText
@@ -209,7 +210,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: root.noteTime > 0 ? Qt.formatDateTime(new Date(root.noteTime), "d MMM, HH:mm") : ""
         font.family: root.s.textFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.dim
         textFormat: Text.PlainText
       }
@@ -218,7 +219,7 @@ Item {
       width: parent.width
       text: [root.noteCall.name, root.noteCall.number].filter(function(v) { return v }).join("  ·  ") || "Unknown caller"
       font.family: root.s.textFont
-      font.pixelSize: 13
+      font.pixelSize: Model.TYPE.subhead
       color: root.dim
       elide: Text.ElideRight
       textFormat: Text.PlainText
@@ -240,7 +241,7 @@ Item {
           id: notesField
           width: notesFlick.width
           font.family: root.s.textFont
-          font.pixelSize: 13
+          font.pixelSize: Model.TYPE.subhead
           color: root.fg
           wrapMode: TextEdit.Wrap
           selectByMouse: true
@@ -275,7 +276,7 @@ Item {
             anchors.centerIn: parent
             text: modelData.label
             font.family: root.s.textFont
-            font.pixelSize: 13
+            font.pixelSize: Model.TYPE.subhead
             font.weight: Font.DemiBold
             color: "white"
             textFormat: Text.PlainText

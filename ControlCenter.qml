@@ -605,7 +605,7 @@ Item {
   // ================================================================ building blocks
   component Label: Text {
     font.family: root.s.textFont
-    font.pixelSize: 13
+    font.pixelSize: Model.TYPE.subhead
     color: root.fg
     elide: Text.ElideRight
     textFormat: Text.PlainText
@@ -690,7 +690,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       spacing: 1
       Label { width: parent.width; text: tile.title; font.weight: Font.DemiBold }
-      Label { width: parent.width; text: tile.subtitle; visible: text !== ""; font.pixelSize: 11; color: root.dim }
+      Label { width: parent.width; text: tile.subtitle; visible: text !== ""; font.pixelSize: Model.TYPE.caption; color: root.dim }
     }
     Glyph { id: chev; visible: tile.chevron; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 14; color: root.dim }
   }
@@ -749,7 +749,7 @@ Item {
       x: 12
       anchors.verticalCenter: parent.verticalCenter
       text: sl.glyph
-      font.pixelSize: 17
+      font.pixelSize: Model.TYPE.body
       color: sl.dimmed ? root.fg : "#000000"
     }
     // Right end: a percentage or a small button, in the same place on every slider.
@@ -812,7 +812,7 @@ Item {
       height: 22
       radius: 11
       color: root.fg
-      Label { id: hintText; anchors.centerIn: parent; text: rb.hint; font.pixelSize: 11; font.weight: Font.Medium; color: "#000000" }
+      Label { id: hintText; anchors.centerIn: parent; text: rb.hint; font.pixelSize: Model.TYPE.caption; font.weight: Font.Medium; color: "#000000" }
     }
     MouseArea { id: rbMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: rb.clicked() }
   }
@@ -862,7 +862,7 @@ Item {
       font.pixelSize: 16
       font.weight: Font.Bold
     }
-    Label { id: busyLabel; anchors.right: sw.visible ? sw.left : parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.busyText; font.pixelSize: 11; color: root.dim }
+    Label { id: busyLabel; anchors.right: sw.visible ? sw.left : parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: hd.busyText; font.pixelSize: Model.TYPE.caption; color: root.dim }
     Switch { id: sw; visible: hd.hasSwitch; on: hd.switchOn; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; onToggled: hd.switched() }
   }
 
@@ -889,7 +889,7 @@ Item {
 
   component SectionTitle: Label {
     width: root.innerWidth
-    font.pixelSize: 11
+    font.pixelSize: Model.TYPE.caption
     font.weight: Font.DemiBold
     font.letterSpacing: 0.6
     color: root.dim
@@ -943,7 +943,7 @@ Item {
       anchors.rightMargin: 8
       anchors.verticalCenter: parent.verticalCenter
       Label { width: parent.width; text: row.title; font.weight: row.selected ? Font.DemiBold : Font.Normal }
-      Label { width: parent.width; text: row.subtitle; visible: text !== ""; font.pixelSize: 11; color: root.dim }
+      Label { width: parent.width; text: row.subtitle; visible: text !== ""; font.pixelSize: Model.TYPE.caption; color: root.dim }
     }
     Row {
       id: trail
@@ -951,7 +951,7 @@ Item {
       anchors.rightMargin: 8
       anchors.verticalCenter: parent.verticalCenter
       spacing: 6
-      Label { anchors.verticalCenter: parent.verticalCenter; text: row.busy ? "…" : row.trailing; font.pixelSize: 12; color: root.dim; font.family: text.length <= 2 ? root.s.iconFont : root.s.textFont }
+      Label { anchors.verticalCenter: parent.verticalCenter; text: row.busy ? "…" : row.trailing; font.pixelSize: Model.TYPE.footnote; color: root.dim; font.family: text.length <= 2 ? root.s.iconFont : root.s.textFont }
       Rectangle {
         visible: row.canRemove && rowMouse.containsMouse || (row.canRemove && removeMouse.containsMouse)
         anchors.verticalCenter: parent.verticalCenter
@@ -959,7 +959,7 @@ Item {
         height: 24
         radius: 12
         color: removeMouse.containsMouse ? Qt.rgba(1, 0.27, 0.23, 0.25) : root.tileOff
-        Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: 12; color: root.dim }
+        Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: Model.TYPE.footnote; color: root.dim }
         MouseArea { id: removeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: row.removed() }
       }
     }
@@ -1001,7 +1001,7 @@ Item {
           // Lock-screen order: a small date line over a large, light time.
           Label {
             text: Qt.formatDateTime(root.s.now, "dddd d MMMM") + (root.s.weatherText ? "  ·  " + root.s.weatherText : "")
-            font.pixelSize: 10
+            font.pixelSize: Model.TYPE.caption2
             font.weight: Font.DemiBold
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 0.8
@@ -1013,7 +1013,7 @@ Item {
               id: ccClock
               text: root.s.clockText
               font.family: root.s.displayFont
-              font.pixelSize: 30
+              font.pixelSize: Model.TYPE.title1
               font.weight: Font.Light
               font.letterSpacing: -0.5
               font.features: { "tnum": 1 }
@@ -1047,11 +1047,11 @@ Item {
                 }
                 Rectangle { x: 25; anchors.verticalCenter: cell.verticalCenter; width: 2; height: 5; radius: 1; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.4) }
               }
-              Glyph { visible: root.s.charging; anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 12; color: parent.level }
+              Glyph { visible: root.s.charging; anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: Model.TYPE.footnote; color: parent.level }
               Label {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.s.batteryPercent + "%"
-                font.pixelSize: 12
+                font.pixelSize: Model.TYPE.footnote
                 font.weight: Font.DemiBold
                 font.features: { "tnum": 1 }
                 color: parent.level
@@ -1073,8 +1073,8 @@ Item {
               id: updText
               anchors.centerIn: parent
               spacing: 6
-              Glyph { anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 13; color: "#ffffff" }
-              Label { anchors.verticalCenter: parent.verticalCenter; text: "Update"; color: "#ffffff"; font.pixelSize: 12; font.weight: Font.DemiBold }
+              Glyph { anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: Model.TYPE.subhead; color: "#ffffff" }
+              Label { anchors.verticalCenter: parent.verticalCenter; text: "Update"; color: "#ffffff"; font.pixelSize: Model.TYPE.footnote; font.weight: Font.DemiBold }
             }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.islandWin.closeControls(); root.s.runUpdate() } }
           }
@@ -1091,7 +1091,7 @@ Item {
               height: 16
               radius: 8
               color: root.onColor("red")
-              Label { id: badge; anchors.centerIn: parent; text: root.s.history.length > 99 ? "99+" : root.s.history.length; font.pixelSize: 10; font.weight: Font.Bold; color: "#ffffff" }
+              Label { id: badge; anchors.centerIn: parent; text: root.s.history.length > 99 ? "99+" : root.s.history.length; font.pixelSize: Model.TYPE.caption2; font.weight: Font.Bold; color: "#ffffff" }
             }
           }
           // System tray: left click activates, right click opens the app's menu.
@@ -1302,7 +1302,7 @@ Item {
                     verticalAlignment: TextInput.AlignVCenter
                     echoMode: TextInput.Password
                     font.family: root.s.textFont
-                    font.pixelSize: 13
+                    font.pixelSize: Model.TYPE.subhead
                     color: root.fg
                     selectionColor: root.onColor("blue")
                     clip: true
@@ -1394,7 +1394,7 @@ Item {
               onClicked: root.btClick(modelData)
             }
           }
-          Label { visible: root.btRows.found.length === 0; text: "Looking for devices…"; color: root.dim; font.pixelSize: 12; topPadding: 6; bottomPadding: 4 }
+          Label { visible: root.btRows.found.length === 0; text: "Looking for devices…"; color: root.dim; font.pixelSize: Model.TYPE.footnote; topPadding: 6; bottomPadding: 4 }
         }
       }
     }
@@ -1520,9 +1520,9 @@ Item {
                 spacing: 3
                 readonly property color tone: modelData[1].level >= 0 && modelData[1].level <= 20 ? root.onColor("red") : root.fg
                 Glyph { visible: modelData[1].charging; anchors.verticalCenter: parent.verticalCenter; text: ""; font.pixelSize: 14; color: parent.tone }
-                Label { anchors.verticalCenter: parent.verticalCenter; text: root.budsLevel(modelData[1]); font.pixelSize: 17; font.weight: Font.DemiBold; color: parent.tone }
+                Label { anchors.verticalCenter: parent.verticalCenter; text: root.budsLevel(modelData[1]); font.pixelSize: Model.TYPE.body; font.weight: Font.DemiBold; color: parent.tone }
               }
-              Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData[0]; font.pixelSize: 11; color: root.dim }
+              Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData[0]; font.pixelSize: Model.TYPE.caption; color: root.dim }
             }
           }
         }
@@ -1545,7 +1545,7 @@ Item {
               anchors.centerIn: parent
               spacing: 3
               Glyph { anchors.horizontalCenter: parent.horizontalCenter; text: root.modeGlyphs[modelData] || ""; font.pixelSize: 18; color: sel ? "#ffffff" : root.fg }
-              Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.modeNames[modelData] || modelData; font.pixelSize: 10; color: sel ? "#ffffff" : root.dim }
+              Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.modeNames[modelData] || modelData; font.pixelSize: Model.TYPE.caption2; color: sel ? "#ffffff" : root.dim }
             }
             MouseArea { id: modeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.buds.setNoiseMode(modelData) }
           }
@@ -1563,7 +1563,7 @@ Item {
             height: 30
             radius: 15
             color: sel ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.9) : root.tileOff
-            Label { anchors.centerIn: parent; text: modelData.charAt(0).toUpperCase() + modelData.slice(1); font.pixelSize: 12; color: sel ? "#000000" : root.fg }
+            Label { anchors.centerIn: parent; text: modelData.charAt(0).toUpperCase() + modelData.slice(1); font.pixelSize: Model.TYPE.footnote; color: sel ? "#000000" : root.fg }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.buds.setAncLevel(modelData) }
           }
         }
@@ -1582,7 +1582,7 @@ Item {
             height: 30
             radius: 15
             color: sel ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.9) : root.tileOff
-            Label { id: eqText; anchors.centerIn: parent; text: modelData.name; font.pixelSize: 12; color: sel ? "#000000" : root.fg }
+            Label { id: eqText; anchors.centerIn: parent; text: modelData.name; font.pixelSize: Model.TYPE.footnote; color: sel ? "#000000" : root.fg }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.buds.setEq(modelData.id) }
           }
         }
@@ -1630,7 +1630,7 @@ Item {
             height: 30
             radius: 15
             color: sel ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.9) : root.tileOff
-            Label { id: cycText; anchors.centerIn: parent; text: root.modeNames[modelData] || modelData; font.pixelSize: 12; color: sel ? "#000000" : root.fg }
+            Label { id: cycText; anchors.centerIn: parent; text: root.modeNames[modelData] || modelData; font.pixelSize: Model.TYPE.footnote; color: sel ? "#000000" : root.fg }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.buds.toggleCycle(modelData) }
           }
         }
@@ -1640,10 +1640,10 @@ Item {
         width: root.innerWidth
         horizontalAlignment: Text.AlignHCenter
         text: root.budsStatus ? (root.budsStatus.modelName || "") + " · firmware " + root.budsStatus.firmware : ""
-        font.pixelSize: 10
+        font.pixelSize: Model.TYPE.caption2
         color: root.dim
       }
-      Label { visible: !!(root.budsStatus && !root.budsStatus.connected); text: "Take the buds out of the case and turn the switch on."; color: root.dim; font.pixelSize: 12; width: root.innerWidth; wrapMode: Text.WordWrap }
+      Label { visible: !!(root.budsStatus && !root.budsStatus.connected); text: "Take the buds out of the case and turn the switch on."; color: root.dim; font.pixelSize: Model.TYPE.footnote; width: root.innerWidth; wrapMode: Text.WordWrap }
     }
 
     // ------------------------------------------------ phone (Taildroid)
@@ -1689,7 +1689,7 @@ Item {
         visible: root.hasPhone
         width: root.innerWidth
         wrapMode: Text.WordWrap
-        font.pixelSize: 11
+        font.pixelSize: Model.TYPE.caption
         color: root.dim
         text: (root.callsReady ? "Calls: ready on this PC." : root.psBt.paired ? "Calls: waiting for the phone's Bluetooth link." : "Calls: pair the phone in Bluetooth settings (allow calls).")
           + "  " + (!root.psKde.running ? "Messages: install KDE Connect." : !root.psKde.deviceId ? "Messages: open KDE Connect on the phone and pair." : !root.psKde.reachable ? "Messages: phone not reachable." : "Messages: ready.")
@@ -1711,7 +1711,7 @@ Item {
         text: !root.phone ? "Install Taildroid to mirror your Android phone."
           : root.phone.actionStatus !== "" ? root.phone.actionStatus
           : root.phone.lastError !== "" ? root.phone.lastError : root.phone.statusText
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.phone && root.phone.lastError !== "" && root.phone.actionStatus === "" ? root.onColor("red") : root.dim
       }
       Scroller {
@@ -1811,7 +1811,7 @@ Item {
                   anchors.rightMargin: 12
                   verticalAlignment: TextInput.AlignVCenter
                   font.family: root.s.textFont
-                  font.pixelSize: 13
+                  font.pixelSize: Model.TYPE.subhead
                   color: root.fg
                   clip: true
                   text: root[modelData[0]]
@@ -1837,7 +1837,7 @@ Item {
             topPadding: 6
             wrapMode: Text.WordWrap
             text: "Phone: Developer options › Wireless debugging › Pair with code. While mirroring, press Left Alt or Super to give the mouse back."
-            font.pixelSize: 11
+            font.pixelSize: Model.TYPE.caption
             color: root.dim
           }
         }
@@ -1866,7 +1866,7 @@ Item {
           Label {
             anchors.centerIn: parent
             text: root.call && root.call.name ? root.call.name.charAt(0).toUpperCase() : "?"
-            font.pixelSize: 26
+            font.pixelSize: Model.TYPE.title1
             font.weight: Font.DemiBold
           }
         }
@@ -1875,7 +1875,7 @@ Item {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
           text: root.call ? ((root.call.name ? root.call.number + " · " : "") + (root.call.state === "incoming" ? "Incoming" : root.s.callElapsed(root.call))) : ""
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           color: root.dim
         }
       }
@@ -1936,7 +1936,7 @@ Item {
         width: root.innerWidth
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
-        font.pixelSize: 11
+        font.pixelSize: Model.TYPE.caption
         color: root.dim
         text: "Pair the phone with this PC over Bluetooth to hear calls here. Without it, calls are placed on the phone."
       }
@@ -1957,7 +1957,7 @@ Item {
         visible: root.allChats.length === 0
         width: root.innerWidth
         wrapMode: Text.WordWrap
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.dim
         text: !root.psKde.running ? "Messages need KDE Connect on this PC and on the phone." : "No conversations yet — allow SMS permission in KDE Connect on the phone."
       }
@@ -2013,7 +2013,7 @@ Item {
           anchors.rightMargin: 12
           verticalAlignment: TextInput.AlignVCenter
           font.family: root.s.textFont
-          font.pixelSize: 13
+          font.pixelSize: Model.TYPE.subhead
           color: root.fg
           text: root.newRecipient
           onTextEdited: root.newRecipient = text
@@ -2097,7 +2097,7 @@ Item {
                       anchors.verticalCenter: parent.verticalCenter
                       text: att.mime.indexOf("audio/") === 0 ? "Voice message" : att.mime
                       elide: Text.ElideRight
-                      font.pixelSize: 12
+                      font.pixelSize: Model.TYPE.footnote
                       color: msg.out ? "#ffffff" : root.fg
                     }
                     MouseArea {
@@ -2117,7 +2117,7 @@ Item {
                 visible: text !== ""
                 text: String(msg.modelData.body || "") || (msg.pending > 0 ? "📎 Attachment" : "")
                 wrapMode: Text.Wrap
-                font.pixelSize: 13
+                font.pixelSize: Model.TYPE.subhead
                 color: msg.out ? "#ffffff" : root.fg
                 textFormat: Text.PlainText
               }
@@ -2127,7 +2127,7 @@ Item {
                 horizontalAlignment: Text.AlignRight
                 visible: msg.modelData.date > 0
                 text: Qt.formatDateTime(new Date(msg.modelData.date), "HH:mm")
-                font.pixelSize: 10
+                font.pixelSize: Model.TYPE.caption2
                 color: msg.out ? Qt.rgba(1, 1, 1, 0.7) : root.dim
               }
             }
@@ -2148,7 +2148,7 @@ Item {
             anchors.rightMargin: 14
             verticalAlignment: TextInput.AlignVCenter
             font.family: root.s.textFont
-            font.pixelSize: 13
+            font.pixelSize: Model.TYPE.subhead
             color: root.fg
             clip: true
             text: root.draft
@@ -2237,9 +2237,9 @@ Item {
                 anchors.rightMargin: 36
                 y: 10
                 spacing: 1
-                Label { width: parent.width; text: card.modelData.app + "  ·  " + root.s.timeAgo(card.modelData.time); font.pixelSize: 11; color: root.dim }
+                Label { width: parent.width; text: card.modelData.app + "  ·  " + root.s.timeAgo(card.modelData.time); font.pixelSize: Model.TYPE.caption; color: root.dim }
                 Label { width: parent.width; text: card.modelData.title; font.weight: Font.DemiBold; color: card.modelData.urgent ? root.onColor("red") : root.fg }
-                Label { width: parent.width; visible: text !== ""; text: card.modelData.body; font.pixelSize: 12; color: root.dim; wrapMode: Text.WordWrap; maximumLineCount: 2 }
+                Label { width: parent.width; visible: text !== ""; text: card.modelData.body; font.pixelSize: Model.TYPE.footnote; color: root.dim; wrapMode: Text.WordWrap; maximumLineCount: 2 }
               }
               Rectangle {
                 anchors.right: parent.right
@@ -2250,7 +2250,7 @@ Item {
                 radius: 11
                 visible: cardMouse.containsMouse || closeMouse.containsMouse
                 color: closeMouse.containsMouse ? root.tileHover : root.tileOff
-                Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: 11; color: root.dim }
+                Glyph { anchors.centerIn: parent; text: ""; font.pixelSize: Model.TYPE.caption; color: root.dim }
                 MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.s.removeHistory(card.modelData.file) }
               }
             }
@@ -2264,7 +2264,7 @@ Item {
         height: 30
         radius: 15
         color: clearMouse.containsMouse ? root.tileHover : root.tileOff
-        Label { anchors.centerIn: parent; text: "Clear All"; font.pixelSize: 12; font.weight: Font.DemiBold }
+        Label { anchors.centerIn: parent; text: "Clear All"; font.pixelSize: Model.TYPE.footnote; font.weight: Font.DemiBold }
         MouseArea { id: clearMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.s.clearHistory() }
       }
     }
@@ -2331,7 +2331,7 @@ Item {
         rowSpacing: 2
         Repeater {
           model: ["M", "T", "W", "T", "F", "S", "S"]
-          delegate: Label { required property var modelData; width: root.innerWidth / 7; horizontalAlignment: Text.AlignHCenter; text: modelData; font.pixelSize: 11; font.weight: Font.DemiBold; color: root.dim }
+          delegate: Label { required property var modelData; width: root.innerWidth / 7; horizontalAlignment: Text.AlignHCenter; text: modelData; font.pixelSize: Model.TYPE.caption; font.weight: Font.DemiBold; color: root.dim }
         }
         Repeater {
           model: calPage.cells
@@ -2348,7 +2348,7 @@ Item {
             Label {
               anchors.centerIn: parent
               text: modelData.day
-              font.pixelSize: 13
+              font.pixelSize: Model.TYPE.subhead
               font.weight: modelData.today ? Font.Bold : Font.Normal
               font.features: { "tnum": 1 }
               color: modelData.today ? "#ffffff" : !modelData.inMonth ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.25) : modelData.weekend ? root.dim : root.fg
@@ -2384,7 +2384,7 @@ Item {
               anchors.centerIn: parent
               spacing: 2
               Glyph { anchors.horizontalCenter: parent.horizontalCenter; text: root.profileGlyph(modelData); color: sel ? "#ffffff" : root.fg }
-              Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.profileLabel(modelData); font.pixelSize: 11; color: sel ? "#ffffff" : root.dim }
+              Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.profileLabel(modelData); font.pixelSize: Model.TYPE.caption; color: sel ? "#ffffff" : root.dim }
             }
             MouseArea {
               id: profMouse

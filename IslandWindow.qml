@@ -109,8 +109,8 @@ PanelWindow {
     else if (t.kind === "notification") lastNotif = t
   }
 
-  TextMetrics { id: alertTitleMetrics; font.family: s.textFont; font.pixelSize: 13; font.weight: Font.DemiBold; text: win.lastAlert.title || "" }
-  TextMetrics { id: alertValueMetrics; font.family: s.textFont; font.pixelSize: 13; font.weight: Font.DemiBold; text: win.lastAlert.value || "" }
+  TextMetrics { id: alertTitleMetrics; font.family: s.textFont; font.pixelSize: Model.TYPE.subhead; font.weight: Font.DemiBold; text: win.lastAlert.title || "" }
+  TextMetrics { id: alertValueMetrics; font.family: s.textFont; font.pixelSize: Model.TYPE.subhead; font.weight: Font.DemiBold; text: win.lastAlert.value || "" }
   // ---------------------------------------------------------------- symmetric compact layout
   // Leading and trailing views hug the ends with the same concentric inset,
   // their slots are equal width, and the clock sits dead center — so the
@@ -144,7 +144,7 @@ PanelWindow {
       anchors.verticalCenter: parent.verticalCenter
       text: act.glyph
       font.family: win.s.iconFont
-      font.pixelSize: 15
+      font.pixelSize: Model.TYPE.callout
       color: win.s.tint(act.tone)
     }
     Rectangle {
@@ -679,7 +679,7 @@ PanelWindow {
         anchors.centerIn: parent
         text: win.s.glyphs.robot
         font.family: win.s.iconFont
-        font.pixelSize: 13
+        font.pixelSize: Model.TYPE.subhead
         color: win.s.tint("purple")
       }
       Text {
@@ -690,7 +690,7 @@ PanelWindow {
         horizontalAlignment: Text.AlignHCenter
         text: Model.formatTime(win.s.stopwatchElapsed)
         font.family: win.s.textFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         font.weight: Font.DemiBold
         fontSizeMode: Text.Fit
         minimumPixelSize: 8
@@ -702,7 +702,7 @@ PanelWindow {
         anchors.centerIn: parent
         text: ""
         font.family: win.s.iconFont
-        font.pixelSize: 13
+        font.pixelSize: Model.TYPE.subhead
         color: win.s.tint("green")
       }
       Text {
@@ -711,7 +711,7 @@ PanelWindow {
         anchors.centerIn: parent
         text: ""
         font.family: win.s.iconFont
-        font.pixelSize: 13
+        font.pixelSize: Model.TYPE.subhead
         color: win.s.tint("green")
       }
       Artwork {
@@ -920,7 +920,7 @@ PanelWindow {
                 width: parent.width
                 text: win.s.phoneName + (incoming.call.state === "waiting" ? " · Call Waiting" : "")
                 font.family: win.s.textFont
-                font.pixelSize: 11
+                font.pixelSize: Model.TYPE.caption
                 color: win.s.secondaryText
                 elide: Text.ElideRight
               }
@@ -929,7 +929,7 @@ PanelWindow {
                 width: parent.width
                 text: win.s.callTitle(incoming.call)
                 font.family: win.s.textFont
-                font.pixelSize: 15
+                font.pixelSize: Model.TYPE.callout
                 font.weight: Font.DemiBold
                 color: win.s.textColor
                 elide: Text.ElideRight
@@ -1017,7 +1017,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 text: win.lastAlert.icon || ""
                 font.family: win.s.iconFont
-                font.pixelSize: 17
+                font.pixelSize: Model.TYPE.body
                 color: win.s.tint(win.lastAlert.tint)
               }
               Text {
@@ -1149,7 +1149,7 @@ PanelWindow {
                     anchors.centerIn: parent
                     text: modelData.glyph
                     font.family: win.s.iconFont
-                    font.pixelSize: 17
+                    font.pixelSize: Model.TYPE.body
                     color: "#ffffff"
                   }
                   MouseArea {
@@ -1181,7 +1181,7 @@ PanelWindow {
                   anchors.rightMargin: 8
                   text: win.lastNotif.app || ""
                   font.family: win.s.textFont
-                  font.pixelSize: 11
+                  font.pixelSize: Model.TYPE.caption
                   font.weight: Font.Medium
                   color: win.s.secondaryText
                   elide: Text.ElideRight
@@ -1192,7 +1192,7 @@ PanelWindow {
                   anchors.right: parent.right
                   text: "now"
                   font.family: win.s.textFont
-                  font.pixelSize: 11
+                  font.pixelSize: Model.TYPE.caption
                   color: win.s.secondaryText
                 }
               }
@@ -1201,7 +1201,7 @@ PanelWindow {
                 width: parent.width
                 text: win.lastNotif.title || ""
                 font.family: win.s.textFont
-                font.pixelSize: 14
+                font.pixelSize: Model.TYPE.subhead
                 font.weight: Font.DemiBold
                 color: win.lastNotif.urgent ? win.s.tint("red") : win.s.textColor
                 elide: Text.ElideRight
@@ -1213,7 +1213,7 @@ PanelWindow {
                 visible: text !== ""
                 text: win.lastNotif.body || ""
                 font.family: win.s.textFont
-                font.pixelSize: 12
+                font.pixelSize: Model.TYPE.footnote
                 color: win.s.secondaryText
                 elide: Text.ElideRight
                 maximumLineCount: 1
