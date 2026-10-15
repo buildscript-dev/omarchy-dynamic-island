@@ -200,7 +200,7 @@ Changes apply as soon as you save the file — no restart:
 | `artworkTint` | `true` | color the music view from the album art |
 | `showMicIndicator` | `true` | orange dot while the microphone is in use |
 | `islandWidth` / `islandHeight` / `pillInset` | `96` / `30` / `6` | size of the bubble and its gap from the top edge |
-| `appleSize` | `false` | iPhone Pro proportions from Apple's HIG: 126 x 37, 11 from the top. Overrides the three above |
+| `appleSize` | `false` | iPhone Pro size from Apple's HIG: 126 x 37. Overrides `islandWidth` and `islandHeight`; `pillInset` still sets the gap |
 | `tapOpensApp` | `false` | iOS gesture model: tap the playing track to open its player, touch and hold (450 ms) to expand |
 | `alertSound` | `true` | play the notification sound with each notification (not in Do Not Disturb) |
 | `notchWidth` | `200` | width of the notch (`notch` shape only) |

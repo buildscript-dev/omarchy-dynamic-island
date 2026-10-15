@@ -256,9 +256,9 @@
       {
         "key": "appleSize",
         "type": "boolean",
-        "label": "Apple proportions (126 x 37, 11 from the top)",
+        "label": "Apple size (126 x 37)",
         "defaultValue": false,
-        "description": "iPhone Pro Dynamic Island size. Overrides island width, height and top gap."
+        "description": "iPhone Pro Dynamic Island size. Overrides island width and height; the gap from the top is still pillInset."
       },
       {
         "key": "tapOpensApp",

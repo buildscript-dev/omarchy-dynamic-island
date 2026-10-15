@@ -89,7 +89,7 @@ Item {
 
   readonly property string style: String(setting("style", "black"))           // black | bar | glass
   readonly property string paletteName: String(setting("palette", "apple"))   // apple | theme (QQuickItem already owns "palette")
-  // iPhone 15/16 Pro proportions (HIG: 36.67 pt tall, ~11 pt down, camera about 126 wide).
+  // iPhone 15/16 Pro size (HIG: 36.67 pt tall, camera about 126 wide). The gap above stays your pillInset: a desktop has no bezel to spend it on.
   readonly property bool appleSize: setting("appleSize", false) === true
   readonly property int notchWidth: appleSize ? 126 : Number(setting("islandWidth", 96))
   // iOS: tap a live activity opens its app, touch and hold expands it.
@@ -141,7 +141,7 @@ Item {
   readonly property string barPosition: String(barConfig.position || "top")
   readonly property int barHeight: barPosition === "top" ? Style.bar.sizeHorizontal : Math.max(26, Style.bar.sizeHorizontal)
   // The island floats a little below the top edge, iPhone-style, at its own height.
-  readonly property int islandTop: appleSize ? 11 : Math.max(0, Number(setting("pillInset", 6)))
+  readonly property int islandTop: Math.max(0, Number(setting("pillInset", 6)))
   readonly property int notchHeight: appleSize ? 37 : Math.max(20, Number(setting("islandHeight", 30)))
 
   // ------------------------------------------------------------ look
