@@ -147,6 +147,30 @@ outside it or press Esc to close (Esc on a sub-page goes back first).
 It uses the same backends as Omarchy's own panels (Quickshell Networking,
 Bluetooth, Pipewire and the `omarchy-*` helpers), so actions behave the same.
 
+## Minimise to the island
+
+Hold **Super**, drag a window with the left button and let go on the island: the
+window bends into a funnel and flies into it (the Magic Lamp / Genie effect), then
+waits there as a blue window icon. Tap that icon and the window flies back. While
+you drag, the island leans toward the pointer and reads "Release to minimize".
+
+- It needs two lines in `~/.config/hypr/bindings.lua`. Both are `non_consuming`, so
+  the stock Super + drag keeps working exactly as before:
+
+  ```lua
+  o.bind("SUPER + mouse:272", "Island dock: drag started", "omarchy-shell island dockDragStart", { non_consuming = true })
+  o.bind("SUPER + mouse:272", "Island dock: dropped", "omarchy-shell island dockDragDrop", { release = true, non_consuming = true })
+  ```
+- `omarchy-shell island dockMinimize` does the same for the focused window with no drag,
+  so you can give it a key; `island dockRestore` brings back the newest (or
+  `island dockRestore 0x...` a given window).
+- Minimised windows sit on the special workspace `island`. If the shell restarts it
+  finds them again and they come back without the flight.
+- The flight is plain GPU work: `Genie.qml` and the shaders in `shaders/`. After
+  editing a shader, rebuild it with
+  `qsb --qt6 -o shaders/genie.vert.qsb shaders/genie.vert` (same for `.frag`).
+- Only windows on the monitor that shows the island are taken. `reduceMotion` skips the flight.
+
 ## Gestures
 
 - **Hover** on the notch: opens after a short pause (`openOnHover`, `hoverDelay`).

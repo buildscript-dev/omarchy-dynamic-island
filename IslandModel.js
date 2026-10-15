@@ -28,6 +28,7 @@ var G = {
   headphones: glyph(0xE2A6),
   moon: glyph(0xE330),
   sun: glyph(0xE472),
+  window: glyph(0xE5DA),
   coffee: glyph(0xE1C2),
   timer: glyph(0xED2C),
   stopwatch: glyph(0xE492),

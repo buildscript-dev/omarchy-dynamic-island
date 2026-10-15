@@ -1086,6 +1086,8 @@ Item {
     if (timerActive) out.push("timer")
     if (stopwatchActive) out.push("stopwatch")
     if (mediaLive) out.push("media")
+    // Minimised windows wait at the island until you tap them back.
+    if (dockCount > 0) out.push("dock")
     return out
   }
   // Swiping the island sideways tucks its activity away, as on iOS: the
@@ -1116,7 +1118,7 @@ Item {
     }
     for (var i = 0; i < liveOrder.length; i++) {
       if (liveOrder[i] === "media") addPlayers()
-      else out.push({ kind: liveOrder[i] })
+      else if (liveOrder[i] !== "dock") out.push({ kind: liveOrder[i] })
     }
     addPlayers()
     return out
@@ -1142,6 +1144,85 @@ Item {
   }
   readonly property string live: lives.length > 0 ? lives[0] : ""
   readonly property string secondLive: lives.length > 1 ? lives[1] : ""
+
+  // ------------------------------------------------------------ dock (minimised windows)
+  // Super + drag a window onto the island and it flies in, narrowing like a genie
+  // (Genie.qml), then waits here as a live activity: tap it and the window flies
+  // back out. The windows sit on the special workspace `island`.
+  property var docked: []            // [{ address, cls, title, rect: {x,y,w,h}, ws, snap }]
+  readonly property int dockCount: docked.length
+  property bool dockDragging: false
+  property point dockPointer: Qt.point(-99999, -99999)   // layout coordinates, as hyprctl prints them
+  signal dockDropRequested()
+  signal dockMinimizeRequested()
+  signal dockRestoreRequested(string address)
+  function dockStart() {
+    dockDragging = true
+    dockPointer = Qt.point(-99999, -99999)
+    dragPoll.running = false
+    dragPoll.running = true
+  }
+  function dockEnd() { dockDragging = false; dragPoll.running = false }
+  // One short-lived loop for the length of a drag (the deadline ends it if the
+  // release is ever missed), instead of a poll that runs all day.
+  SafeProcess {
+    id: dragPoll
+    // No Model.bounded here: its `head` holds output back in a 4 KB buffer, and a
+    // drag needs every line at once. The deadline alone ends the loop.
+    command: ["/usr/bin/timeout", "-k", "2", "10", "/usr/bin/bash", "-c", "while :; do /usr/bin/hyprctl cursorpos; /usr/bin/sleep 0.03; done"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var m = /^(-?\d+), (-?\d+)$/.exec(String(line).trim())
+        if (m) root.dockPointer = Qt.point(Number(m[1]), Number(m[2]))
+      }
+    }
+  }
+  function dockHas(address) { for (var i = 0; i < docked.length; i++) if (docked[i].address === address) return true; return false }
+  function dockAdd(entry) { docked = docked.filter(function(d) { return d.address !== entry.address }).concat([entry]) }
+  function dockDrop(address) { docked = docked.filter(function(d) { return d.address !== address }) }
+  function validAddress(a) { return /^0x[0-9a-f]{4,16}$/.test(String(a)) }
+  // Windows move by address; the address always comes from hyprctl, and is
+  // checked here anyway because it ends up inside a Lua string.
+  function dockMove(address, workspace, follow) {
+    if (!validAddress(address) || !/^(special:island|[A-Za-z0-9_:. -]{1,40})$/.test(String(workspace))) return
+    root.fire(["hyprctl", "dispatch", "hl.dsp.window.move({ workspace = \"" + workspace + "\", follow = " + (follow ? "true" : "false") + ", window = \"address:" + address + "\" })"], 5)
+  }
+  function dockFocus(address) {
+    if (!validAddress(address)) return
+    root.fire(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + address + "\" })"], 5)
+  }
+  function dockRestoreLast() {
+    if (docked.length > 0) dockRestoreRequested(docked[docked.length - 1].address)
+  }
+  // The list lives in memory; a shell restart must not strand a window on the
+  // special workspace, so rebuild it from Hyprland once the shell is up. Windows
+  // found this way have no picture, so they come back without the flight.
+  Timer { interval: 4000; running: true; onTriggered: dockScan.running = true }
+  SafeProcess {
+    id: dockScan
+    command: Model.bounded(["hyprctl", "clients", "-j"], 5, 262144)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var list = []
+        try { list = JSON.parse(Model.capped(text, 262144)) || [] } catch (e) { return }
+        for (var i = 0; i < list.length; i++) {
+          var c = list[i]
+          if (!c || !c.workspace || c.workspace.name !== "special:island" || !root.validAddress(c.address) || root.dockHas(c.address)) continue
+          root.dockAdd({ address: String(c.address), cls: Model.clip(String(c.class || ""), 60), title: Model.clip(String(c.title || ""), 80),
+            rect: { x: 0, y: 0, w: Number(c.size && c.size[0]) || 800, h: Number(c.size && c.size[1]) || 600 }, ws: "1", snap: null })
+        }
+      }
+    }
+  }
+  // A window closed while it waited here is not coming back.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (!event || String(event.name) !== "closewindow") return
+      var a = "0x" + String(event.data || "").trim()
+      if (root.dockHas(a)) root.dockDrop(a)
+    }
+  }
 
   // ------------------------------------------------------------ volume by scroll
   function scrollVolumeBy(delta) {
@@ -1700,6 +1781,18 @@ Item {
     function alarmCancel(): string { root.cancelAlarm(); return "ok" }
     function alarmStop(): string { root.stopAlarm(); return "ok" }
     function tuck(): string { return root.tuckLive() ? "ok" : "not-tuckable" }
+    // Super + mouse drag, wired in bindings.lua: pointer tracking while it lasts,
+    // and the drop that minimises the window if it landed on the island.
+    function dockDragStart(): string { root.dockStart(); return "ok" }
+    function dockDragDrop(): string { root.dockDropRequested(); return "ok" }
+    // The same flight for the focused window, without a drag: bind it to a key.
+    function dockMinimize(): string { root.dockMinimizeRequested(); return "ok" }
+    function dockRestore(address: string): string {
+      if (address === "") { root.dockRestoreLast(); return root.dockCount > 0 ? "ok" : "empty" }
+      if (!root.dockHas(address)) return "unknown"
+      root.dockRestoreRequested(address)
+      return "ok"
+    }
     function alarmSnooze(): string { return root.snoozeAlarm() ? "ok" : "not-ringing" }
     function alert(icon: string, title: string, value: string): string {
       root.pushActivity({ kind: "alert", source: "ipc-alert", icon: Model.clip(icon, 4), tint: "white",

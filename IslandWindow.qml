@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import "IslandModel.js" as Model
@@ -184,6 +185,7 @@ PanelWindow {
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
     : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
     : s.live === "ai" ? s.aiLabel
+    : s.live === "dock" ? (s.dockCount > 1 ? String(s.dockCount) : "")
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
@@ -216,6 +218,10 @@ PanelWindow {
     var g = geometryFor(mode)
     // Hover "breath": the notch swells slightly under the pointer, inviting
     // a click — the tactile cue macOS notch apps use in place of haptics.
+    if (dockNear > 0.02 && (mode === "idle" || mode === "compact")) {
+      var dh = g.h + 10 * dockNear
+      return { w: g.w + 90 * dockNear, h: dh, rb: Math.ceil(dh / 2), rt: 0 }
+    }
     if (hovered && (mode === "idle" || mode === "compact"))
       return { w: g.w + 10, h: g.h, rb: g.rb, rt: 0 }
     return g
@@ -482,6 +488,159 @@ PanelWindow {
   }
   Component.onDestruction: if (expanded) s.positionWatchers = Math.max(0, s.positionWatchers - 1)
 
+  // ---------------------------------------------------------------- dock: minimise by dragging a window here
+  // Super + drag a window onto the island: it narrows into the island like a genie
+  // (Genie.qml) and waits as a "dock" live activity; tap that and it flies back.
+  readonly property real dockCx: hyprMonitor ? hyprMonitor.x + hyprMonitor.width / 2 : 0
+  readonly property real dockCy: hyprMonitor ? hyprMonitor.y + s.islandTop + s.notchHeight / 2 : 0
+  readonly property bool dockTracking: s.dockDragging && s.dockPointer.x > -9000 && !!hyprMonitor && isTarget()
+  readonly property real dockDist: {
+    if (!dockTracking) return 99999
+    var dx = Math.max(0, Math.abs(s.dockPointer.x - dockCx) - bw / 2)
+    var dy = Math.max(0, Math.abs(s.dockPointer.y - dockCy) - s.notchHeight / 2)
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+  // 0 far away, 1 on the island: the island leans toward the window as it comes.
+  readonly property real dockNear: dockTracking ? Model.clamp(1 - dockDist / 240, 0, 1) : 0
+  readonly property bool dockOver: dockTracking && dockDist <= 44
+
+  property var flight: null   // the genie in the air: { restore, entry, toplevel, rect, snap, started }
+  function findToplevel(address) {
+    var list = Hyprland.toplevels ? Hyprland.toplevels.values : []
+    for (var i = 0; i < list.length; i++)
+      if (list[i] && "0x" + String(list[i].address).replace(/^0x/, "") === address) return list[i]
+    return null
+  }
+  function dockDropHere() {
+    var over = dockOver
+    s.dockEnd()
+    if (!over || flight) return
+    activeRead.running = false
+    activeRead.running = true
+  }
+  SafeProcess {
+    id: activeRead
+    command: Model.bounded(["hyprctl", "activewindow", "-j"], 4, 16384)
+    stdout: StdioCollector { onStreamFinished: { try { win.dockMinimize(JSON.parse(Model.capped(text, 16384))) } catch (e) {} } }
+  }
+  function dockMinimize(w) {
+    if (!w || !hyprMonitor || !s.validAddress(w.address) || !w.mapped || w.hidden) return
+    var wsName = String(w.workspace && w.workspace.name || "")
+    if (wsName.indexOf("special:") === 0 || Number(w.monitor) !== hyprMonitor.id) return
+    var r = Qt.rect(w.at[0] - hyprMonitor.x, w.at[1] - hyprMonitor.y, w.size[0], w.size[1])
+    var entry = { address: String(w.address), cls: Model.clip(String(w.class || ""), 60), title: Model.clip(String(w.title || ""), 80),
+      rect: { x: r.x, y: r.y, w: r.width, h: r.height }, ws: wsName, snap: null }
+    var tl = findToplevel(entry.address)
+    if (!tl || !tl.wayland || s.reduceMotion) {
+      s.dockMove(entry.address, "special:island", false)
+      s.dockAdd(entry)
+      s.pushActivity({ kind: "alert", source: "dock", icon: s.glyphs.window, tint: "blue", title: entry.cls || "Window", value: "Minimized", duration: 1600 })
+      return
+    }
+    flight = { restore: false, entry: entry, toplevel: tl, rect: r, snap: "", started: false }
+    flightFallback.restart()
+  }
+  function dockRestoreWindow(address) {
+    var entry = null
+    for (var i = 0; i < s.docked.length; i++) if (s.docked[i].address === address) entry = s.docked[i]
+    if (!entry || flight || !hyprMonitor) return
+    var ws = hyprMonitor.activeWorkspace ? String(hyprMonitor.activeWorkspace.id) : entry.ws
+    if (!entry.snap || s.reduceMotion) {
+      s.dockMove(address, ws, false); s.dockDrop(address); s.dockFocus(address)
+      return
+    }
+    flight = { restore: true, entry: entry, toplevel: null, rect: Qt.rect(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h),
+      snap: String(entry.snap.url), started: false, ws: ws }
+    flightFallback.restart()
+  }
+  // The genie window exists once `flight` is set; start as soon as it has a picture.
+  function flightStep() {
+    var g = genieLoader.item
+    if (!flight || !g || flight.started || !g.hasContent) return
+    flight.started = true
+    flightFallback.stop()
+    if (flight.restore) {
+      g.play(0, 520)
+      restoreMove.restart()
+    } else {
+      g.grab(function(res) {
+        if (!win.flight) return
+        win.flight.entry.snap = res
+        genieLoader.item.freeze(String(res.url))
+        // A moment for the frozen picture to load before the window goes.
+        moveAndPlay.restart()
+      })
+    }
+  }
+  // The genie can report its first picture before the loader has handed it over;
+  // look again until it starts (the fallback below gives up after 450 ms).
+  Timer {
+    interval: 25
+    repeat: true
+    running: win.flight !== null && !win.flight.started
+    onTriggered: win.flightStep()
+  }
+  // No capture (or none in time): do it without the flight.
+  Timer {
+    id: flightFallback
+    interval: 450
+    onTriggered: {
+      if (!win.flight || win.flight.started) return
+      var f = win.flight
+      win.flight = null
+      if (f.restore) { win.s.dockMove(f.entry.address, f.ws, false); win.s.dockDrop(f.entry.address); win.s.dockFocus(f.entry.address) }
+      else { win.s.dockMove(f.entry.address, "special:island", false); win.s.dockAdd(f.entry) }
+    }
+  }
+  Timer {
+    id: moveAndPlay
+    interval: 70
+    onTriggered: {
+      if (!win.flight || !genieLoader.item) return
+      win.s.dockMove(win.flight.entry.address, "special:island", false)
+      genieLoader.item.play(1, 560)
+    }
+  }
+  // The window comes back under the strips a little before they finish growing.
+  Timer {
+    id: restoreMove
+    interval: 380
+    onTriggered: if (win.flight) { win.s.dockMove(win.flight.entry.address, win.flight.ws, false) }
+  }
+  function flightDone(swallowed) {
+    var f = flight
+    if (!f) return
+    if (f.restore) { s.dockFocus(f.entry.address); s.dockDrop(f.entry.address) }
+    else if (swallowed) {
+      s.dockAdd(f.entry)
+      s.pushActivity({ kind: "alert", source: "dock", icon: s.glyphs.window, tint: "blue", title: f.entry.cls || "Window", value: "Minimized", duration: 1600 })
+    }
+    if (genieLoader.item) genieLoader.item.visible = false
+    flightClear.restart()
+  }
+  // One tick later, so the window is gone before its object is.
+  Timer { id: flightClear; interval: 80; onTriggered: win.flight = null }
+  LazyLoader {
+    id: genieLoader
+    active: win.flight !== null
+    Genie {
+      screen: win.screen
+      startP: win.flight && win.flight.restore ? 1 : 0
+      toplevel: win.flight ? win.flight.toplevel : null
+      snap: win.flight ? win.flight.snap : ""
+      from: win.flight ? win.flight.rect : Qt.rect(0, 0, 1, 1)
+      to: Qt.point(win.width / 2, win.s.islandTop + win.s.notchHeight / 2)
+      onHasContentChanged: win.flightStep()
+      onFinished: function(swallowed) { win.flightDone(swallowed) }
+    }
+  }
+  Connections {
+    target: win.s
+    function onDockDropRequested() { if (win.isTarget()) win.dockDropHere() }
+    function onDockMinimizeRequested() { if (win.isTarget() && !win.flight) { activeRead.running = false; activeRead.running = true } }
+    function onDockRestoreRequested(address) { if (win.isTarget()) win.dockRestoreWindow(address) }
+  }
+
   // The pointer has to rest on the notch for a moment before it opens, so
   // sweeping the cursor across the top of the screen doesn't trigger it.
   Timer {
@@ -588,6 +747,7 @@ PanelWindow {
           if (mouse.button === Qt.MiddleButton) { win.s.mediaToggle(); return }
           if (m === "controls" || m === "incoming" || m === "history" || m === "callview") return
           if (m === "compact" && win.s.live === "call") { win.openCall(); return }
+          if (m === "compact" && win.s.live === "dock") { win.s.dockRestoreLast(); return }
           if (m === "alert" && win.t && win.t.source === "alarm-ring") {
             if (mouse.button === Qt.RightButton) win.s.snoozeAlarm()
             else win.s.stopAlarm()
@@ -726,6 +886,15 @@ PanelWindow {
       }
       Text {
         textFormat: Text.PlainText
+        visible: win.s.secondLive === "dock"
+        anchors.centerIn: parent
+        text: win.s.glyphs.window
+        font.family: win.s.iconFont
+        font.pixelSize: Model.TYPE.subhead
+        color: win.s.tint("blue")
+      }
+      Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "phone"
         anchors.centerIn: parent
         text: ""
@@ -755,6 +924,7 @@ PanelWindow {
           onClicked: {
             if (win.s.secondLive === "call") win.openCall()
             else if (win.s.secondLive === "phone") win.openControls("phone")
+            else if (win.s.secondLive === "dock") win.s.dockRestoreLast()
             else win.setExpanded(true)
           }
         }
@@ -804,6 +974,33 @@ PanelWindow {
             Behavior on fillColor { ColorAnimation { duration: 300 } }
             PathSvg { path: Model.squirclePath(win.bw, win.bh, win.brb, 0.6) }
           }
+        }
+      }
+
+      // Drag hint: as a window nears, the island leans toward it, then asks to be fed.
+      Row {
+        id: dockHint
+        z: 30
+        anchors.centerIn: parent
+        spacing: 7
+        opacity: Model.clamp((win.dockNear - 0.55) / 0.35, 0, 1)
+        visible: opacity > 0.02
+        Text {
+          textFormat: Text.PlainText
+          anchors.verticalCenter: parent.verticalCenter
+          text: win.s.glyphs.window
+          font.family: win.s.iconFont
+          font.pixelSize: Model.TYPE.callout
+          color: win.s.tint("blue")
+        }
+        Text {
+          textFormat: Text.PlainText
+          anchors.verticalCenter: parent.verticalCenter
+          text: win.dockOver ? "Release to minimize" : "Minimize"
+          font.family: win.s.textFont
+          font.pixelSize: Model.TYPE.subhead
+          font.weight: Font.DemiBold
+          color: win.s.textColor
         }
       }
 
@@ -995,6 +1192,13 @@ PanelWindow {
                 }
               }
             }
+          }
+
+          CompactActivity {
+            kind: "dock"
+            tone: "blue"
+            glyph: win.s.glyphs.window
+            trail: win.s.dockCount > 1 ? String(win.s.dockCount) : ""
           }
 
           CompactActivity {
