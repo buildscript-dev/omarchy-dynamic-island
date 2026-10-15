@@ -1197,6 +1197,8 @@ Item {
   // back out. The windows sit on the special workspace `island`.
   property var docked: []            // [{ address, cls, title, rect: {x,y,w,h}, ws, snap }]
   readonly property int dockCount: docked.length
+  // The newest minimised window's app icon, for the dock mark.
+  readonly property string dockIcon: docked.length > 0 ? appIconFor(docked[docked.length - 1].cls) : ""
   property bool dockDragging: false
   property point dockPointer: Qt.point(-99999, -99999)
   property point dockOrigin: Qt.point(-99999, -99999)   // where the pointer was when the drag began   // layout coordinates, as hyprctl prints them

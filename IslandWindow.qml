@@ -126,6 +126,7 @@ PanelWindow {
     property string kind: ""
     property string tone: ""
     property string glyph: ""           // empty: the recording light, a plain dot
+    property string iconSource: ""      // an app icon in place of the glyph (the dock)
     property string trail: ""
     property real trailOpacity: 1
     property bool pulsing: false
@@ -140,7 +141,7 @@ PanelWindow {
     Text {
       textFormat: Text.PlainText
       id: lead
-      visible: act.glyph !== ""
+      visible: act.glyph !== "" && act.iconSource === ""
       x: win.edge + 1
       anchors.verticalCenter: parent.verticalCenter
       text: act.glyph
@@ -150,13 +151,23 @@ PanelWindow {
     }
     Rectangle {
       id: leadDot
-      visible: act.glyph === ""
+      visible: act.glyph === "" && act.iconSource === ""
       x: win.edge + 4
       anchors.verticalCenter: parent.verticalCenter
       width: 9
       height: 9
       radius: 4.5
       color: win.s.tint(act.tone)
+    }
+    Artwork {
+      visible: act.iconSource !== ""
+      x: win.edge
+      anchors.verticalCenter: parent.verticalCenter
+      width: 18
+      height: 18
+      radius: 5
+      source: act.iconSource
+      fallbackColor: "transparent"
     }
     // A waiting call and a running recording both blink their mark. Only
     // while shown: a running animation redraws the window every frame.
@@ -190,7 +201,7 @@ PanelWindow {
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
   readonly property int artSize: s.notchHeight - 8
-  readonly property int leadWidth: s.live === "media" ? artSize : s.live === "recording" ? 9 : 16
+  readonly property int leadWidth: s.live === "media" ? artSize : s.live === "recording" ? 9 : s.live === "dock" ? 18 : 16
   readonly property int trailWidth: s.live === "media" ? 22 : Math.ceil(trailMetrics.advanceWidth)
   // Rounded up to 8px steps so the width doesn't twitch every second as digits change.
   readonly property int slot: Math.ceil(Math.max(leadWidth, trailWidth) / 8) * 8
@@ -202,7 +213,16 @@ PanelWindow {
   readonly property int alertContentWidth: 18 + 20 + 10 + Math.ceil(alertTitleMetrics.advanceWidth) + 36 + Math.ceil(alertValueMetrics.advanceWidth) + 20
 
   // ---------------------------------------------------------------- geometry
+  // Whatever a view asks for, the island stays inside its screen: a narrow monitor or a
+  // high text scale must never push it off the edge.
   function geometryFor(m) {
+    var g = rawGeometryFor(m)
+    var maxW = Math.max(120, width - 24)
+    var maxH = Math.max(60, height - s.islandTop - 8)
+    if (g.w > maxW || g.h > maxH) return { w: Math.min(g.w, maxW), h: Math.min(g.h, maxH), rb: g.rb, rt: g.rt }
+    return g
+  }
+  function rawGeometryFor(m) {
     if (m === "controls")
       // The body has to grow with the page, or a wide one spills off the pill.
       return { w: Math.max(120, cc ? cc.preferredWidth : 0), h: Math.max(120, cc ? cc.preferredHeight : 0), rb: 34, rt: 0 }
@@ -989,7 +1009,7 @@ PanelWindow {
       }
       Text {
         textFormat: Text.PlainText
-        visible: win.s.secondLive === "dock"
+        visible: win.s.secondLive === "dock" && win.s.dockIcon === ""
         anchors.centerIn: parent
         text: win.s.glyphs.window
         font.family: win.s.iconFont
@@ -1004,6 +1024,15 @@ PanelWindow {
         font.family: win.s.iconFont
         font.pixelSize: Model.TYPE.subhead
         color: win.s.tint("green")
+      }
+      Artwork {
+        visible: win.s.secondLive === "dock" && win.s.dockIcon !== ""
+        anchors.centerIn: parent
+        width: parent.width - 12
+        height: width
+        radius: 6
+        source: win.s.dockIcon
+        fallbackColor: "transparent"
       }
       Artwork {
         visible: win.s.secondLive === "media"
@@ -1077,6 +1106,7 @@ PanelWindow {
       Repeater {
         model: 2
         Rectangle {
+          id: ring
           required property int index
           anchors.fill: parent
           color: "transparent"
@@ -1091,8 +1121,8 @@ PanelWindow {
             loops: Animation.Infinite
             PauseAnimation { duration: index * 420 }
             ParallelAnimation {
-              NumberAnimation { target: parent; property: "scale"; from: 1; to: 1.16; duration: 840; easing.type: Easing.OutCubic }
-              NumberAnimation { target: parent; property: "opacity"; from: 0.6; to: 0; duration: 840; easing.type: Easing.OutQuad }
+              NumberAnimation { target: ring; property: "scale"; from: 1; to: 1.16; duration: 840; easing.type: Easing.OutCubic }
+              NumberAnimation { target: ring; property: "opacity"; from: 0.6; to: 0; duration: 840; easing.type: Easing.OutQuad }
             }
           }
         }
@@ -1329,6 +1359,7 @@ PanelWindow {
             kind: "dock"
             tone: "blue"
             glyph: win.s.glyphs.window
+            iconSource: win.s.dockIcon
             trail: win.s.dockCount > 1 ? String(win.s.dockCount) : ""
           }
 

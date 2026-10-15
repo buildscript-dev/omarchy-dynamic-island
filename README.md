@@ -1,15 +1,25 @@
-# Dynamic Island for Omarchy (`io.github.buildscript-dev.dynamic-island`)
+# Dynamic Island for Omarchy
 
-![The island: idle pill, expanded card and Control Center](preview.png)
+![Dynamic Island for Omarchy: idle, music, alerts, notifications, two activities at once, and drag-to-minimise](preview.png)
 
 An iPhone-style Dynamic Island that runs natively inside `omarchy-shell`
-(Quickshell). A floating black bubble sits at the top of the screen and
-springs open for whatever is happening: music, volume and brightness,
-notifications, charging, Bluetooth, timers, screen recording. A built-in
-Control Center covers Wi-Fi, Bluetooth, sound, brightness, tray and power.
+(Quickshell). A solid black pill floats at the top of the screen and springs
+open for whatever is happening, then gets out of the way.
 
-A floating bubble at the top of the screen, like the iPhone's. It follows your Omarchy theme and bar
-(height, colors, font scale) and tucks away over fullscreen windows.
+- **Live activities**: music with a real spectrum and synced lyrics, timer,
+  stopwatch, alarm, screen recording, phone calls, and an AI-is-driving-your-phone
+  indicator. A second activity floats beside the island as its own bubble.
+- **Alerts**: volume and brightness, charging and low battery, Bluetooth devices,
+  Wi-Fi, Tailscale, USB, Night Light, Stay Awake, Do Not Disturb, keyboard layout.
+- **Notifications** from the desktop and from your Android phone, with reply, and
+  dismiss-here-dismissed-there through KDE Connect.
+- **Minimise to the island**: hold Super, drag a window up, and it shrinks as you
+  go, bends into the island like a genie, and waits there as an icon. Tap to bring
+  it back.
+- **Control Center** for Wi-Fi, Bluetooth, sound, brightness, tray and power.
+- **Feels like the real thing**: spring timings fitted to frame-by-frame footage of
+  an iPhone, Apple's sizes (126 x 37 pill, 371 x 160 player) and system colours,
+  Inter text, Phosphor icons, a long-press to open, a soft tick for haptics.
 
 ## Install
 
@@ -223,7 +233,6 @@ Changes apply as soon as you save the file — no restart:
 | `tapOpensApp` | `false` | iOS gesture model: tap the playing track to open its player, touch and hold (450 ms) to expand |
 | `alertSound` | `true` | play the notification sound with each notification (not in Do Not Disturb) |
 | `haptics` | `true` | a very short quiet click on press, touch-and-hold and swipe, standing in for haptics (a desktop has no motor) |
-| `notchWidth` | `200` | width of the notch (`notch` shape only) |
 
 Omarchy's settings UI reads the same list, so you can also change these from
 the plugin's settings panel instead of editing JSON.
