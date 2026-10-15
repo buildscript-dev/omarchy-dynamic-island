@@ -105,8 +105,6 @@ Item {
   readonly property bool openOnHover: setting("openOnHover", true) === true
   readonly property int hoverDelay: Number(setting("hoverDelay", 320))
   readonly property bool showNotifications: setting("showNotifications", true) === true
-  // Where BuildDots answers on this machine (for the Approve and Deny buttons on a dot's note).
-  readonly property int dotsPort: Math.max(1, Math.min(65535, Number(setting("dotsPort", 3100)) || 3100))
   // The phone's own screen is on this desktop while it is mirrored, and it
   // shows its notifications, its messages and its status itself. The island
   // stays out of the way until the mirror closes.
@@ -485,7 +483,7 @@ Item {
   // it's always visible while an assistant is driving the phone.
   property real aiUntil: 0
   property string aiText: ""
-  property string aiLabel: "Phone"   // who is at work: "Phone" for Taildroid, a dot's name for BuildDots
+  property string aiLabel: "Phone"   // who is at work
   readonly property bool aiActive: { root.now; return aiUntil > Date.now() }
 
   // ------------------------------------------------------------ stopwatch
@@ -696,10 +694,8 @@ Item {
   // 5 s ever feels slow. A change must hold for two reads, so a suspend or a
   // roam does not flash "Disconnected" then "Connected".
   property bool hwLoaded: false
-  property string wifiNow: ""
   property string wifiSeen: ""
   property int wifiHold: 0
-  property bool tailNow: false
   property bool tailSeen: false
   property int tailHold: 0
   property var usbNow: []
@@ -1027,14 +1023,6 @@ Item {
     root.fire(["omarchy-shell", "-q", "notifications", "invokeLast"], 10)
     finishActivity()
   }
-  // The answer to a dot's card goes to BuildDots on this machine, which checks that the card still waits.
-  function answerCard(choice) {
-    var id = activity ? Model.cardId(activity.card) : ""
-    if (id !== "" && (choice === "approve" || choice === "deny"))
-      root.fire(["curl", "-fsS", "-m", "5", "-X", "POST", "-H", "X-Dots: island", "-H", "Content-Type: application/json",
-        "-d", JSON.stringify({ id: id, choice: choice }), "http://127.0.0.1:" + root.dotsPort + "/api/card"], 8)
-    finishActivity()
-  }
   // Dismissing a phone notification here dismisses it on the phone too, through
   // KDE Connect: the phone's own notification object with the same title, and only
   // when the phone says it can be dismissed (a media player's cannot). The title
@@ -1255,7 +1243,6 @@ Item {
             // mid-drag must not move the target.
             if (root.dragWin) { if (root.dragWin.address === String(w.address)) root.dragWin.floating = w.floating === true }
             else root.dragWin = { address: String(w.address), cls: Model.clip(String(w.class || ""), 28), title: Model.clip(String(w.title || ""), 80), ws: String(w.workspace && w.workspace.name || ""), mon: Number(w.monitor), w: Number(w.size[0]), h: Number(w.size[1]), floating: w.floating === true }
-          console.log("DOCKDRAG window floating=" + (w && w.floating) + " size=" + (w && w.size))
         } catch (e) { root.dragWin = null }
       }
     }
@@ -1302,7 +1289,6 @@ Item {
       if (root.shrinkTiled && !root.dragWin.floating && root.dragScale > 0.03) {
         root.dragWin.floating = true
         root.forcedFloat = true
-        console.log("DOCKDRAG floating a tiled window for the pull")
         root.fire(["hyprctl", "dispatch", "hl.dsp.window.float({ action = \"enable\", window = \"address:" + root.dragWin.address + "\" })"], 5)
       }
       var e = 1 - Math.pow(1 - root.dragScale, 2.6)
@@ -1355,8 +1341,8 @@ Item {
   // Moving a window to special:island can leave that workspace showing, and a shown
   // special workspace dims everything in front of it (decoration:dim_special), the island
   // included. Hide it again, on whichever monitor it opened; it is a toggle, so look first.
-  readonly property string hideSpecialScript: "for i in 1 2 3 4 5 6 7 8; do sleep 0.45; n=$(/usr/bin/hyprctl monitors -j | /usr/bin/jq -r '[.[]|select(.specialWorkspace.name==\"special:island\")]|length'); [ \"$n\" = \"0\" ] && continue; /usr/bin/hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"island\")' >/dev/null; done"
-  function dockHideSpecial() { root.fire(["bash", "-c", root.hideSpecialScript], 12) }
+  readonly property string hideSpecialScript: "for i in 1 2 3; do n=$(/usr/bin/hyprctl monitors -j | /usr/bin/jq -r '[.[]|select(.specialWorkspace.name==\"special:island\")]|length'); [ \"$n\" = \"0\" ] && break; /usr/bin/hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"island\")' >/dev/null; sleep 0.25; done"
+  function dockHideSpecial() { root.fire(["bash", "-c", root.hideSpecialScript], 8) }
   function dockFocus(address) {
     if (!validAddress(address)) return
     root.fire(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + address + "\" })"], 5)
@@ -1388,7 +1374,12 @@ Item {
   Connections {
     target: Hyprland
     function onRawEvent(event) {
-      if (!event || String(event.name) !== "closewindow") return
+      if (!event) return
+      var name = String(event.name)
+      // The special workspace showing makes the island gray and see-through: hide it
+      // the moment Hyprland says it opened, however it got there.
+      if (name === "activespecial" && /^special:island,/.test(String(event.data || ""))) { root.dockHideSpecial(); return }
+      if (name !== "closewindow") return
       var a = "0x" + String(event.data || "").trim()
       if (root.dockHas(a)) root.dockDrop(a)
     }
@@ -1933,11 +1924,6 @@ Item {
       return "ok"
     }
     function timerCancel(): string { root.cancelTimer(); return "ok" }
-    function dotActivity(name: string, text: string): string {
-      var r = aiActivity(text)
-      root.aiLabel = Model.clip(name, 12) || "Phone"
-      return r
-    }
     function aiActivity(text: string): string {
       root.aiLabel = "Phone"
       root.aiText = Model.clip(text, 48)
@@ -1971,14 +1957,6 @@ Item {
     }
     function hud(icon: string, percent: string): string {
       root.pushActivity(Model.osdTransient({ icon: Model.clip(icon, 32), value: Model.clip(percent, 8) }))
-      return "ok"
-    }
-    // A BuildDots dot waits for a yes or no: the note stays longer and carries the two buttons.
-    function dotCard(name: string, body: string, card: string): string {
-      var id = Model.cardId(card)
-      if (id === "") return "bad-card"
-      root.pushActivity({ kind: "notification", source: "dot-card", file: "", app: Model.clip(name, 24) || "BuildDots",
-        title: "Needs your approval", body: Model.clip(body, 400), image: "", urgent: false, card: id, duration: 20000 })
       return "ok"
     }
     function notify(title: string, body: string): string {

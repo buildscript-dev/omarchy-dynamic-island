@@ -262,8 +262,6 @@ PanelWindow {
   Behavior on brb { id: brbBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
   Behavior on brt { id: brtBehavior; SpringAnimation { spring: win.springK; damping: win.s.reduceMotion ? 1 : 0.5; epsilon: 0.1 } }
 
-  // How far the island has grown past the bare notch; drives the shadow.
-  readonly property real lift: Model.clamp((bh - s.notchHeight) / 60, 0, 1)
 
   // ---------------------------------------------------------------- behavior
   function openControls(page) {
@@ -1053,16 +1051,8 @@ PanelWindow {
 
       Item {
         id: shapeHolder
-        layer.enabled: win.lift > 0.02
-        layer.effect: MultiEffect {
-          shadowEnabled: true
-          shadowColor: Qt.rgba(0, 0, 0, 0.6 * win.lift)
-          shadowBlur: 1.0
-          blurMax: 36
-          shadowVerticalOffset: 10 * win.lift
-          autoPaddingEnabled: true
-        }
-
+        // No shadow layer: rendering the island into an off-screen layer made it see-through over
+        // bare wallpaper. Apple draws none either; it is a flat black shape.
         width: parent.width
         height: parent.height
 

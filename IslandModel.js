@@ -47,13 +47,6 @@ var G = {
   cross: glyph(0xE4F6)
 }
 
-// The id of a BuildDots approval card as the island accepts it: it goes into a request to this machine, so nothing
-// but letters, digits, "_" and "-". Anything else gives "".
-function cardId(v) {
-  var t = String(v === undefined || v === null ? "" : v)
-  return /^[A-Za-z0-9_-]{1,80}$/.test(t) ? t : ""
-}
-
 // Apple's system colors (dark appearance). Used by the "apple" palette so the
 // island reads exactly like macOS / iOS; the "theme" palette swaps them for
 // the Omarchy theme's own roles.
