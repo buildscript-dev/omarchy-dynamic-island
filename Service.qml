@@ -1000,22 +1000,7 @@ Item {
   // Connect mirroring the phone's popup, or the desktop app for the same chat.
   property var recentMessages: []
   readonly property int duplicateWindow: 12000
-  property var pendingThread: null
-  property var pendingNotif: null
   function notificationActivate() {
-    if (activity && activity.sms) {
-      controlsRequested("messages")
-      pendingThread = activity.sms
-      finishActivity()
-      return
-    }
-    if (activity && activity.phone) {
-      // Phone notifications open in full: every line, the picture, the reply box.
-      pendingNotif = activity
-      controlsRequested("notif")
-      finishActivity()
-      return
-    }
     if (activity && root.openForApp(activity.app)) {
       finishActivity()
       return
@@ -1815,14 +1800,6 @@ Item {
   readonly property bool showClock: setting("showClock", true) === true
   // Off: the island only opens for Now Playing, never to the clock/calendar card.
   readonly property bool showHome: setting("showHome", true) === true
-  // Off: no Control Center at all (phone pages included); it is never built.
-  readonly property bool controlCenter: setting("controlCenter", true) === true
-
-  // ------------------------------------------------------------ control center
-  signal controlsRequested(string page)
-  // A number handed over by `island dial`, for the keypad to pick up.
-  property string pendingDial: ""
-  property bool controlsShown: false
 
   // ------------------------------------------------------------ expanded (shared across windows)
   // Only the most recent screen to open wins; another screen opening closes it.
@@ -1864,12 +1841,11 @@ Item {
   // island shows. Nothing here places a call, sends a message or reads one
   // out: `state` reports what kind of thing is showing, never its text, and
   // `dial` only fills in the keypad — the call still takes a click.
-  readonly property var ipcPages: ["main", "wifi", "bluetooth", "audio", "buds", "phone", "call", "messages", "thread", "notifications", "calendar", "power"]
   IpcHandler {
     target: "island"
     function state(): string {
       return JSON.stringify({
-        live: root.live, second: root.secondLive, controls: root.controlsShown,
+        live: root.live, second: root.secondLive,
         activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
         queued: root.queue.length,
         media: { playing: root.isPlaying, player: root.playerName, lyrics: root.lyrics.length },
@@ -1888,14 +1864,6 @@ Item {
     function prev(): string { root.stepRequested(-1); return "ok" }
     // A call note form, prefilled from the current call if there is one.
     function callNotes(): string { root.callNotesRequested(); return "ok" }
-    // Open the Control Center, optionally on a page: wifi, bluetooth, audio,
-    // buds, phone, notifications, calendar, power.
-    function controls(page: string): string {
-      var p = String(page || "main")
-      if (root.ipcPages.indexOf(p) === -1) return "unknown-page"
-      root.controlsRequested(p)
-      return "ok"
-    }
     // Taildroid mirroring on/off (Super+Shift+I).
     function phoneToggle(): string { if (!root.phone) return "no-taildroid"; root.phone.toggleControl(); return "ok" }
     function collapse(): string { root.collapseAll(); return "ok" }
@@ -1909,15 +1877,6 @@ Item {
       return "ok"
     }
     function hangup(): string { if (!root.phone) return "no-taildroid"; root.phone.hangup(""); return "ok" }
-    function dial(number: string): string {
-      if (!root.phone) return "no-taildroid"
-      var n = String(number || "")
-      if (!/^[0-9*#+]{1,32}$/.test(n)) return "bad-number"
-      root.pendingDial = n
-      root.controlsRequested("call")
-      return "ok"
-    }
-    function messages(): string { root.controlsRequested("messages"); return "ok" }
     function phoneDex(): string { if (!root.phone) return "no-taildroid"; root.phone.openDex(); return "ok" }
     function timer(seconds: string): string {
       var n = Number(seconds)

@@ -5,7 +5,7 @@
   "version": "3.0.0",
   "author": "buildscript-dev",
   "license": "MIT",
-  "description": "An iPhone-style Dynamic Island for Omarchy: a solid black pill that springs open for music, timers, calls, notifications, alerts and your Android phone, with Super + drag to minimise any window into it, and a built-in Control Center.",
+  "description": "An iPhone-style Dynamic Island for Omarchy: a solid black pill that springs open for music, timers, calls, notifications, alerts and your Android phone, with Super + drag to minimise any window into it.",
   "kinds": [
     "service",
     "bar-widget"
@@ -45,7 +45,6 @@
       "reserveSpace": false,
       "reserveGap": 4,
       "callTranscript": false,
-      "controlCenter": true,
       "clockFormat": "HH:mm",
       "islandHeight": 30,
       "appleSize": false,
@@ -218,12 +217,6 @@
         "key": "showHome",
         "type": "boolean",
         "label": "Open to a clock and calendar card when nothing plays",
-        "defaultValue": true
-      },
-      {
-        "key": "controlCenter",
-        "type": "boolean",
-        "label": "Control Center on right-click",
         "defaultValue": true
       },
       {

@@ -36,7 +36,7 @@ PanelWindow {
   // was opened from the keyboard (`island expand`). Opened by hover it
   // leaves typing alone.
   property bool keyExpanded: false
-  readonly property bool keyHeld: controlsOpen || (expanded && keyExpanded) || (callOpen && callView.notesOpen)
+  readonly property bool keyHeld: (expanded && keyExpanded) || (callOpen && callView.notesOpen)
   WlrLayershell.keyboardFocus: keyHeld ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
   mask: Region {
     item: hit
@@ -52,9 +52,7 @@ PanelWindow {
     return !f || win.screenName === "" || f.name === win.screenName
   }
   visible: onThisScreen
-  onOnThisScreenChanged: if (!onThisScreen) { hovered = false; setExpanded(false); closeControls() }
-  // Null when controlCenter is off: then it is never built at all.
-  readonly property var cc: ccLoader.item
+  onOnThisScreenChanged: if (!onThisScreen) { hovered = false; setExpanded(false) }
   // Which window answers a keyboard shortcut: the one showing the island
   // (external mode), otherwise the one on the focused monitor.
   function isTarget() {
@@ -70,7 +68,6 @@ PanelWindow {
 
   property bool hovered: false
   property bool expanded: false
-  property bool controlsOpen: false
   property bool historyOpen: false
   property bool callOpen: false
   readonly property alias callView: callView
@@ -82,7 +79,6 @@ PanelWindow {
   property double modeSince: 0
   onModeChanged: modeSince = Date.now()
   readonly property string mode: {
-    if (controlsOpen) return "controls"
     // A ringing phone beats everything else, like iOS's incoming-call banner.
     if (s.ringingCall) return "incoming"
     if (callOpen) return "callview"
@@ -223,9 +219,6 @@ PanelWindow {
     return g
   }
   function rawGeometryFor(m) {
-    if (m === "controls")
-      // The body has to grow with the page, or a wide one spills off the pill.
-      return { w: Math.max(120, cc ? cc.preferredWidth : 0), h: Math.max(120, cc ? cc.preferredHeight : 0), rb: 34, rt: 0 }
     if (m === "callview")
       return { w: callView.preferredWidth, h: callView.preferredHeight, rb: 34, rt: 0 }
     if (m === "history")
@@ -284,16 +277,6 @@ PanelWindow {
 
 
   // ---------------------------------------------------------------- behavior
-  function openControls(page) {
-    if (!cc) return
-    if (!controlsOpen) {
-      if (expanded) setExpanded(false)
-      s.expandedWindow = win
-      controlsOpen = true
-    }
-    cc.page = page || "main"
-  }
-  function closeControls() { controlsOpen = false }
   function openCall() {
     if (expanded) setExpanded(false)
     historyOpen = false
@@ -365,7 +348,7 @@ PanelWindow {
   function islandWheel(wheel) {
     var dy = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y * 4
     var dx = wheel.angleDelta.x !== 0 ? wheel.angleDelta.x : wheel.pixelDelta.x * 4
-    if (dy === 0 || mode === "controls") return
+    if (dy === 0) return
     if (Math.abs(dy) < 2 * Math.abs(dx)) return
     if (Date.now() - hoverSince < settleMs) { wheelAccum = 0; return }
     // History scrolls its list; an up-scroll at the top closes it.
@@ -462,7 +445,6 @@ PanelWindow {
   // The grab starts a beat after opening: the surface first takes keyboard
   // focus, and a grab raced against that change is cleared immediately.
   property bool grabReady: false
-  onControlsOpenChanged: s.controlsShown = controlsOpen
   onKeyHeldChanged: {
     grabReady = false
     if (keyHeld) grabDelay.restart()
@@ -491,14 +473,8 @@ PanelWindow {
   }
   Connections {
     target: win.s
-    function onExpandedWindowChanged() { if (win.s.expandedWindow !== win) { win.setExpanded(false); win.closeControls(); win.historyOpen = false; win.callOpen = false } }
-    function onCollapseAll() { win.setExpanded(false); win.closeControls(); win.historyOpen = false; win.callOpen = false }
-    function onControlsRequested(page) {
-      if (win.isTarget()) {
-        if (win.controlsOpen && win.cc && (page === "main" || page === win.cc.page)) win.closeControls()
-        else win.openControls(page)
-      }
-    }
+    function onExpandedWindowChanged() { if (win.s.expandedWindow !== win) { win.setExpanded(false); win.historyOpen = false; win.callOpen = false } }
+    function onCollapseAll() { win.setExpanded(false); win.historyOpen = false; win.callOpen = false }
     function onCallNotesRequested() { if (win.isTarget()) { win.openCall(); win.callView.openNotes() } }
     function onStepRequested(dir) { if (win.isTarget()) win.scrollStep(dir) }
     function onHistoryRequested() { if (win.isTarget()) { if (win.historyOpen) win.historyOpen = false; else win.openHistory() } }
@@ -777,7 +753,7 @@ PanelWindow {
     onTriggered: {
       win.hovered = false
       if (win.t) win.s.holdActivity(false)
-      if (!win.controlsOpen) win.setExpanded(false)
+      win.setExpanded(false)
       win.historyOpen = false
       if (!callView.notesOpen) win.callOpen = false
     }
@@ -868,17 +844,12 @@ PanelWindow {
           var m = win.mode
           if (win.t && Date.now() - win.modeSince < 450) return
           if (mouse.button === Qt.MiddleButton) { win.s.mediaToggle(); return }
-          if (m === "controls" || m === "incoming" || m === "history" || m === "callview") return
+          if (m === "incoming" || m === "history" || m === "callview") return
           if (m === "compact" && win.s.live === "call") { win.openCall(); return }
           if (m === "compact" && win.s.live === "dock") { win.s.dockRestoreLast(); return }
           if (m === "alert" && win.t && win.t.source === "alarm-ring") {
             if (mouse.button === Qt.RightButton) win.s.snoozeAlarm()
             else win.s.stopAlarm()
-            return
-          }
-          if (mouse.button === Qt.RightButton && m !== "notification") {
-            if (win.t) win.s.finishActivity()
-            win.openControls("main")
             return
           }
           if (m === "notification") {
@@ -1055,7 +1026,6 @@ PanelWindow {
           cursorShape: Qt.PointingHandCursor
           onClicked: {
             if (win.s.secondLive === "call") win.openCall()
-            else if (win.s.secondLive === "phone") win.openControls("phone")
             else if (win.s.secondLive === "dock") win.s.dockRestoreLast()
             else win.setExpanded(true)
           }
@@ -1618,8 +1588,7 @@ PanelWindow {
               anchors.fill: parent
               s: win.s
               active: win.mode === "expanded" && win.mediaPage
-              keyboard: win.keyHeld && !win.controlsOpen
-              onOutputClicked: win.openControls("audio")
+              keyboard: win.keyHeld
               onCloseRequested: win.setExpanded(false)
             }
           }
@@ -1674,25 +1643,6 @@ PanelWindow {
             }
           }
 
-          // ------------------------------------------------ control center
-          Reveal {
-            reduced: win.s.reduceMotion
-            shown: win.mode === "controls"
-            width: win.cc ? win.cc.preferredWidth : 0
-            height: Math.max(0, win.bh)
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            Loader {
-              id: ccLoader
-              anchors.fill: parent
-              active: win.s.controlCenter
-              sourceComponent: ControlCenter {
-                s: win.s
-                islandWin: win
-                active: win.controlsOpen
-              }
-            }
-          }
         }
       }
     }

@@ -26,5 +26,7 @@
 - Dismissing a phone notification dismisses it on the phone (KDE Connect).
 
 **Removed**
+- The Control Center (right-click page, `island controls` / `dial` / `messages`, the
+  sound-output button, its `controlCenter` setting) and its 2,447 lines.
 - The MacBook-notch shape, the outer shell band, the `bar` and `glass` styles, and all
   BuildDots-specific code. Old `shell.json` keys for them are ignored.

@@ -16,7 +16,6 @@ open for whatever is happening, then gets out of the way.
 - **Minimise to the island**: hold Super, drag a window up, and it shrinks as you
   go, bends into the island like a genie, and waits there as an icon. Tap to bring
   it back.
-- **Control Center** for Wi-Fi, Bluetooth, sound, brightness, tray and power.
 - **Feels like the real thing**: spring timings fitted to frame-by-frame footage of
   an iPhone, Apple's sizes (126 x 37 pill, 371 x 160 player) and system colours,
   Inter text, Phosphor icons, a long-press to open, a soft tick for haptics.
@@ -104,7 +103,6 @@ then keeps working on its own:
 - **Size**: a 30 px floating bubble 6 px below the top edge (`islandHeight`,
   `pillInset`).
 - **Workspaces**: switching flashes a pill with a dot per workspace.
-- **Weather** sits under the date in the Control Center header.
 
 ## Layout: adaptive and symmetric
 
@@ -120,42 +118,6 @@ recording, then phone mirroring, then timer, then music.
 
 Other live alerts: buds connecting (with battery for each bud), noise mode
 changes, keyboard layout switches, charging, Bluetooth, Focus.
-
-## Control Center
-
-Right-click the island, or use the  button in the expanded island, to open
-the Control Center — or bind a key to it, see
-[Keyboard shortcuts](#keyboard-shortcuts-optional-in-confighyprbindingslua).
-It holds everything that usually sits on the right side of the bar. Click
-outside it or press Esc to close (Esc on a sub-page goes back first).
-
-- **Header**: time and date, the notification center (with a badge count),
-  the calendar, and an **Update** button when Omarchy updates are available.
-
-- **Wi-Fi**: the round icon toggles the radio. The tile opens the network list:
-  click to join, type the password inline, click a saved network to disconnect,
-  and use × to forget one.
-- **Bluetooth**: toggle, your devices (connect/disconnect, battery, × forget)
-  and nearby devices (click to pair). It searches while the page is open.
-- **Phone** (Taildroid): mirror on/off, ADB devices (mirror, stop,
-  disconnect), connect over Tailscale, Tailscale peers, and wireless-debugging
-  pairing (address + code).
-- **Notifications**: history with per-item dismiss, Clear All, and a silence switch.
-- **Calendar**: month view with today marked; arrows to change month.
-- Focus (Do Not Disturb) is the first quick button.
-- **OnePlus Buds** (when OnePlus Experience is installed): per-bud and case
-  battery, noise control, ANC strength, EQ and switches.
-- **Sound**: volume slider (click the icon to mute) and the  button for
-  output and input devices plus mic mute, and a volume slider for each app
-  playing sound (click its icon to mute just that app).
-- **Brightness** slider (hidden on displays that can't be dimmed).
-- Quick buttons: night light, stay awake, power mode, screenshot, screen
-  recording, phone mirroring (Taildroid) and the power page (power mode, lock,
-  sleep, log out, restart, shut down; destructive ones ask for a second click).
-- **Tray** apps: left click activates, right click opens the app's menu.
-
-It uses the same backends as Omarchy's own panels (Quickshell Networking,
-Bluetooth, Pipewire and the `omarchy-*` helpers), so actions behave the same.
 
 ## Minimise to the island
 
@@ -187,7 +149,7 @@ you drag, the island leans toward the pointer and reads "Release to minimize".
 - **Touch and hold** (450 ms) on the idle or compact island: expands it, like iOS.
 - **Left click**: open or close. On a notification it runs the default
   action. On a HUD or alert it closes it and opens the island.
-- **Right click** on a notification: dismisses it. Anywhere else: opens the Control Center.
+- **Right click** on a notification: dismisses it.
 - **Middle click**: play / pause.
 - **Scroll** on the closed notch: volume ±2 %.
 - **Swipe sideways** (drag, or two fingers on a touchpad) on a live activity: tuck it away. It keeps running and still shows in the expanded island; the pill comes back the next time it starts. Calls, recordings and the AI indicator can't be tucked.
@@ -223,7 +185,6 @@ Changes apply as soon as you save the file — no restart:
 | `swipeToTuck` | `false` | a two-finger sideways swipe on the island tucks its activity away. Off because a touchpad's vertical scroll drifts sideways |
 | `showHistory` | `true` | scrolling on the island walks one list: from the pill, down opens the full page of what's in front, then each other running thing at full size (one page per music app or browser tab playing, the call, timer, stopwatch, screen recording, phone mirroring, each with its controls), and past the last page, History: recent activity (timers and alarms that went off, calls, recordings, stopwatch runs, songs) and past notifications in cards that stack as they scroll. Up retraces it back to the pill. One flick is one step. With it on, scrolling no longer changes the volume. IPC: `island next` / `island prev` |
 | `showHome` | `true` | open to the clock, calendar and timer card when nothing plays; off, the island only opens for Now Playing |
-| `controlCenter` | `true` | Control Center (right-click, `island controls`, phone call, keypad and messages pages); off, it is not built at all |
 | `showClock` / `clockFormat` | `true` / `HH:mm` | clock inside the island (Qt format: `HH:mm`, or `h:mm AP` for AM/PM) |
 | `showWorkspaces` | `true` | flash the workspace when you switch |
 | `artworkTint` | `true` | color the music view from the album art |
@@ -310,8 +271,7 @@ Only the plugin folder. It declares:
 It installs no systemd units and never edits your configuration. The only
 files it writes are the current album-art image and the alarm time, both in
 `/run/user/<uid>/omarchy-dynamic-island` (see [Network use](#network-use)).
-Removing an entry from the Control Center's notification list deletes that
-entry from Omarchy's own history folder, as Omarchy's panel does. Everything else is the two optional config
+Everything else is the two optional config
 lines under [Install](#install), which you add yourself.
 
 ## Optional integrations
@@ -365,7 +325,6 @@ checked and shortened, and a page name that isn't on the list is refused.
 omarchy-shell island state               # JSON snapshot (kinds, not contents)
 omarchy-shell island ping
 omarchy-shell island expand | collapse
-omarchy-shell island controls [main|wifi|bluetooth|audio|buds|phone|messages|call|thread|notifications|calendar|power]
 omarchy-shell island timer 300           # start a 5-minute timer
 omarchy-shell island timerCancel
 omarchy-shell island stopwatch           # start / pause the stopwatch
@@ -383,10 +342,8 @@ omarchy osd -i brightness -p 50          # the stock OSD command, now shown in t
 # Phone continuity. Every one of these needs the Taildroid fork below;
 # without it they change nothing and answer "no-taildroid".
 omarchy-shell island phoneToggle         # mirroring on/off
-omarchy-shell island messages            # open the Messages page
 omarchy-shell island answer              # pick up the call ringing on screen right now
 omarchy-shell island hangup              # end the current call
-omarchy-shell island dial "+15551234"    # open the keypad with this number; you press call
 omarchy-shell island phoneDex            # open the phone's desktop mode
 ```
 
@@ -408,10 +365,6 @@ the `island` IPC target.
 
 | Keys | Opens |
 |---|---|
-| Super + A | Control Center |
-| Super + Ctrl + W / B / A / P | Wi-Fi / Bluetooth / Sound / Power page |
-| Super + Ctrl + Alt + D | Calendar |
-| Super + Shift + Alt + , | Notifications |
 | Super + Shift + I | Taildroid mirroring on/off |
 
 Opened with `omarchy-shell island expand` (bind it to a key), the expanded
@@ -420,8 +373,7 @@ Left / Right skip tracks, Esc closes, and a click outside gives the keyboard
 back. Opened by hovering, it never takes the keyboard.
 
 Bind whichever you want; none are set up for you. The island can replace the
-bar's right-side widgets entirely, since it hosts the clock, the Control
-Center and the tray itself.
+bar's right-side widgets entirely, since it hosts the clock itself.
 
 ## License
 

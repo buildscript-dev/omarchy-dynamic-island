@@ -15,7 +15,6 @@ Item {
   // Opened from the keyboard: Tab walks the buttons, Space plays or pauses,
   // Left / Right skip, Esc closes.
   property bool keyboard: false
-  signal outputClicked()
   signal closeRequested()
   focus: true
   onKeyboardChanged: if (keyboard) Qt.callLater(function() { root.forceActiveFocus() })
@@ -318,21 +317,6 @@ Item {
         label: "Next"
         onClicked: root.s.mediaNext()
       }
-    }
-
-    // Sound output picker (and the earbuds' modes when they're connected).
-    GlyphButton {
-      visible: root.s.controlCenter
-      anchors.right: parent.right
-      anchors.rightMargin: -8
-      anchors.verticalCenter: transport.verticalCenter
-      glyph: root.s.budsConnected ? "󱡏" : ""
-      glyphFont: root.s.iconFont
-      glyphSize: 16
-      color: root.s.budsConnected ? root.s.tint("blue") : root.s.secondaryText
-      hoverFill: root.s.controlFill
-      label: "Sound output"
-      onClicked: root.outputClicked()
     }
   }
 
