@@ -6,37 +6,45 @@ function glyph(cp) {
   return String.fromCodePoint(cp)
 }
 
-// Nerd Font (Material Design) glyphs. Omarchy ships JetBrainsMono Nerd Font.
+// Phosphor Fill glyphs (MIT, bundled in fonts/), drawn in iconFont. The
+// Material Design glyphs still written inline elsewhere come from
+// JetBrainsMono Nerd Font through Qt's font fallback; they sit in plane 15,
+// clear of Phosphor's codepoints.
 var G = {
-  volHigh: glyph(0xF057E),
-  volMed: glyph(0xF0580),
-  volLow: glyph(0xF057F),
-  volMute: glyph(0xF075F),
-  brightLow: glyph(0xF00DE),
-  brightHigh: glyph(0xF00E0),
-  play: glyph(0xF040A),
-  pause: glyph(0xF03E4),
-  next: glyph(0xF04AD),
-  prev: glyph(0xF04AE),
-  battery: glyph(0xF0079),
-  charging: glyph(0xF0084),
-  batteryAlert: glyph(0xF0083),
-  bluetooth: glyph(0xF00AF),
-  headphones: glyph(0xF02CB),
-  moon: glyph(0xF0594),
-  timer: glyph(0xF051B),
-  stopwatch: glyph(0xF13AB),
-  robot: glyph(0xF06A9),
-  alarm: glyph(0xF0020),
-  bell: glyph(0xF009A),
-  bellOff: glyph(0xF009B),
-  music: glyph(0xF075A),
-  mic: glyph(0xF036C),
-  micOff: glyph(0xF036D),
-  keyboard: glyph(0xF030C),
-  record: glyph(0xF044A),
-  wifi: glyph(0xF05A9),
-  power: glyph(0xF0425)
+  volHigh: glyph(0xE44A),
+  volMed: glyph(0xE44C),
+  volLow: glyph(0xE44E),
+  volMute: glyph(0xE45C),
+  brightLow: glyph(0xE474),
+  brightHigh: glyph(0xE472),
+  play: glyph(0xE3D0),
+  pause: glyph(0xE39E),
+  next: glyph(0xE5A6),
+  prev: glyph(0xE5A4),
+  battery: glyph(0xE0C0),
+  charging: glyph(0xE0BA),
+  batteryAlert: glyph(0xE0C8),
+  bluetooth: glyph(0xE0DA),
+  headphones: glyph(0xE2A6),
+  moon: glyph(0xE330),
+  sun: glyph(0xE472),
+  window: glyph(0xE5DA),
+  coffee: glyph(0xE1C2),
+  timer: glyph(0xED2C),
+  stopwatch: glyph(0xE492),
+  robot: glyph(0xE762),
+  alarm: glyph(0xE006),
+  bell: glyph(0xE0CE),
+  bellOff: glyph(0xE0D4),
+  music: glyph(0xE33C),
+  mic: glyph(0xE326),
+  micOff: glyph(0xE328),
+  keyboard: glyph(0xE2D8),
+  record: glyph(0xE3EE),
+  wifi: glyph(0xE4EA),
+  power: glyph(0xE3DA),
+  check: glyph(0xE182),
+  cross: glyph(0xE4F6)
 }
 
 // Apple's system colors (dark appearance). Used by the "apple" palette so the
@@ -127,39 +135,16 @@ function osdTransient(p) {
   return { kind: "alert", source: kind, icon: icon, tint: tint, title: message, value: "", duration: duration }
 }
 
-// Island geometry per mode. `h` is the notch height (the bar height, like the
-// MacBook notch which is exactly as tall as the menu bar) and `w` the notch
-// width. Values mirror the proportions of the macOS Dynamic Island apps and
-// the SketchyBar reference (expand height ≈ 1.5× notch for HUDs, ≈ 2.3× for
-// music info, ≈ 7× for the full player).
-function geometry(mode, w, h, contentWidth, pill) {
-  if (pill) return pillGeometry(mode, w, h, contentWidth)
-  var side = h + 12
-  switch (mode) {
-  case "compact":
-    return { w: w + side * 2, h: h, rb: Math.round(h * 0.42), rt: 6 }
-  case "alert":
-    return { w: Math.max(w + 150, Math.min(560, contentWidth || 0)), h: h + 14, rb: Math.round((h + 14) * 0.45), rt: 7 }
-  case "hud":
-    return { w: w + 170, h: h + 38, rb: 20, rt: 8 }
-  case "notification":
-    return { w: Math.max(w + 210, 420), h: h + 68, rb: 26, rt: 9 }
-  case "expanded":
-    return { w: Math.max(w + 380, 600), h: h + 174, rb: 32, rt: 10 }
-  case "incoming":
-    return { w: Math.max(w + 250, 440), h: h + 56, rb: 30, rt: 9 }
-  case "hidden":
-    return { w: w, h: 0, rb: 0, rt: 0 }
-  default:
-    return { w: w, h: h, rb: Math.round(h * 0.42), rt: 6 }
-  }
-}
-
 // The iPhone bubble: fully rounded, no ears, and sized to its content. A
 // compact live activity only grows by one icon on each side, like the
 // leading/trailing views around the iPhone's camera.
-function pillGeometry(mode, w, h, contentWidth) {
+// apple: the HIG's Dynamic Island sizes (393 pt wide screen): the expanded
+// presentation is 371 wide and at most 160 high.
+// Measured on iPhone footage: the call banner is 371 wide too (height / width 0.213).
+function geometry(mode, w, h, contentWidth, apple, player) {
   var round = Math.ceil(h / 2)
+  if (apple && player && mode === "expanded") return { w: 371, h: 160, rb: 44, rt: 0 }
+  if (apple && mode === "incoming") { var ah2 = h + 42; return { w: 371, h: ah2, rb: Math.ceil(ah2 / 2), rt: 0 } }
   switch (mode) {
   case "compact":
     return { w: contentWidth > 0 ? contentWidth : w + (h - 2) * 2, h: h, rb: round, rt: 0 }
@@ -170,7 +155,7 @@ function pillGeometry(mode, w, h, contentWidth) {
     var hh = h + 12
     return { w: w + 150, h: hh, rb: Math.ceil(hh / 2), rt: 0 }
   case "notification":
-    return { w: Math.max(w + 250, 340), h: h + 50, rb: 24, rt: 0 }
+    return { w: Math.max(w + 250, contentWidth || 340), h: h + 50, rb: 24, rt: 0 }
   case "expanded":
     return { w: Math.max(w + 440, 560), h: h + 172, rb: 34, rt: 0 }
   case "incoming":
@@ -182,6 +167,11 @@ function pillGeometry(mode, w, h, contentWidth) {
     return { w: Math.max(w, contentWidth || 0), h: h, rb: round, rt: 0 }
   }
 }
+
+// Type scale, in px, named after the iOS text styles it stands in for. Every
+// font size in the island is one of these; odd sizes were snapped down a step.
+var TYPE = { caption2: 10, caption: 11, footnote: 12, subhead: 13, callout: 15, body: 17,
+  title3: 20, title2: 22, title1: 26, large: 34, hero: 46 }
 
 function formatTime(seconds) {
   var s = Math.max(0, Math.floor(seconds || 0))
@@ -407,6 +397,14 @@ function nextAlarm(hhmm, nowMs) {
   return d.getTime()
 }
 
+// A saved alarm (epoch ms as text) if it is still ahead and within a day.
+function restoredAlarm(text, nowMs) {
+  var t = String(text || "").trim()
+  if (!/^\d{1,15}$/.test(t)) return 0
+  var at = Number(t)
+  return at > nowMs && at - nowMs <= 24 * 3600 * 1000 ? at : 0
+}
+
 function clockText(ms) {
   var d = new Date(ms)
   return (d.getHours() < 10 ? "0" : "") + d.getHours() + ":" + (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
@@ -429,4 +427,57 @@ function lyricAt(lines, pos) {
   var cur = ""
   for (var i = 0; i < lines.length && lines[i].t <= pos; i++) cur = lines[i].text
   return cur
+}
+
+// SVG path of a w x h rectangle with continuous-curvature ("squircle")
+// corners, as iOS draws them: Figma's corner smoothing (0.6 is iOS). Where
+// the radius runs out of room the smoothing shrinks, so a capsule stays an
+// exact capsule.
+function squirclePath(w, h, r, smoothing) {
+  w = Math.max(0, w); h = Math.max(0, h)
+  var budget = Math.min(w, h) / 2
+  r = Math.max(0, Math.min(r, budget))
+  var s = Math.max(0, smoothing || 0)
+  var p = (1 + s) * r
+  if (p > budget) { s = r > 0 ? Math.max(0, Math.min(s, budget / r - 1)) : 0; p = Math.min(p, budget) }
+  var rad = Math.PI / 180
+  var arcMeasure = 90 * (1 - s)
+  var arc = Math.sin(arcMeasure / 2 * rad) * r * Math.SQRT2
+  var alpha = (90 - arcMeasure) / 2
+  var p34 = r * Math.tan(alpha / 2 * rad)
+  var beta = 45 * s
+  var c = p34 * Math.cos(beta * rad)
+  var d = c * Math.tan(beta * rad)
+  var b = Math.max(0, (p - arc - c - d) / 3)
+  var a = 2 * b
+  function n(v) { return (Math.round(v * 100) / 100).toString() }
+  var abc = a + b + c, bc = b + c
+  return "M " + n(w - p) + " 0" +
+    " c " + n(a) + " 0 " + n(a + b) + " 0 " + n(abc) + " " + n(d) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(arc) + " " + n(arc) +
+    " c " + n(d) + " " + n(c) + " " + n(d) + " " + n(bc) + " " + n(d) + " " + n(abc) +
+    " L " + n(w) + " " + n(h - p) +
+    " c 0 " + n(a) + " 0 " + n(a + b) + " " + n(-d) + " " + n(abc) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(-arc) + " " + n(arc) +
+    " c " + n(-c) + " " + n(d) + " " + n(-bc) + " " + n(d) + " " + n(-abc) + " " + n(d) +
+    " L " + n(p) + " " + n(h) +
+    " c " + n(-a) + " 0 " + n(-(a + b)) + " 0 " + n(-abc) + " " + n(-d) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(-arc) + " " + n(-arc) +
+    " c " + n(-d) + " " + n(-c) + " " + n(-d) + " " + n(-bc) + " " + n(-d) + " " + n(-abc) +
+    " L 0 " + n(p) +
+    " c 0 " + n(-a) + " 0 " + n(-(a + b)) + " " + n(d) + " " + n(-abc) +
+    " a " + n(r) + " " + n(r) + " 0 0 1 " + n(arc) + " " + n(-arc) +
+    " c " + n(c) + " " + n(-d) + " " + n(bc) + " " + n(-d) + " " + n(abc) + " " + n(-d) + " Z"
+}
+
+// What a drag or two-finger swipe on the island means. dx/dy in pixels
+// (touchpad: accumulated angle delta / 4). Sideways on a live activity
+// tucks it; upward on a transient sends it away. Short or diagonal moves
+// are clicks and scrolls, not swipes.
+var SWIPE_MIN = 36
+function swipeAction(dx, dy, mode) {
+  var ax = Math.abs(dx), ay = Math.abs(dy)
+  if (mode === "compact" && ax >= SWIPE_MIN && ax > 2 * ay) return "tuck"
+  if ((mode === "notification" || mode === "alert" || mode === "hud") && dy <= -SWIPE_MIN && ay > 2 * ax) return "dismiss"
+  return ""
 }

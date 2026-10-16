@@ -9,6 +9,7 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import "IslandModel.js" as Model
+import "Registry.js" as Registry
 
 // Dynamic Island service. Owns every piece of shared state — media, the
 // activity queue (HUDs, alerts, notification peeks), live activities
@@ -86,13 +87,21 @@ Item {
     return v === undefined || v === null || v === "" ? fallback : v
   }
 
-  readonly property string style: String(setting("style", "black"))           // black | bar | glass
   readonly property string paletteName: String(setting("palette", "apple"))   // apple | theme (QQuickItem already owns "palette")
-  // pill: a floating iPhone-style bubble inside the bar · notch: a MacBook
-  // notch hanging from the top edge.
-  readonly property string shape: String(setting("shape", "pill"))
-  readonly property bool pill: shape !== "notch"
-  readonly property int notchWidth: pill ? Number(setting("islandWidth", 96)) : Number(setting("notchWidth", 200))
+  // iPhone 15/16 Pro size (HIG: 36.67 pt tall, camera about 126 wide). The gap above stays your pillInset: a desktop has no bezel to spend it on.
+  readonly property bool appleSize: setting("appleSize", false) === true
+  readonly property int notchWidth: appleSize ? 126 : Number(setting("islandWidth", 96))
+  // iOS: tap a live activity opens its app, touch and hold expands it.
+  readonly property bool tapOpensApp: setting("tapOpensApp", false) === true
+  // iOS: an alert lights the screen and plays the notification sound.
+  readonly property bool alertSound: setting("alertSound", true) === true
+  // A desktop has no haptic motor: a soft tick on press, hold and swipe stands in for it.
+  readonly property bool haptics: setting("haptics", true) === true
+  readonly property string tickFile: String(Qt.resolvedUrl("sounds/tick.wav")).replace(/^file:\/\//, "")
+  function tick() {
+    if (haptics && /^\/[A-Za-z0-9._\/-]+\.wav$/.test(tickFile))
+      root.fire(["pw-play", "--volume=0.4", tickFile], 3)
+  }
   readonly property bool openOnHover: setting("openOnHover", true) === true
   readonly property int hoverDelay: Number(setting("hoverDelay", 320))
   readonly property bool showNotifications: setting("showNotifications", true) === true
@@ -106,6 +115,7 @@ Item {
   // away with nothing to show, sliding back in for anything live (or when
   // the pointer touches the top-center edge) — the standalone, no-bar look.
   readonly property bool showWhenIdle: setting("showWhenIdle", true) === true
+  readonly property bool reduceMotion: setting("reduceMotion", false) === true
   // One switch for everything that reaches the network: album artwork for
   // streaming players, the weather line, and the Omarchy update check.
   readonly property bool onlineExtras: setting("onlineExtras", true) === true
@@ -133,20 +143,15 @@ Item {
   // ------------------------------------------------------------ bar geometry
   readonly property var barConfig: root.liveBarConfig || (root.shell && root.shell.barConfig ? root.shell.barConfig : ({}))
   readonly property string barPosition: String(barConfig.position || "top")
-  // The notch is exactly as tall as the menu bar, like on a MacBook.
   readonly property int barHeight: barPosition === "top" ? Style.bar.sizeHorizontal : Math.max(26, Style.bar.sizeHorizontal)
-  // The pill floats inside the bar with a small inset all round, centered
-  // on the bar's own widgets; the notch is exactly as tall as the bar.
-  // The pill floats a little below the top edge, iPhone-style, at its own
-  // height (it no longer has a bar to fit inside); the notch matches the bar.
-  readonly property int islandTop: pill ? Math.max(0, Number(setting("pillInset", 6))) : 0
-  readonly property int notchHeight: pill ? Math.max(20, Number(setting("islandHeight", 30))) : barHeight
+  // The island floats a little below the top edge, iPhone-style, at its own height.
+  readonly property int islandTop: Math.max(0, Number(setting("pillInset", 6)))
+  readonly property int notchHeight: appleSize ? 37 : Math.max(20, Number(setting("islandHeight", 30)))
 
   // ------------------------------------------------------------ look
-  readonly property color islandColor: style === "bar" ? Color.bar.background
-    : style === "glass" ? Qt.rgba(0, 0, 0, 0.62)
-    : "#000000"
-  readonly property color textColor: style === "bar" ? Color.bar.text : "#ffffff"
+  // Pure black, like the iPhone: it melts into the camera and the bezel.
+  readonly property color islandColor: "#000000"
+  readonly property color textColor: "#ffffff"
   readonly property color secondaryText: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.58)
   readonly property color trackColor: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.18)
   readonly property color controlFill: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1)
@@ -161,14 +166,39 @@ Item {
     return Model.APPLE[name] || root.textColor
   }
 
+  // Inter (OFL, Latin subset) ships with the plugin, so the island has the same
+  // font on every machine. A system Inter or SF Pro still wins in textFont.
+  FontLoader { id: interRegular; source: Qt.resolvedUrl("fonts/Inter-Regular.ttf") }
+  FontLoader { source: Qt.resolvedUrl("fonts/Inter-Medium.ttf") }
+  FontLoader { source: Qt.resolvedUrl("fonts/Inter-SemiBold.ttf") }
+  FontLoader { source: Qt.resolvedUrl("fonts/Inter-Bold.ttf") }
+  FontLoader { id: interDisplay; source: Qt.resolvedUrl("fonts/Inter-Display-Regular.ttf") }
+  FontLoader { source: Qt.resolvedUrl("fonts/Inter-Display-Bold.ttf") }
+  readonly property bool interReady: interRegular.status === FontLoader.Ready && interDisplay.status === FontLoader.Ready
   readonly property string textFont: {
-    var want = ["SF Pro Display", "SF Pro Text", "SF Pro", "Inter Display", "Inter", "Inter Variable", "Noto Sans", "Cantarell"]
+    var loaded = interReady   // Qt.fontFamilies() is not reactive: re-run once the bundled faces are in
+    // Text cuts first: the island's text is 13-14 px, where Apple uses SF Pro
+    // Text; the Display cuts are drawn for 20 px and up.
+    // "Inter Island" is the copy shipped with the plugin, under its own name: a second "Inter" next to the system one
+    // makes Qt draw one file's glyph numbers with the other file's outlines (symbols instead of letters).
+    var want = ["SF Pro Text", "SF Pro", "SF Pro Display", "Inter", "Inter Variable", "Inter Display", "Inter Island", "Noto Sans", "Cantarell"]
     var have = Qt.fontFamilies()
     for (var i = 0; i < want.length; i++)
       if (have.indexOf(want[i]) !== -1) return want[i]
     return Style.font.family
   }
+  // For the big clocks (20 px and up): the Display cut when there is one.
+  readonly property string displayFont: {
+    var loaded = interReady
+    var have = Qt.fontFamilies()
+    if (textFont.indexOf("SF Pro") === 0 && have.indexOf("SF Pro Display") !== -1) return "SF Pro Display"
+    if (textFont === "Inter Island" && have.indexOf("Inter Island Display") !== -1) return "Inter Island Display"
+    if (textFont.indexOf("Inter") === 0 && have.indexOf("Inter Display") !== -1) return "Inter Display"
+    return textFont
+  }
+  FontLoader { id: phosphorFont; source: Qt.resolvedUrl("fonts/Phosphor-Fill.ttf") }
   readonly property string iconFont: {
+    if (phosphorFont.status === FontLoader.Ready) return phosphorFont.name
     var have = Qt.fontFamilies()
     if (have.indexOf("JetBrainsMono Nerd Font") !== -1) return "JetBrainsMono Nerd Font"
     if (have.indexOf("Symbols Nerd Font") !== -1) return "Symbols Nerd Font"
@@ -211,7 +241,14 @@ Item {
     return first
   }
   onPlayingPlayerChanged: if (playingPlayer) playerMemory.key = Model.playerKey(playingPlayer)
+  // Set while you page to a particular player in the opened island (a music
+  // app or a browser tab), so that page keeps showing it.
+  property string pinnedPlayerKey: ""
+  readonly property var mediaPlayers: players.filter(function(p) { return p && (p.trackTitle || p.trackArtist) })
   readonly property var player: {
+    if (root.pinnedPlayerKey !== "")
+      for (var j = 0; j < mediaPlayers.length; j++)
+        if (Model.playerKey(mediaPlayers[j]) === root.pinnedPlayerKey) return mediaPlayers[j]
     if (root.playingPlayer) return root.playingPlayer
     var fallback = null
     for (var i = 0; i < players.length; i++) {
@@ -300,7 +337,7 @@ Item {
   // Album art never goes straight into an Image: the shell would fetch or
   // decode whatever the player named. It is copied into a private directory
   // first — /run/user/<uid> is root-created, per-user and 0700, and the island
-  // keeps exactly one image there — and only that copy is drawn and tinted.
+  // keeps exactly one image there (plus the alarm time) — and only that copy is drawn and tinted.
   // Remote art (Spotify and other streamers) is downloaded under the
   // onlineExtras switch; local art (browsers, mpv) is copied the same way.
   // Either way the file is capped at 4 MB by the kernel while it is written
@@ -322,7 +359,7 @@ Item {
     // A new name per track, so the Image and the quantizer see a new URL.
     "f=\"$d/$(printf %s \"$1\" | /usr/bin/md5sum | /usr/bin/cut -c1-20).img\"; " +
     "/usr/bin/mv -f -- \"$t\" \"$f\" || exit 1; " +
-    "/usr/bin/find \"$d\" -maxdepth 1 -type f ! -name \"${f##*/}\" -delete; printf %s \"$f\""
+    "/usr/bin/find \"$d\" -maxdepth 1 -type f \\( -name \"*.img\" ! -name \"${f##*/}\" -o -name \"art.*\" -mmin +1 \\) -delete; printf %s \"$f\""
   property string artLocal: ""
   onTrackArtChanged: fetchArt()
   Component.onCompleted: fetchArt()
@@ -446,6 +483,7 @@ Item {
   // it's always visible while an assistant is driving the phone.
   property real aiUntil: 0
   property string aiText: ""
+  property string aiLabel: "Phone"   // who is at work
   readonly property bool aiActive: { root.now; return aiUntil > Date.now() }
 
   // ------------------------------------------------------------ stopwatch
@@ -462,19 +500,48 @@ Item {
     else if (stopwatchSince > 0) { stopwatchHeld = (Date.now() - stopwatchSince) / 1000; stopwatchSince = 0 }
     else stopwatchSince = Date.now()
   }
-  function resetStopwatch() { stopwatchSince = 0; stopwatchHeld = -1 }
+  function resetStopwatch() {
+    if (stopwatchElapsed >= 1) logRecent(glyphs.stopwatch, "orange", "Stopwatch", Model.formatTime(stopwatchElapsed))
+    stopwatchSince = 0; stopwatchHeld = -1
+  }
 
   // ------------------------------------------------------------ alarm
-  // ponytail: one alarm, kept in memory only; a shell restart forgets it. Persist it if people rely on it to wake up.
+  // One alarm. Its time is kept in the private run directory (the same 0700
+  // one as the album art), so it survives a shell restart. A reboot clears
+  // /run/user, and a sleeping laptop could not ring anyway.
+  // When it goes off it rings until stopped, like a phone: click the pill to
+  // stop, right-click to snooze 9 minutes. Other activities wait behind it
+  // (see pushActivity). It gives up after 5 minutes.
   property real alarmAt: 0          // epoch ms; 0 = none
+  property bool alarmRinging: false
+  property real alarmRingSince: 0
+  readonly property string alarmDir: "d=\"/run/user/$UID/omarchy-dynamic-island\"; f=\"$d/alarm\"; "
   function setAlarm(hhmm) {
     var at = Model.nextAlarm(hhmm, Date.now())
     if (!at) return false
-    alarmAt = at
+    armAlarm(at)
     pushActivity({ kind: "alert", source: "alarm", icon: glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 1600 })
     return true
   }
-  function cancelAlarm() { alarmAt = 0 }
+  function armAlarm(at) { alarmAt = at; saveAlarm() }
+  function cancelAlarm() { alarmAt = 0; saveAlarm() }
+  function saveAlarm() {
+    root.fire(["bash", "-c", root.alarmDir + "umask 077; /usr/bin/mkdir -p -m 700 -- \"$d\" 2>/dev/null; " +
+      "[ -d \"$d\" ] && [ ! -L \"$d\" ] && [ -O \"$d\" ] || exit 1; " +
+      "if [ \"$1\" = 0 ]; then /usr/bin/rm -f -- \"$f\"; else [ ! -L \"$f\" ] && printf %s \"$1\" > \"$f\"; fi",
+      "alarm", String(Math.round(root.alarmAt))], 5)
+  }
+  SafeProcess {
+    running: true
+    command: Model.bounded(["bash", "-c", root.alarmDir + "[ -f \"$f\" ] && [ ! -L \"$f\" ] && exec /usr/bin/cat -- \"$f\""], 3, 32)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var at = Model.restoredAlarm(Model.capped(text, 32), Date.now())
+        if (at) root.alarmAt = at
+        else if (text !== "") root.saveAlarm()   // stale: it went off while the shell was down
+      }
+    }
+  }
   Timer {
     interval: 1000
     repeat: true
@@ -482,8 +549,33 @@ Item {
     onTriggered: {
       if (Date.now() < root.alarmAt) return
       var at = root.alarmAt
-      root.alarmAt = 0
-      root.pushActivity({ kind: "alert", source: "alarm-done", icon: root.glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 10000 })
+      root.cancelAlarm()
+      root.pushActivity({ kind: "alert", source: "alarm-ring", icon: root.glyphs.alarm, tint: "orange", title: "Alarm", value: Model.clockText(at), duration: 30000 })
+      activityTimer.stop()          // held until stopped, snoozed or replaced
+      root.alarmRingSince = Date.now()
+      root.alarmRinging = true
+    }
+  }
+  function stopAlarm() {
+    if (!alarmRinging) return
+    alarmRinging = false
+    if (activity && activity.source === "alarm-ring") finishActivity()
+  }
+  function snoozeAlarm() {
+    if (!alarmRinging) return false
+    stopAlarm()
+    armAlarm(Date.now() + 9 * 60000)
+    return true
+  }
+  onActivityChanged: if (alarmRinging && (!activity || activity.source !== "alarm-ring")) alarmRinging = false
+  // ponytail: a stop lets the current 6 s sound finish; kill pw-play if that bothers anyone.
+  Timer {
+    interval: 6500
+    repeat: true
+    running: root.alarmRinging
+    triggeredOnStart: true
+    onTriggered: {
+      if (Date.now() - root.alarmRingSince > 5 * 60000) { root.stopAlarm(); return }
       root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"], 15)
     }
   }
@@ -504,6 +596,8 @@ Item {
     onExited: function(code) {
       var on = code === 0
       if (on && !root.recording) root.recordingSince = Date.now()
+      if (!on && root.recording && root.recordingSince > 0)
+        root.logRecent(root.glyphs.record, "red", "Screen recording", Model.formatTime((Date.now() - root.recordingSince) / 1000))
       root.recording = on
     }
   }
@@ -590,6 +684,89 @@ Item {
       value: connected ? (level || "Connected") : "Disconnected",
       duration: 2600
     })
+  }
+
+  // ------------------------------------------------------------ Wi-Fi, Tailscale, USB
+  // One short check every 5 s (NetworkManager's device list and the names of the
+  // USB devices): a pill when the Wi-Fi network changes, Tailscale goes up or
+  // down (that is the link to the phone), or a USB device comes or goes.
+  // ponytail: a poll, not udev / D-Bus events; swap for `nmcli monitor` + udev if
+  // 5 s ever feels slow. A change must hold for two reads, so a suspend or a
+  // roam does not flash "Disconnected" then "Connected".
+  property bool hwLoaded: false
+  property string wifiSeen: ""
+  property int wifiHold: 0
+  property bool tailSeen: false
+  property int tailHold: 0
+  property var usbNow: []
+  Timer { interval: 5000; repeat: true; running: true; triggeredOnStart: true
+    onTriggered: if (!hwRead.running) hwRead.running = true }
+  SafeProcess {
+    id: hwRead
+    command: Model.bounded(["bash", "-c", "/usr/bin/nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>/dev/null; echo ===USB; for d in /sys/bus/usb/devices/*/product; do [ -f \"$d\" ] && /usr/bin/cat -- \"$d\"; done"], 5, 16384)
+    stdout: StdioCollector { onStreamFinished: root.hwLoad(Model.capped(text, 16384)) }
+  }
+  function hwPill(icon, tint, title, value) {
+    pushActivity({ kind: "alert", source: "hw", icon: icon, tint: tint, title: Model.clip(title, 40), value: value, duration: 2400 })
+  }
+  function hwLoad(t) {
+    if (t === null || t === "") return
+    var parts = String(t).split("===USB\n")
+    var wifi = "", tail = false
+    var net = parts[0].split("\n")
+    for (var i = 0; i < net.length; i++) {
+      var f = net[i].split(/(?<!\\):/)
+      if (f.length < 4) continue
+      if (f[1] === "wifi" && f[2] === "connected") wifi = f[3].replace(/\\:/g, ":")
+      if (f[0] === "tailscale0") tail = /^connected/.test(f[2])
+    }
+    var usb = (parts[1] || "").split("\n").map(function(x) { return x.trim() })
+      .filter(function(x) { return x !== "" && !/host controller|root hub/i.test(x) })
+    var first = !hwLoaded
+    var live = !first && settled
+    // Wi-Fi: a new state has to be read twice before it counts.
+    if (wifi !== wifiSeen) { wifiHold++; if (wifiHold >= 2 || first) { if (live) hwPill(glyphs.wifi, wifi !== "" ? "green" : "secondary", wifi !== "" ? wifi : "Wi-Fi", wifi !== "" ? "Connected" : "Disconnected"); wifiSeen = wifi; wifiHold = 0 } }
+    else wifiHold = 0
+    if (tail !== tailSeen) { tailHold++; if (tailHold >= 2 || first) { if (live) hwPill(glyphs.check, tail ? "green" : "secondary", "Tailscale", tail ? "Connected" : "Disconnected"); tailSeen = tail; tailHold = 0 } }
+    else tailHold = 0
+    if (live) {
+      var added = usb.filter(function(x) { return usbNow.indexOf(x) === -1 })
+      var gone = usbNow.filter(function(x) { return usb.indexOf(x) === -1 })
+      if (added.length > 0) hwPill(glyphs.power, "green", added[0], "Connected")
+      else if (gone.length > 0) hwPill(glyphs.power, "secondary", gone[0], "Removed")
+    }
+    usbNow = usb
+    hwLoaded = true
+  }
+
+  // ------------------------------------------------------------ night light, stay awake
+  // The iPhone shows a pill when a Focus or a mode flips. Omarchy's two modes
+  // are flipped from keybinds and menus, so ask for their state. ponytail: a 5 s
+  // poll (two short processes); a file watch would do if they ever get a state file
+  // we can watch for night light.
+  property int modeLoaded: 0
+  property bool nightOn: false
+  property bool awakeOn: false
+  Timer { interval: 5000; repeat: true; running: true; triggeredOnStart: true
+    onTriggered: { if (!nightRead.running) nightRead.running = true; if (!awakeRead.running) awakeRead.running = true } }
+  function modeChanged(flag, on, glyph, tint, title) {
+    if (root.settled && (root.modeLoaded & flag) && on !== (flag === 1 ? root.nightOn : root.awakeOn))
+      root.pushActivity({ kind: "alert", source: "mode-" + flag, icon: glyph, tint: tint, title: title, value: on ? "On" : "Off", duration: 1800 })
+    root.modeLoaded |= flag
+  }
+  SafeProcess {
+    id: nightRead
+    command: Model.bounded(["omarchy-toggle-nightlight", "--status"], 5, 4096)
+    stdout: StdioCollector { onStreamFinished: {
+      try { var on = !!JSON.parse(Model.capped(text, 4096)).enabled; root.modeChanged(1, on, root.glyphs.sun, "orange", "Night Light"); root.nightOn = on } catch (e) {}
+    } }
+  }
+  SafeProcess {
+    id: awakeRead
+    command: Model.bounded(["omarchy-toggle-idle", "--status"], 5, 4096)
+    stdout: StdioCollector { onStreamFinished: {
+      try { var on = !!JSON.parse(Model.capped(text, 4096)).enabled; root.modeChanged(2, on, root.glyphs.coffee, "yellow", "Stay Awake"); root.awakeOn = on } catch (e) {}
+    } }
   }
 
   // ------------------------------------------------------------ do not disturb
@@ -693,6 +870,7 @@ Item {
     root.recentMessages = Model.rememberMessage(root.recentMessages, line, Date.now(), root.duplicateWindow)
     var iconUrl = root.notifIcon(d, summary)
     var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
+    if (root.alertSound && !root.dnd) root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"], 5)
     root.pushActivity({
       kind: "notification", source: "notification", file: file,
       app: root.notifApp(d, summary),
@@ -780,16 +958,31 @@ Item {
 
   // No reply handle (Gmail, GPay…): the next best thing is that app on this
   // machine — most of them are Omarchy webapps, which open on the right service.
+  readonly property string focusKeep: 'pos=$(/usr/bin/hyprctl cursorpos) || exit 1; x=${pos%%,*}; y=${pos##*, }; '
+    + '[[ $x =~ ^-?[0-9]+$ && $y =~ ^-?[0-9]+$ ]] || exit 1; /usr/share/omarchy/bin/omarchy-launch-or-focus "$1" "$2"; sleep 0.08; '
+    + '/usr/bin/hyprctl dispatch "hl.dsp.cursor.move({ x = $x, y = $y })" >/dev/null 2>&1'
   function openForApp(app) {
     var name = String(app || "").trim()
     if (name === "") return false
     var entry = typeof DesktopEntries.heuristicLookup === "function" ? DesktopEntries.heuristicLookup(name) : null
     var id = entry ? String(entry.id || "") : ""
     if (!/^[A-Za-z0-9._-]{1,128}$/.test(id)) return false
-    // The way Omarchy's launcher starts apps: as a session unit, so the app
-    // gets the session's environment rather than the shell's.
-    root.launch(["uwsm-app", "--", "gtk-launch", id + ".desktop"])
+    // Focus the app's open window; only start it when it has none. Omarchy's
+    // own helper, and the launch is the way its launcher starts apps: a
+    // session unit, so the app gets the session's environment.
+    var cls = String(entry.startupClass || id)
+    if (!/^[A-Za-z0-9._-]{1,128}$/.test(cls)) cls = id
+    // Focusing warps the cursor to the window; put it back, so a click on the
+    // island leaves the pointer where it was.
+    root.launch(["bash", "-c", root.focusKeep, "focus-keep", cls, "uwsm-app -- gtk-launch " + id + ".desktop"])
     return true
+  }
+
+  // Tap on the playing track: bring up its player. ponytail: gtk-launch, so a player
+  // without single-instance handling opens a second window; focus by class if that bites.
+  function openPlayerApp() {
+    var p = root.player
+    return p ? root.openForApp(String(p.desktopEntry || p.identity || "")) : false
   }
 
   // Many apps send no icon at all; fall back to the app's own desktop-entry
@@ -807,22 +1000,7 @@ Item {
   // Connect mirroring the phone's popup, or the desktop app for the same chat.
   property var recentMessages: []
   readonly property int duplicateWindow: 12000
-  property var pendingThread: null
-  property var pendingNotif: null
   function notificationActivate() {
-    if (activity && activity.sms) {
-      controlsRequested("messages")
-      pendingThread = activity.sms
-      finishActivity()
-      return
-    }
-    if (activity && activity.phone) {
-      // Phone notifications open in full: every line, the picture, the reply box.
-      pendingNotif = activity
-      controlsRequested("notif")
-      finishActivity()
-      return
-    }
     if (activity && root.openForApp(activity.app)) {
       finishActivity()
       return
@@ -830,7 +1008,14 @@ Item {
     root.fire(["omarchy-shell", "-q", "notifications", "invokeLast"], 10)
     finishActivity()
   }
+  // Dismissing a phone notification here dismisses it on the phone too, through
+  // KDE Connect: the phone's own notification object with the same title, and only
+  // when the phone says it can be dismissed (a media player's cannot). The title
+  // goes in as an argument, never into the script text.
+  readonly property string dismissPhoneScript: "D=$(/usr/bin/kdeconnect-cli -a --id-only 2>/dev/null | /usr/bin/head -1)\n[ -n \"$D\" ] || exit 0\nN=/modules/kdeconnect/devices/$D/notifications\nI=org.kde.kdeconnect.device.notifications.notification\nfor id in $(/usr/bin/busctl --user call org.kde.kdeconnect \"$N\" org.kde.kdeconnect.device.notifications activeNotifications 2>/dev/null | /usr/bin/grep -o '\"[0-9A-Za-z_.:-]*\"' | /usr/bin/tr -d '\"'); do\n  t=$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I title 2>/dev/null)\n  [ \"$t\" = \"s \\\"$1\\\"\" ] || continue\n  [ \"$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I dismissable 2>/dev/null)\" = \"b true\" ] || continue\n  /usr/bin/busctl --user call org.kde.kdeconnect \"$N/$id\" $I dismiss\n  exit 0\ndone\n"
   function notificationDismiss() {
+    if (activity && activity.phone && String(activity.title || "") !== "")
+      root.fire(["bash", "-c", root.dismissPhoneScript, "dismiss-phone", Model.clip(String(activity.title), 200)], 10)
     root.fire(["omarchy-shell", "-q", "notifications", "dismissOne"], 10)
     finishActivity()
   }
@@ -853,6 +1038,15 @@ Item {
       value: Model.clip(t.value, 60), body: Model.clip(t.body, 2000),
       duration: Model.clamp(Number(t.duration) || 2500, 500, 30000)
     })
+    if (t.source === "timer-done" || t.source === "alarm-ring" || t.source === "call")
+      logRecent(t.icon, t.tint, t.title, t.value)
+    // A ringing alarm keeps the island until someone acts on it: the rest
+    // waits behind it, and a volume or brightness pill is skipped (the key
+    // itself still works).
+    if (alarmRinging && t.source !== "alarm-ring") {
+      if (t.kind !== "hud") queue = queue.concat([t]).slice(-6)
+      return
+    }
     if (activity && activity.source === t.source && t.kind === activity.kind) {
       activity = t
       activityTimer.interval = t.duration
@@ -900,7 +1094,7 @@ Item {
     }
   }
   function holdActivity(hold) {
-    if (!activity) return
+    if (!activity || activity.source === "alarm-ring") return
     if (hold) activityTimer.stop()
     else { activityTimer.interval = 1500; activityTimer.restart() }
   }
@@ -919,7 +1113,7 @@ Item {
   // Every live activity at once, most important first. The first one owns
   // the island; the second sits beside it as a detached bubble (iOS's
   // "minimal" presentation when two activities run together).
-  readonly property var lives: {
+  readonly property var activeLives: {
     var out = []
     if (currentCall) out.push("call")
     if (aiActive) out.push("ai")
@@ -930,10 +1124,253 @@ Item {
     if (timerActive) out.push("timer")
     if (stopwatchActive) out.push("stopwatch")
     if (mediaLive) out.push("media")
+    // Minimised windows wait at the island until you tap them back.
+    if (dockCount > 0) out.push("dock")
     return out
+  }
+  // Swiping the island sideways tucks its activity away, as on iOS: the
+  // timer keeps running and the expanded view still shows it; the pill
+  // returns the next time that activity starts. A call, a recording and an
+  // assistant driving the phone always stay in view.
+  property var tucked: ({})
+  readonly property var tuckable: ["timer", "stopwatch", "media", "phone"]
+  // Scrolling on the island brings another running activity to the front
+  // (pinnedLive); liveOrder is the order the scroll walks through.
+  readonly property var liveOrder: activeLives.filter(function(k) { return !tucked[k] })
+  property string pinnedLive: ""
+  readonly property var lives: {
+    var i = liveOrder.indexOf(pinnedLive)
+    if (i <= 0) return liveOrder
+    return [pinnedLive].concat(liveOrder.slice(0, i), liveOrder.slice(i + 1))
+  }
+  // The opened island's pages, in scroll order: each running activity at
+  // full size, with one page per player that has a track (music apps and
+  // browser tabs, playing or paused).
+  readonly property var expandedPages: {
+    var out = [], mediaDone = false
+    function addPlayers() {
+      if (mediaDone) return
+      mediaDone = true
+      for (var j = 0; j < mediaPlayers.length; j++)
+        out.push({ kind: "media", key: Model.playerKey(mediaPlayers[j]) })
+    }
+    for (var i = 0; i < liveOrder.length; i++) {
+      if (liveOrder[i] === "media") addPlayers()
+      else if (liveOrder[i] !== "dock") out.push({ kind: liveOrder[i] })
+    }
+    addPlayers()
+    return out
+  }
+  onActiveLivesChanged: {
+    var t = {}, changed = false
+    for (var k in tucked) { if (activeLives.indexOf(k) !== -1) t[k] = true; else changed = true }
+    if (changed) tucked = t
+  }
+  function tuckLive() {
+    if (tuckable.indexOf(live) === -1) return false
+    var t = Object.assign({}, tucked)
+    t[live] = true
+    tucked = t
+    return true
   }
   readonly property string live: lives.length > 0 ? lives[0] : ""
   readonly property string secondLive: lives.length > 1 ? lives[1] : ""
+
+  // ------------------------------------------------------------ dock (minimised windows)
+  // Super + drag a window onto the island and it flies in, narrowing like a genie
+  // (Genie.qml), then waits here as a live activity: tap it and the window flies
+  // back out. The windows sit on the special workspace `island`.
+  property var docked: []            // [{ address, cls, title, rect: {x,y,w,h}, ws, snap }]
+  readonly property int dockCount: docked.length
+  // The newest minimised window's app icon, for the dock mark.
+  readonly property string dockIcon: docked.length > 0 ? appIconFor(docked[docked.length - 1].cls) : ""
+  property bool dockDragging: false
+  property point dockPointer: Qt.point(-99999, -99999)
+  property point dockOrigin: Qt.point(-99999, -99999)   // where the pointer was when the drag began   // layout coordinates, as hyprctl prints them
+  signal dockDropRequested()
+  signal dockMinimizeRequested()
+  signal dockRestoreRequested(string address)
+  function dockStart() {
+    // A drag that never reported its release must not leave a window shrunk.
+    if (dockDragging && !forcedFloat) dockUnshrink()
+    dockDragging = true
+    dockPointer = Qt.point(-99999, -99999)
+    dockOrigin = Qt.point(-99999, -99999)
+    dragPoll.running = false
+    dragPoll.running = true
+    dragScale = 0
+    pendingPull = 0
+    dragShrunk = false
+    // Mid-pull on a window we floated, a second press must not lose what that window was.
+    if (!forcedFloat) dragWin = null
+    dragWinRead.running = false
+    dragWinRead.running = true
+  }
+  function dockEnd() { dockDragging = false; dragPoll.running = false; shrinkTimer.stop() }
+  // The window under the drag, and how far it is shrunk. It shrinks as the pointer
+  // nears the island (a floating window only: a tiled one has no size of its own to
+  // give), and goes back to its size when you let go anywhere else.
+  property var dragWin: null            // { address, w, h, floating }
+  property real dragScale: 0            // how far along the pull the window is shrunk (0 none, 1 all)
+  // A tiled window has no size of its own to give, so it is floated while it is pulled
+  // toward the island and tiled again if you let go anywhere else.
+  readonly property bool shrinkTiled: setting("shrinkTiled", true) === true
+  property bool forcedFloat: false
+  property bool dragShrunk: false
+  SafeProcess {
+    id: dragWinRead
+    command: Model.bounded(["hyprctl", "activewindow", "-j"], 4, 16384)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var w = JSON.parse(Model.capped(text, 16384))
+          if (w && root.validAddress(w.address) && w.size)
+            // Read again later for its floating state; the first size is the true one.
+            // The window is the one under the pointer when the drag began; a focus change
+            // mid-drag must not move the target.
+            if (root.dragWin) { if (root.dragWin.address === String(w.address)) root.dragWin.floating = w.floating === true }
+            else root.dragWin = { address: String(w.address), cls: Model.clip(String(w.class || ""), 28), title: Model.clip(String(w.title || ""), 80), ws: String(w.workspace && w.workspace.name || ""), mon: Number(w.monitor), w: Number(w.size[0]), h: Number(w.size[1]), floating: w.floating === true }
+        } catch (e) { root.dragWin = null }
+      }
+    }
+  }
+  // Resizes go one at a time, newest last: separate processes can finish out of order
+  // and leave the window at an old size.
+  property var resizeNext: null
+  SafeProcess {
+    id: resizeProc
+    onExited: { if (root.resizeNext) { var n = root.resizeNext; root.resizeNext = null; root.dockResizeNow(n) } }
+  }
+  function dockResizeNow(n) {
+    resizeProc.command = Model.bounded(["hyprctl", "dispatch", "hl.dsp.window.resize({ x = " + Math.round(n.w) + ", y = " + Math.round(n.h) + ", exact = true, window = \"address:" + n.address + "\" })"], 5, 0)
+    resizeProc.running = true
+  }
+  function dockResize(address, w, h) {
+    if (!validAddress(address)) return
+    var n = { address: address, w: w, h: h }
+    if (resizeProc.running) resizeNext = n
+    else dockResizeNow(n)
+  }
+  // pull: 0 where the drag began, 1 on the island. The window goes from its own size
+  // to (tw, th), the shape of the drop area, with a fast start: the first move upward
+  // already makes it visibly smaller.
+  property real pendingPull: 0
+  property real pullW: 0
+  property real pullH: 0
+  function dockShrink(pull, tw, th) {
+    pendingPull = Math.max(0, Math.min(1, Number(pull) || 0))
+    pullW = tw
+    pullH = th
+    if (!shrinkTimer.running && dockDragging) shrinkTimer.start()
+  }
+  Timer {
+    id: shrinkTimer
+    interval: 33
+    repeat: true
+    onTriggered: {
+      if (!root.dockDragging || !root.dragWin) { stop(); return }
+      if (!root.dragWin.floating && !dragWinRead.running && root.pendingPull > 0.01) dragWinRead.running = true
+      if (Math.abs(root.pendingPull - root.dragScale) < 0.008) return
+      root.dragScale = root.pendingPull
+      root.dragShrunk = root.dragScale > 0.004
+      if (root.shrinkTiled && !root.dragWin.floating && root.dragScale > 0.03) {
+        root.dragWin.floating = true
+        root.forcedFloat = true
+        root.fire(["hyprctl", "dispatch", "hl.dsp.window.float({ action = \"enable\", window = \"address:" + root.dragWin.address + "\" })"], 5)
+      }
+      var e = 1 - Math.pow(1 - root.dragScale, 2.6)
+      var W = root.dragWin.w, H = root.dragWin.h
+      var tw = Math.min(W, Math.max(60, root.pullW)), th = Math.min(H, Math.max(40, root.pullH))
+      var nw = W + (tw - W) * e, nh = H + (th - H) * e
+      if (root.dragWin.floating && W >= 160 && H >= 90) root.dockResize(root.dragWin.address, nw, nh)
+    }
+  }
+  // Give a window its shape back: re-tile one we floated, else its own size.
+  function dockReturnShape(address, tiled, w, h) {
+    if (!validAddress(address)) return
+    if (tiled) root.fire(["hyprctl", "dispatch", "hl.dsp.window.float({ action = \"disable\", window = \"address:" + address + "\" })"], 5)
+    else if (w > 0 && h > 0) dockResize(address, w, h)
+  }
+  function dockUnshrink() {
+    if (dragShrunk && dragWin) dockReturnShape(dragWin.address, forcedFloat, dragWin.w, dragWin.h)
+    forcedFloat = false
+    dragShrunk = false
+    dragScale = 0
+    pendingPull = 0
+  }
+  // A drag that never reports its release must not leave a window small.
+  Timer { interval: 10500; running: root.dockDragging; onTriggered: { root.dockEnd(); root.dockUnshrink() } }
+  // One short-lived loop for the length of a drag (the deadline ends it if the
+  // release is ever missed), instead of a poll that runs all day.
+  SafeProcess {
+    id: dragPoll
+    // No Model.bounded here: its `head` holds output back in a 4 KB buffer, and a
+    // drag needs every line at once. The deadline alone ends the loop.
+    command: ["/usr/bin/timeout", "-k", "2", "10", "/usr/bin/bash", "-c", "while :; do /usr/bin/hyprctl cursorpos; /usr/bin/sleep 0.03; done"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var m = /^(-?\d+), (-?\d+)$/.exec(String(line).trim())
+        if (m) { root.dockPointer = Qt.point(Number(m[1]), Number(m[2])); if (root.dockOrigin.x < -9000) root.dockOrigin = root.dockPointer }
+      }
+    }
+  }
+  function dockHas(address) { for (var i = 0; i < docked.length; i++) if (docked[i].address === address) return true; return false }
+  function dockAdd(entry) { docked = docked.filter(function(d) { return d.address !== entry.address }).concat([entry]) }
+  function dockDrop(address) { docked = docked.filter(function(d) { return d.address !== address }) }
+  function validAddress(a) { return /^0x[0-9a-f]{4,16}$/.test(String(a)) }
+  // Windows move by address; the address always comes from hyprctl, and is
+  // checked here anyway because it ends up inside a Lua string.
+  function dockMove(address, workspace, follow) {
+    if (!validAddress(address) || !/^(special:island|[A-Za-z0-9_:. -]{1,40})$/.test(String(workspace))) return
+    root.fire(["hyprctl", "dispatch", "hl.dsp.window.move({ workspace = \"" + workspace + "\", follow = " + (follow ? "true" : "false") + ", window = \"address:" + address + "\" })"], 5)
+    if (workspace === "special:island") dockHideSpecial()
+  }
+  // Moving a window to special:island can leave that workspace showing, and a shown
+  // special workspace dims everything in front of it (decoration:dim_special), the island
+  // included. Hide it again, on whichever monitor it opened; it is a toggle, so look first.
+  readonly property string hideSpecialScript: "for i in 1 2 3; do n=$(/usr/bin/hyprctl monitors -j | /usr/bin/jq -r '[.[]|select(.specialWorkspace.name==\"special:island\")]|length'); [ \"$n\" = \"0\" ] && break; /usr/bin/hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"island\")' >/dev/null; sleep 0.25; done"
+  function dockHideSpecial() { root.fire(["bash", "-c", root.hideSpecialScript], 8) }
+  function dockFocus(address) {
+    if (!validAddress(address)) return
+    root.fire(["hyprctl", "dispatch", "hl.dsp.focus({ window = \"address:" + address + "\" })"], 5)
+  }
+  function dockRestoreLast() {
+    if (docked.length > 0) dockRestoreRequested(docked[docked.length - 1].address)
+  }
+  // The list lives in memory; a shell restart must not strand a window on the
+  // special workspace, so rebuild it from Hyprland once the shell is up. Windows
+  // found this way have no picture, so they come back without the flight.
+  Timer { interval: 4000; running: true; onTriggered: { dockScan.running = true; root.dockHideSpecial() } }
+  SafeProcess {
+    id: dockScan
+    command: Model.bounded(["hyprctl", "clients", "-j"], 5, 262144)
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var list = []
+        try { list = JSON.parse(Model.capped(text, 262144)) || [] } catch (e) { return }
+        for (var i = 0; i < list.length; i++) {
+          var c = list[i]
+          if (!c || !c.workspace || c.workspace.name !== "special:island" || !root.validAddress(c.address) || root.dockHas(c.address)) continue
+          root.dockAdd({ address: String(c.address), cls: Model.clip(String(c.class || ""), 60), title: Model.clip(String(c.title || ""), 80),
+            rect: { x: 0, y: 0, w: Number(c.size && c.size[0]) || 800, h: Number(c.size && c.size[1]) || 600 }, ws: "1", snap: null })
+        }
+      }
+    }
+  }
+  // A window closed while it waited here is not coming back.
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (!event) return
+      var name = String(event.name)
+      // The special workspace showing makes the island gray and see-through: hide it
+      // the moment Hyprland says it opened, however it got there.
+      if (name === "activespecial" && /^special:island,/.test(String(event.data || ""))) { root.dockHideSpecial(); return }
+      if (name !== "closewindow") return
+      var a = "0x" + String(event.data || "").trim()
+      if (root.dockHas(a)) root.dockDrop(a)
+    }
+  }
 
   // ------------------------------------------------------------ volume by scroll
   function scrollVolumeBy(delta) {
@@ -961,7 +1398,7 @@ Item {
   readonly property bool budsConnected: !!(buds && buds.status && buds.status.connected)
   readonly property string budsName: buds && buds.status && buds.status.deviceName ? buds.status.deviceName : "Earbuds"
   readonly property var budsModeNames: ({ smart: "Adaptive", anc: "Noise Cancellation", transparency: "Transparency", vocal: "Conversation", off: "Noise Control Off" })
-  readonly property var budsModeGlyphs: ({ smart: "󰧑", anc: "󰟎", transparency: "󰈈", vocal: "󰗋", off: "󰋋" })
+  readonly property var budsModeGlyphs: ({ smart: "", anc: "", transparency: "", vocal: "", off: "" })
   function budsPart(p) { return p && p.level >= 0 ? p.level + "%" : "–" }
   // AirPods-style: a pill with both buds' battery when they connect, and a
   // quick confirmation when the noise mode changes (from here, the buds or the phone).
@@ -979,7 +1416,7 @@ Item {
       var st = root.buds.status
       var mode = st && st.linked ? String(st.noiseMode || "") : ""
       if (root.settled && mode !== "" && root.lastBudsMode !== "" && mode !== root.lastBudsMode)
-        root.pushActivity({ kind: "alert", source: "buds-mode", icon: root.budsModeGlyphs[mode] || "󰋋", tint: mode === "off" ? "secondary" : "blue",
+        root.pushActivity({ kind: "alert", source: "buds-mode", icon: root.budsModeGlyphs[mode] || "", tint: mode === "off" ? "secondary" : "blue",
           title: root.budsModeNames[mode] || mode, value: "", duration: 1800 })
       if (mode !== "") root.lastBudsMode = mode
     }
@@ -1054,22 +1491,22 @@ Item {
       if (root.phoneMuted && (ev.kind === "connected" || ev.kind === "disconnected"
           || ev.kind === "nearby" || ev.kind === "hotspot")) return
       if (ev.kind === "connected")
-        root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰄜", tint: "green", title: ev.model || root.phoneName,
+        root.pushActivity({ kind: "alert", source: "phone-link", icon: "", tint: "green", title: ev.model || root.phoneName,
           value: ev.transport === "usb" ? "USB" : "Wi-Fi", duration: 2400 })
       else if (ev.kind === "disconnected")
-        root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰥐", tint: "secondary", title: root.phoneName, value: "Disconnected", duration: 2000 })
+        root.pushActivity({ kind: "alert", source: "phone-link", icon: "", tint: "secondary", title: root.phoneName, value: "Disconnected", duration: 2000 })
       else if (ev.kind === "callEnded")
-        root.pushActivity({ kind: "alert", source: "call", icon: "󰏷", tint: "red", title: root.callTitle(ev),
+        root.pushActivity({ kind: "alert", source: "call", icon: "", tint: "red", title: root.callTitle(ev),
           value: ev.activeSince > 0 ? Model.formatTime(Date.now() / 1000 - ev.activeSince) : "Call Ended", duration: 2600 })
       else if (ev.kind === "missedCall")
-        root.pushActivity({ kind: "alert", source: "call", icon: "󰵋", tint: "red", title: ev.name || ev.number || "Unknown", value: "Missed Call", duration: 5000 })
+        root.pushActivity({ kind: "alert", source: "call", icon: "", tint: "red", title: ev.name || ev.number || "Unknown", value: "Missed Call", duration: 5000 })
       else if (ev.kind === "nearby") {
         var b = root.phone.pstate && root.phone.pstate.battery ? root.phone.pstate.battery.level : -1
-        root.pushActivity({ kind: "alert", source: "phone-link", icon: "󰄜", tint: "blue", title: ev.name || root.phoneName,
+        root.pushActivity({ kind: "alert", source: "phone-link", icon: "", tint: "blue", title: ev.name || root.phoneName,
           value: b >= 0 ? b + "%" : "Nearby", duration: 2400 })
       }
       else if (ev.kind === "hotspot")
-        root.pushActivity({ kind: "alert", source: "hotspot", icon: "󰀂", tint: ev.on ? "green" : "secondary", title: "Hotspot",
+        root.pushActivity({ kind: "alert", source: "hotspot", icon: "", tint: ev.on ? "green" : "secondary", title: "Hotspot",
           value: ev.on ? "Connected" : "Off", duration: 2200 })
       else if (ev.kind === "sms") {
         var text = String(ev.body || "")
@@ -1081,7 +1518,7 @@ Item {
             urgent: false, duration: 6000, sms: ev })
       }
       else if (ev.kind === "error")
-        root.pushActivity({ kind: "alert", source: "phone-error", icon: "󰀦", tint: "orange", title: String(ev.message || "Phone").slice(0, 60), value: "", duration: 3500 })
+        root.pushActivity({ kind: "alert", source: "phone-error", icon: "", tint: "orange", title: String(ev.message || "Phone").slice(0, 60), value: "", duration: 3500 })
     }
   }
 
@@ -1134,7 +1571,7 @@ Item {
       if (ids.indexOf(ws.id) === -1) ids.push(ws.id)
       ids.sort(function(a, b) { return a - b })
       var dots = ids.map(function(id) { return id === ws.id ? "●" : "○" }).join(" ")
-      pushActivity({ kind: "alert", source: "workspace", icon: "󰍹", tint: "white", title: String(ws.name || ws.id), value: dots, duration: 1100 })
+      pushActivity({ kind: "alert", source: "workspace", icon: "", tint: "white", title: String(ws.name || ws.id), value: dots, duration: 1100 })
     }
     lastWorkspace = ws.id
   }
@@ -1245,6 +1682,100 @@ Item {
     }
     onExited: if (root.historyAgain) { root.historyAgain = false; root.readHistory() }
   }
+  // ------------------------------------------------------------ recent activity
+  // What the island did lately, newest first, for the History view: timers
+  // and alarms that went off, calls, recordings, stopwatch runs, songs.
+  // ponytail: in memory only, so a shell restart empties it; keep it in the
+  // private run directory if that ever matters.
+  property var recent: []
+  function logRecent(icon, tint, title, value) {
+    var e = { icon: Model.clip(icon, 16), tint: String(tint || "white"), title: Model.clip(title, 200),
+      value: Model.clip(value, 120), time: Date.now() }
+    var next = recent.slice(0, 39)
+    next.unshift(e)
+    recent = next
+  }
+  function removeRecent(e) { recent = recent.filter(function(r) { return r !== e }) }
+  function clearRecent() { recent = [] }
+  // A song counts once it has been playing for a few seconds, and only once
+  // in a row, so skipping through a playlist doesn't flood the list.
+  Timer {
+    id: songLog
+    interval: 8000
+    onTriggered: {
+      if (!root.isPlaying || root.trackTitle === "") return
+      var top = root.recent.length > 0 ? root.recent[0] : null
+      if (top && top.title === root.trackTitle) return
+      root.logRecent(root.glyphs.music, "white", root.trackTitle, root.trackArtist)
+    }
+  }
+  onTrackTitleChanged: if (trackTitle !== "") songLog.restart()
+  readonly property bool showHistory: setting("showHistory", true) === true
+  readonly property bool swipeToTuck: setting("swipeToTuck", false) === true
+  readonly property bool reserveSpace: setting("reserveSpace", false) === true
+  readonly property int reserveGap: Math.max(0, Math.min(24, Number(setting("reserveGap", 4))))
+  // How wide a notification opens the island (px); History matches it.
+  readonly property int notificationWidth: Math.max(300, Math.min(700, Number(setting("notificationWidth", 340))))
+
+  // ------------------------------------------------ call notes
+  // One Markdown file per call, named by when it connected: the notes you
+  // write and, with callTranscript on, the transcript land in the same file.
+  // Text goes in as arguments, never through the shell.
+  readonly property string callNotesDir: Quickshell.env("HOME") + "/.local/share/omarchy/call-notes"
+  function callNotePath(startMs) {
+    return callNotesDir + "/" + Qt.formatDateTime(new Date(startMs), "yyyy-MM-dd_HH-mm-ss") + ".md"
+  }
+  function oneLine(v, max) { return Model.clip(String(v || "").replace(/[\r\n]+/g, " ").trim(), max) }
+  function callNoteHeader(name, number, startMs, duration) {
+    name = oneLine(name, 120); number = oneLine(number, 40)
+    return "# Call with " + (name || number || "Unknown") + "\n\n" +
+      "- Name: " + name + "\n" +
+      "- Number: " + number + "\n" +
+      "- Time: " + Qt.formatDateTime(new Date(startMs), "dddd d MMMM yyyy, HH:mm") + "\n" +
+      (duration > 0 ? "- Duration: " + Model.formatTime(duration) + "\n" : "")
+  }
+  // Appends under a lock, creating the file with its header first if needed.
+  function appendCallNote(path, header, section) {
+    root.fire(["bash", "-c", "umask 077; d=$(/usr/bin/dirname -- \"$1\"); /usr/bin/mkdir -p -- \"$d\" || exit 1; " +
+      "exec 9>>\"$d/.lock\"; /usr/bin/flock 9; [ -e \"$1\" ] || printf '%s' \"$2\" > \"$1\"; printf '%s' \"$3\" >> \"$1\"",
+      "note", path, header, section], 10)
+  }
+  function saveCallNote(n) {
+    var start = Number(n.time) || Date.now()
+    var body = Model.clip(String(n.notes || "").trim(), 20000)
+    if (body === "") return
+    appendCallNote(callNotePath(start), callNoteHeader(n.name, n.number, start, n.duration), "\n## Notes\n\n" + body + "\n")
+    logRecent("\uE2CE", "blue", "Call note", oneLine(n.name, 120) || oneLine(n.number, 40) || "Unknown")
+  }
+
+  // Transcripts: the call view's Transcript button records both sides until
+  // pressed again or the call ends, then whisper-cli writes the conversation
+  // into the call's file (call-transcript.sh). The button only shows with
+  // callTranscript on: recording a call can need the other person's consent.
+  readonly property bool callTranscript: setting("callTranscript", false) === true
+  readonly property string whisperModel: String(setting("whisperModel",
+    Quickshell.env("HOME") + "/.local/share/whisper-models/ggml-small.en.bin"))
+  readonly property string transcriptScript: String(Qt.resolvedUrl("call-transcript.sh")).replace(/^file:\/\//, "")
+  property var recordingCall: null
+  readonly property real connectedSince: currentCall && currentCall.state === "active" ? Number(currentCall.activeSince) || 0 : 0
+  // The call it belongs to ended (or another one took over): finish it.
+  onConnectedSinceChanged: if (recordingCall && recordingCall.since !== connectedSince) finishTranscript()
+  function startTranscript() {
+    if (!callTranscript || recordingCall || connectedSince <= 0) return
+    recordingCall = { since: connectedSince, name: String(currentCall.name || ""), number: String(currentCall.number || "") }
+    root.launch(["bash", root.transcriptScript, "start"])
+  }
+  function toggleTranscript() { if (recordingCall) finishTranscript(); else startTranscript() }
+  function finishTranscript() {
+    var c = recordingCall
+    recordingCall = null
+    if (!c) return
+    var start = c.since * 1000
+    root.launch(["bash", root.transcriptScript, "stop", callNotePath(start),
+      callNoteHeader(c.name, c.number, start, Date.now() / 1000 - c.since), root.whisperModel])
+    logRecent("\uE2CE", "blue", "Call transcript", c.name || c.number || "Unknown")
+  }
+
   function clearHistory() {
     root.fire(["omarchy-shell", "-q", "notifications", "clear"], 10)
     history = []
@@ -1267,12 +1798,8 @@ Item {
   readonly property string clockFormat: String(setting("clockFormat", "HH:mm"))
   readonly property string clockText: Qt.formatDateTime(root.now, root.clockFormat)
   readonly property bool showClock: setting("showClock", true) === true
-
-  // ------------------------------------------------------------ control center
-  signal controlsRequested(string page)
-  // A number handed over by `island dial`, for the keypad to pick up.
-  property string pendingDial: ""
-  property bool controlsShown: false
+  // Off: the island only opens for Now Playing, never to the clock/calendar card.
+  readonly property bool showHome: setting("showHome", true) === true
 
   // ------------------------------------------------------------ expanded (shared across windows)
   // Only the most recent screen to open wins; another screen opening closes it.
@@ -1284,7 +1811,9 @@ Item {
   // the macOS menu bar flows around the camera housing.
   // The window on the focused screen reports its resting width here.
   property int restingWidth: notchWidth
-  readonly property int barFootprint: restingWidth + (secondLive !== "" ? notchHeight + 8 : 0) * 2
+  // iOS minimal: round, or an oval when the content is wider than a glyph (the stopwatch time).
+  readonly property int bubbleWidth: secondLive === "stopwatch" ? Math.round(notchHeight * 1.25) : notchHeight
+  readonly property int barFootprint: restingWidth + (secondLive !== "" ? bubbleWidth + 8 : 0) * 2
 
   // ------------------------------------------------------------ IPC
   IpcHandler {
@@ -1312,31 +1841,29 @@ Item {
   // island shows. Nothing here places a call, sends a message or reads one
   // out: `state` reports what kind of thing is showing, never its text, and
   // `dial` only fills in the keypad — the call still takes a click.
-  readonly property var ipcPages: ["main", "wifi", "bluetooth", "audio", "buds", "phone", "call", "messages", "thread", "notifications", "calendar", "power"]
   IpcHandler {
     target: "island"
     function state(): string {
       return JSON.stringify({
-        live: root.live, second: root.secondLive, controls: root.controlsShown,
+        live: root.live, second: root.secondLive,
         activity: root.activity ? { kind: root.activity.kind, source: String(root.activity.source).indexOf("ipc-") === 0 ? "ipc" : root.activity.source } : null,
         queued: root.queue.length,
         media: { playing: root.isPlaying, player: root.playerName, lyrics: root.lyrics.length },
-        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
+        timerLeft: Math.round(root.timerLeft), stopwatch: Math.floor(root.stopwatchElapsed), alarm: root.alarmAt > 0 ? Model.clockText(root.alarmAt) : "", alarmRinging: root.alarmRinging, tucked: Object.keys(root.tucked), recording: root.recording, micInUse: root.micInUse, cameraInUse: root.cameraInUse,
         battery: root.batteryPercent, charging: root.charging, dnd: root.dnd,
         phone: { mirrored: root.phoneOnScreen, muted: root.phoneMuted },
-        shape: root.shape, monitor: root.monitor, style: root.style, palette: root.paletteName, font: root.textFont, notchHeight: root.notchHeight
+        monitor: root.monitor, palette: root.paletteName, reduceMotion: root.reduceMotion, font: root.textFont, notchHeight: root.notchHeight
       })
     }
     function ping(): string { return "ok" }
     function expand(): string { root.expandRequested(); return "ok" }
-    // Open the Control Center, optionally on a page: wifi, bluetooth, audio,
-    // buds, phone, notifications, calendar, power.
-    function controls(page: string): string {
-      var p = String(page || "main")
-      if (root.ipcPages.indexOf(p) === -1) return "unknown-page"
-      root.controlsRequested(p)
-      return "ok"
-    }
+    function history(): string { root.historyRequested(); return "ok" }
+    // Same as one scroll notch on the island: next / previous activity,
+    // and past the last one, the history.
+    function next(): string { root.stepRequested(1); return "ok" }
+    function prev(): string { root.stepRequested(-1); return "ok" }
+    // A call note form, prefilled from the current call if there is one.
+    function callNotes(): string { root.callNotesRequested(); return "ok" }
     // Taildroid mirroring on/off (Super+Shift+I).
     function phoneToggle(): string { if (!root.phone) return "no-taildroid"; root.phone.toggleControl(); return "ok" }
     function collapse(): string { root.collapseAll(); return "ok" }
@@ -1350,15 +1877,6 @@ Item {
       return "ok"
     }
     function hangup(): string { if (!root.phone) return "no-taildroid"; root.phone.hangup(""); return "ok" }
-    function dial(number: string): string {
-      if (!root.phone) return "no-taildroid"
-      var n = String(number || "")
-      if (!/^[0-9*#+]{1,32}$/.test(n)) return "bad-number"
-      root.pendingDial = n
-      root.controlsRequested("call")
-      return "ok"
-    }
-    function messages(): string { root.controlsRequested("messages"); return "ok" }
     function phoneDex(): string { if (!root.phone) return "no-taildroid"; root.phone.openDex(); return "ok" }
     function timer(seconds: string): string {
       var n = Number(seconds)
@@ -1368,6 +1886,7 @@ Item {
     }
     function timerCancel(): string { root.cancelTimer(); return "ok" }
     function aiActivity(text: string): string {
+      root.aiLabel = "Phone"
       root.aiText = Model.clip(text, 48)
       root.aiUntil = Date.now() + 8000
       root.now = new Date()
@@ -1377,6 +1896,21 @@ Item {
     function stopwatchReset(): string { root.resetStopwatch(); return "ok" }
     function alarm(hhmm: string): string { return root.setAlarm(hhmm) ? "ok" : "bad-time" }
     function alarmCancel(): string { root.cancelAlarm(); return "ok" }
+    function alarmStop(): string { root.stopAlarm(); return "ok" }
+    function tuck(): string { return root.tuckLive() ? "ok" : "not-tuckable" }
+    // Super + mouse drag, wired in bindings.lua: pointer tracking while it lasts,
+    // and the drop that minimises the window if it landed on the island.
+    function dockDragStart(): string { root.dockStart(); return "ok" }
+    function dockDragDrop(): string { root.dockDropRequested(); return "ok" }
+    // The same flight for the focused window, without a drag: bind it to a key.
+    function dockMinimize(): string { root.dockMinimizeRequested(); return "ok" }
+    function dockRestore(address: string): string {
+      if (address === "") { root.dockRestoreLast(); return root.dockCount > 0 ? "ok" : "empty" }
+      if (!root.dockHas(address)) return "unknown"
+      root.dockRestoreRequested(address)
+      return "ok"
+    }
+    function alarmSnooze(): string { return root.snoozeAlarm() ? "ok" : "not-ringing" }
     function alert(icon: string, title: string, value: string): string {
       root.pushActivity({ kind: "alert", source: "ipc-alert", icon: Model.clip(icon, 4), tint: "white",
         title: Model.clip(title, 60), value: Model.clip(value, 24), duration: 2500 })
@@ -1393,6 +1927,15 @@ Item {
     }
   }
   signal expandRequested()
+  signal historyRequested()
+  signal stepRequested(int dir)
+  signal callNotesRequested()
+
+  // The first Service to start is the island; the bar widget finds it here.
+  Item {
+    Component.onCompleted: if (!Registry.current) Registry.current = root
+    Component.onDestruction: if (Registry.current === root) Registry.current = null
+  }
 
   // ------------------------------------------------------------ windows
   Variants {

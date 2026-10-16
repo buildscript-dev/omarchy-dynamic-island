@@ -12,19 +12,33 @@ Item {
 
   property var s: null
   property bool active: false
-  signal outputClicked()
+  // Opened from the keyboard: Tab walks the buttons, Space plays or pauses,
+  // Left / Right skip, Esc closes.
+  property bool keyboard: false
+  signal closeRequested()
+  focus: true
+  onKeyboardChanged: if (keyboard) Qt.callLater(function() { root.forceActiveFocus() })
+  Keys.onEscapePressed: root.closeRequested()
+  Keys.onSpacePressed: if (root.s.hasMedia) root.s.mediaToggle()
+  Keys.onLeftPressed: if (root.s.hasMedia) root.s.mediaPrev()
+  Keys.onRightPressed: if (root.s.hasMedia) root.s.mediaNext()
 
   readonly property int pad: 22
   readonly property int stripHeight: s.notchHeight
+  // Apple's 371 x 160 player: no strip row, the art and title share the first row
+  // with the waveform at the right.
+  readonly property bool tight: s.appleSize && s.hasMedia
 
   // ---------------------------------------------------------------- top strip
   Item {
     id: strip
     x: root.pad
+    y: root.tight ? 18 : 0
     width: parent.width - root.pad * 2
-    height: root.stripHeight
+    height: root.tight ? 16 : root.stripHeight
 
     Row {
+      visible: !root.tight
       anchors.verticalCenter: parent.verticalCenter
       spacing: 6
 
@@ -43,26 +57,26 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: Qt.formatDateTime(root.s.now, "ddd d MMM")
         font.family: root.s.textFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         font.weight: Font.Medium
         color: root.s.secondaryText
       }
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.timer
+        label: Model.formatTime(Math.ceil(root.s.timerLeft))
+        leftPadding: 8
         visible: root.s.timerActive && root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        text: "  " + root.s.glyphs.timer + " " + Model.formatTime(Math.ceil(root.s.timerLeft))
-        font.family: root.s.iconFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("orange")
       }
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.stopwatch
+        label: Model.formatTime(root.s.stopwatchElapsed)
+        leftPadding: 8
         visible: root.s.stopwatchActive && root.s.hasMedia
         anchors.verticalCenter: parent.verticalCenter
-        text: "  " + root.s.glyphs.stopwatch + " " + Model.formatTime(root.s.stopwatchElapsed)
-        font.family: root.s.iconFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("orange")
       }
     }
@@ -94,7 +108,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.glyphs.moon
         font.family: root.s.iconFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("indigo")
       }
       Waveform {
@@ -127,15 +141,15 @@ Item {
     id: player
     visible: root.s.hasMedia
     x: root.pad
-    y: root.stripHeight + 8
+    y: root.tight ? 14 : root.stripHeight + 8
     width: parent.width - root.pad * 2
     height: parent.height - y - 14
 
     Artwork {
       id: art
-      width: 72
-      height: 72
-      radius: 14
+      width: root.tight ? 56 : 72
+      height: width
+      radius: root.tight ? 12 : 14
       source: root.s.artLocal
       fallbackGlyph: root.s.glyphs.music
       glyphFont: root.s.iconFont
@@ -154,6 +168,7 @@ Item {
       anchors.left: art.right
       anchors.leftMargin: 14
       anchors.right: parent.right
+      anchors.rightMargin: root.tight ? 44 : 0
       anchors.verticalCenter: art.verticalCenter
       spacing: 2
 
@@ -162,7 +177,7 @@ Item {
         width: parent.width
         text: root.s.trackTitle || "Unknown"
         font.family: root.s.textFont
-        font.pixelSize: 16
+        font.pixelSize: Model.TYPE.callout
         font.weight: Font.DemiBold
         color: root.s.textColor
         elide: Text.ElideRight
@@ -173,7 +188,7 @@ Item {
         text: root.s.trackArtist
         visible: text !== ""
         font.family: root.s.textFont
-        font.pixelSize: 13
+        font.pixelSize: Model.TYPE.subhead
         color: root.s.secondaryText
         elide: Text.ElideRight
       }
@@ -184,7 +199,7 @@ Item {
         text: root.s.lyricLine || root.s.trackAlbum
         visible: text !== ""
         font.family: root.s.textFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: Qt.rgba(root.s.textColor.r, root.s.textColor.g, root.s.textColor.b, 0.38)
         elide: Text.ElideRight
       }
@@ -194,7 +209,7 @@ Item {
     Item {
       id: progress
       anchors.top: art.bottom
-      anchors.topMargin: 12
+      anchors.topMargin: root.tight ? 8 : 12
       width: parent.width
       height: 14
       visible: root.s.trackLength > 0
@@ -208,7 +223,7 @@ Item {
         width: 40
         text: Model.formatTime(root.s.trackPosition)
         font.family: root.s.textFont
-        font.pixelSize: 11
+        font.pixelSize: Model.TYPE.caption
         font.features: { "tnum": 1 }
         color: root.s.secondaryText
       }
@@ -221,7 +236,7 @@ Item {
         horizontalAlignment: Text.AlignRight
         text: "-" + Model.formatTime(root.s.trackLength - root.s.trackPosition)
         font.family: root.s.textFont
-        font.pixelSize: 11
+        font.pixelSize: Model.TYPE.caption
         font.features: { "tnum": 1 }
         color: root.s.secondaryText
       }
@@ -278,6 +293,7 @@ Item {
         color: root.s.textColor
         hoverFill: root.s.controlFill
         enabledState: root.s.player && (root.s.player.canGoPrevious || root.s.player.canSeek)
+        label: "Previous"
         onClicked: root.s.mediaPrev()
       }
       GlyphButton {
@@ -287,6 +303,7 @@ Item {
         glyphSize: 28
         color: root.s.textColor
         hoverFill: root.s.controlFill
+        label: "Play or pause"
         onClicked: root.s.mediaToggle()
       }
       GlyphButton {
@@ -297,21 +314,9 @@ Item {
         color: root.s.textColor
         hoverFill: root.s.controlFill
         enabledState: root.s.player && root.s.player.canGoNext
+        label: "Next"
         onClicked: root.s.mediaNext()
       }
-    }
-
-    // Sound output picker (and the earbuds' modes when they're connected).
-    GlyphButton {
-      anchors.right: parent.right
-      anchors.rightMargin: -8
-      anchors.verticalCenter: transport.verticalCenter
-      glyph: root.s.budsConnected ? "󱡏" : "󰓃"
-      glyphFont: root.s.iconFont
-      glyphSize: 16
-      color: root.s.budsConnected ? root.s.tint("blue") : root.s.secondaryText
-      hoverFill: root.s.controlFill
-      onClicked: root.outputClicked()
     }
   }
 
@@ -334,8 +339,8 @@ Item {
       Text {
         textFormat: Text.PlainText
         text: Qt.formatDateTime(root.s.now, "HH:mm")
-        font.family: root.s.textFont
-        font.pixelSize: 46
+        font.family: root.s.displayFont
+        font.pixelSize: Model.TYPE.hero
         font.weight: Font.Light
         font.features: { "tnum": 1 }
         color: root.s.textColor
@@ -344,7 +349,7 @@ Item {
         textFormat: Text.PlainText
         text: Qt.formatDateTime(root.s.now, "dddd, d MMMM")
         font.family: root.s.textFont
-        font.pixelSize: 13
+        font.pixelSize: Model.TYPE.subhead
         color: root.s.secondaryText
       }
     }
@@ -366,7 +371,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             text: modelData.label
             font.family: root.s.textFont
-            font.pixelSize: 10
+            font.pixelSize: Model.TYPE.caption2
             font.weight: Font.Medium
             color: root.s.secondaryText
           }
@@ -381,7 +386,7 @@ Item {
               anchors.centerIn: parent
               text: modelData.day
               font.family: root.s.textFont
-              font.pixelSize: 12
+              font.pixelSize: Model.TYPE.footnote
               font.weight: modelData.today ? Font.Bold : Font.Normal
               color: modelData.today ? "white" : root.s.textColor
             }
@@ -402,7 +407,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: root.s.glyphs.timer
         font.family: root.s.iconFont
-        font.pixelSize: 15
+        font.pixelSize: Model.TYPE.callout
         color: root.s.tint("orange")
       }
       Repeater {
@@ -422,7 +427,7 @@ Item {
             anchors.centerIn: parent
             text: modelData + " min"
             font.family: root.s.textFont
-            font.pixelSize: 12
+            font.pixelSize: Model.TYPE.footnote
             font.weight: Font.DemiBold
             color: root.s.tint("orange")
           }
@@ -442,15 +447,15 @@ Item {
         glyphSize: 15
         color: root.s.tint("orange")
         hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        label: "Start or pause stopwatch"
         onClicked: root.s.toggleStopwatch()
       }
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.alarm
+        label: Model.clockText(root.s.alarmAt)
         visible: root.s.alarmAt > 0
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.glyphs.alarm + " " + Model.clockText(root.s.alarmAt)
-        font.family: root.s.iconFont
-        font.pixelSize: 12
+        font.pixelSize: Model.TYPE.footnote
         color: root.s.tint("orange")
       }
     }
@@ -462,13 +467,11 @@ Item {
       spacing: 10
       visible: root.s.stopwatchActive && !root.s.timerActive
 
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.stopwatch
+        label: Model.formatTime(root.s.stopwatchElapsed)
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.glyphs.stopwatch + "  " + Model.formatTime(root.s.stopwatchElapsed)
-        font.family: root.s.iconFont
-        font.pixelSize: 22
-        font.features: { "tnum": 1 }
+        font.pixelSize: Model.TYPE.title2
         color: root.s.tint("orange")
         opacity: root.s.stopwatchHeld >= 0 ? 0.6 : 1
       }
@@ -479,6 +482,7 @@ Item {
         glyphSize: 16
         color: root.s.tint("orange")
         hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        label: "Start or pause stopwatch"
         onClicked: root.s.toggleStopwatch()
       }
       Rectangle {
@@ -493,7 +497,7 @@ Item {
           anchors.centerIn: parent
           text: "Reset"
           font.family: root.s.textFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           font.weight: Font.DemiBold
           color: root.s.textColor
         }
@@ -513,13 +517,11 @@ Item {
       spacing: 10
       visible: root.s.timerActive
 
-      Text {
-        textFormat: Text.PlainText
+      IconLabel {
+        glyph: root.s.glyphs.timer
+        label: Model.formatTime(Math.ceil(root.s.timerLeft))
         anchors.verticalCenter: parent.verticalCenter
-        text: root.s.glyphs.timer + "  " + Model.formatTime(Math.ceil(root.s.timerLeft))
-        font.family: root.s.iconFont
-        font.pixelSize: 22
-        font.features: { "tnum": 1 }
+        font.pixelSize: Model.TYPE.title2
         color: root.s.tint("orange")
         opacity: root.s.timerPausedLeft >= 0 ? 0.6 : 1
       }
@@ -530,6 +532,7 @@ Item {
         glyphSize: 16
         color: root.s.tint("orange")
         hoverFill: Qt.rgba(1, 0.62, 0.04, 0.2)
+        label: "Pause timer"
         onClicked: root.s.toggleTimerPause()
       }
       Rectangle {
@@ -544,7 +547,7 @@ Item {
           anchors.centerIn: parent
           text: "Cancel"
           font.family: root.s.textFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           font.weight: Font.DemiBold
           color: root.s.textColor
         }
@@ -576,7 +579,7 @@ Item {
           anchors.centerIn: parent
           text: "● Stop recording"
           font.family: root.s.textFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           font.weight: Font.DemiBold
           color: root.s.tint("red")
         }
@@ -594,13 +597,12 @@ Item {
         radius: 14
         color: root.s.dnd ? Qt.rgba(0.37, 0.36, 0.9, dndMouse.containsMouse ? 0.4 : 0.28) : (dndMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
         Behavior on color { ColorAnimation { duration: 160 } }
-        Text {
-          textFormat: Text.PlainText
+        IconLabel {
+          glyph: root.s.glyphs.moon
+          label: "Focus"
           id: dndLabel
           anchors.centerIn: parent
-          text: root.s.glyphs.moon + "  Focus"
-          font.family: root.s.iconFont
-          font.pixelSize: 12
+          font.pixelSize: Model.TYPE.footnote
           color: root.s.dnd ? root.s.tint("indigo") : root.s.secondaryText
         }
         MouseArea {
@@ -613,4 +615,32 @@ Item {
       }
     }
   }
+  // A glyph and its label: the glyph in the icon font, the words and digits
+  // in the text font, so neither falls back to some other family.
+  component IconLabel: Row {
+    id: il
+    property string glyph: ""
+    property string label: ""
+    property color color: root.s.textColor
+    property alias font: word.font
+    spacing: Math.round(word.font.pixelSize * 0.4)
+    Text {
+      textFormat: Text.PlainText
+      anchors.verticalCenter: parent.verticalCenter
+      text: il.glyph
+      font.family: root.s.iconFont
+      font.pixelSize: word.font.pixelSize
+      color: il.color
+    }
+    Text {
+      id: word
+      textFormat: Text.PlainText
+      anchors.verticalCenter: parent.verticalCenter
+      text: il.label
+      font.family: root.s.textFont
+      font.features: { "tnum": 1 }
+      color: il.color
+    }
+  }
+
 }

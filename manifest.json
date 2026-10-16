@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.buildscript-dev.dynamic-island",
   "name": "Dynamic Island",
-  "version": "2.4.0",
+  "version": "3.1.0",
   "author": "buildscript-dev",
   "license": "MIT",
-  "description": "An iPhone-style Dynamic Island for Omarchy: a floating bubble in the bar that springs open for music, volume and brightness, notifications, charging, Bluetooth, timers and screen recording, with a built-in Control Center for Wi-Fi, Bluetooth, sound, earbuds, tray and power.",
+  "description": "A solid black, iPhone-style Dynamic Island for Omarchy. It springs open for music, timers, calls, notifications, volume, charging and your Android phone, then gets out of the way. Hold Super and drag any window onto it and it folds in like a genie.",
   "kinds": [
     "service",
     "bar-widget"
@@ -17,17 +17,14 @@
   },
   "barWidget": {
     "displayName": "Dynamic Island",
-    "description": "iPhone-style floating island with live activities. Reserves its space in the bar.",
+    "description": "iPhone-style floating island with live activities and minimise-to-island. Reserves its space in the bar.",
     "category": "Media",
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "shape": "pill",
       "islandWidth": 96,
       "pillInset": 6,
-      "style": "black",
       "palette": "apple",
-      "notchWidth": 200,
       "openOnHover": true,
       "hoverDelay": 320,
       "showNotifications": true,
@@ -38,26 +35,28 @@
       "showMicIndicator": true,
       "showCameraIndicator": true,
       "scrollVolume": true,
+      "reduceMotion": false,
       "monitor": "focused",
       "showClock": true,
+      "showHome": true,
+      "showHistory": true,
+      "notificationWidth": 340,
+      "swipeToTuck": false,
+      "reserveSpace": false,
+      "reserveGap": 4,
+      "callTranscript": false,
       "clockFormat": "HH:mm",
       "islandHeight": 30,
+      "appleSize": false,
+      "tapOpensApp": false,
+      "alertSound": true,
       "showWorkspaces": true,
       "onlineExtras": true,
-      "muteWhileMirrored": true
+      "muteWhileMirrored": true,
+      "haptics": true,
+      "shrinkTiled": true
     },
     "schema": [
-      {
-        "key": "shape",
-        "type": "enum",
-        "label": "Island shape",
-        "description": "pill: a floating bubble at the top of the screen. notch: a MacBook-style notch attached to the top edge.",
-        "options": [
-          "pill",
-          "notch"
-        ],
-        "defaultValue": "pill"
-      },
       {
         "key": "islandWidth",
         "type": "integer",
@@ -77,18 +76,6 @@
         "step": 1
       },
       {
-        "key": "style",
-        "type": "enum",
-        "label": "Island background",
-        "description": "black: solid black, like a real notch. bar: your bar's color. glass: see-through and blurred.",
-        "options": [
-          "black",
-          "bar",
-          "glass"
-        ],
-        "defaultValue": "black"
-      },
-      {
         "key": "palette",
         "type": "enum",
         "label": "Accent colors",
@@ -98,15 +85,6 @@
           "theme"
         ],
         "defaultValue": "apple"
-      },
-      {
-        "key": "notchWidth",
-        "type": "integer",
-        "label": "Notch width (px, notch shape only)",
-        "defaultValue": 200,
-        "min": 120,
-        "max": 400,
-        "step": 10
       },
       {
         "key": "openOnHover",
@@ -181,6 +159,12 @@
         "defaultValue": true
       },
       {
+        "key": "reduceMotion",
+        "type": "boolean",
+        "label": "Reduce motion: no bounce, zoom or blur",
+        "defaultValue": false
+      },
+      {
         "key": "monitor",
         "type": "string",
         "label": "Which monitor",
@@ -191,6 +175,48 @@
         "key": "showClock",
         "type": "boolean",
         "label": "Show a clock in the island",
+        "defaultValue": true
+      },
+      {
+        "key": "callTranscript",
+        "type": "boolean",
+        "label": "Transcript button in the call view (the other person may need to agree to recording)",
+        "defaultValue": false
+      },
+      {
+        "key": "notificationWidth",
+        "type": "integer",
+        "label": "Notification width (px)",
+        "defaultValue": 340
+      },
+      {
+        "key": "reserveSpace",
+        "type": "boolean",
+        "label": "Keep windows clear of the island",
+        "defaultValue": false
+      },
+      {
+        "key": "reserveGap",
+        "type": "integer",
+        "label": "Space below the island (px)",
+        "defaultValue": 4
+      },
+      {
+        "key": "swipeToTuck",
+        "type": "boolean",
+        "label": "Swipe sideways on the island to tuck an activity away",
+        "defaultValue": false
+      },
+      {
+        "key": "showHistory",
+        "type": "boolean",
+        "label": "Scroll down on the island for recent activity and notifications",
+        "defaultValue": true
+      },
+      {
+        "key": "showHome",
+        "type": "boolean",
+        "label": "Open to a clock and calendar card when nothing plays",
         "defaultValue": true
       },
       {
@@ -208,6 +234,39 @@
         "min": 20,
         "max": 44,
         "step": 1
+      },
+      {
+        "key": "appleSize",
+        "type": "boolean",
+        "label": "Apple size (126 x 37)",
+        "defaultValue": false,
+        "description": "iPhone Pro Dynamic Island size. Overrides island width and height; the gap from the top is still pillInset."
+      },
+      {
+        "key": "tapOpensApp",
+        "type": "boolean",
+        "label": "Tap opens the player; touch and hold expands",
+        "defaultValue": false
+      },
+      {
+        "key": "shrinkTiled",
+        "type": "boolean",
+        "label": "Dragged tiled windows float and shrink toward the island",
+        "defaultValue": true,
+        "description": "Super + drag upward: a tiled window is floated while you pull it toward the island and tiled again if you let go elsewhere. Turn off if a drag ever misbehaves."
+      },
+      {
+        "key": "alertSound",
+        "type": "boolean",
+        "label": "Play a sound with notifications",
+        "defaultValue": true
+      },
+      {
+        "key": "haptics",
+        "type": "boolean",
+        "label": "Soft tick on press, hold and swipe",
+        "defaultValue": true,
+        "description": "A desktop has no haptic motor; this plays a very short quiet click instead."
       },
       {
         "key": "showWorkspaces",

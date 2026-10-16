@@ -11,7 +11,16 @@ Item {
   property color color: "white"
   property color hoverFill: Qt.rgba(1, 1, 1, 0.1)
   property bool enabledState: true
+  property string label: ""
   signal clicked()
+
+  activeFocusOnTab: enabledState
+  Keys.onReturnPressed: root.clicked()
+  Keys.onEnterPressed: root.clicked()
+  Keys.onSpacePressed: root.clicked()
+  Accessible.role: Accessible.Button
+  Accessible.name: root.label
+  Accessible.onPressAction: root.clicked()
 
   implicitWidth: glyphSize + 16
   implicitHeight: glyphSize + 16
@@ -37,6 +46,17 @@ Item {
     scale: mouse.pressed ? 0.82 : 1
     Behavior on scale { SpringAnimation { spring: 6; damping: 0.3; epsilon: 0.01 } }
     Behavior on color { ColorAnimation { duration: 200 } }
+  }
+
+  // Keyboard focus only (Tab), like macOS.
+  Rectangle {
+    anchors.fill: parent
+    anchors.margins: -2
+    radius: width / 2
+    color: "transparent"
+    border.width: 2
+    border.color: "#0A84FF"
+    visible: root.activeFocus
   }
 
   MouseArea {

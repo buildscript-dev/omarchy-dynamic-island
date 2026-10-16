@@ -1,17 +1,42 @@
-# Dynamic Island for Omarchy (`io.github.buildscript-dev.dynamic-island`)
+# Dynamic Island for Omarchy
 
-![The island going from its idle pill to a volume HUD, a charging alert and the expanded card](demo.gif)
+<p align="center">
+  <img src="preview.png" alt="Dynamic Island for Omarchy: a notification, a timer, volume, two activities at once and a charging alert" width="860">
+</p>
 
-An iPhone-style Dynamic Island that runs natively inside `omarchy-shell`
-(Quickshell). A floating black bubble sits at the top of the screen and
-springs open for whatever is happening: music, volume and brightness,
-notifications, charging, Bluetooth, timers, screen recording. A built-in
-Control Center covers Wi-Fi, Bluetooth, sound, brightness, tray and power.
+**A solid black pill that lives at the top of your screen, springs open for whatever is
+happening, and gets out of the way.** Built natively for `omarchy-shell` (Quickshell):
+no daemon, no installer, no root.
 
-Two shapes: `pill` (the default, a floating bubble) and `notch` (a MacBook
-notch hanging from the top edge). It follows your Omarchy theme and bar
-(height, colors, font scale), uses Hyprland blur for the translucent
-styles, and tucks away over fullscreen windows.
+<p align="center">
+  <img src="media/showcase.gif" alt="Showcase: notifications, timers, volume, two activities at once, and a window folding into the island" width="760"><br>
+  <sub><a href="media/showcase.mp4">Watch it in full quality (mp4)</a></sub>
+</p>
+
+## Why you will like it
+
+- **It moves like the real thing.** Spring timings fitted frame by frame to iPhone footage,
+  Apple's sizes, system colours, Inter text, a gooey split when a second activity appears,
+  and a soft tick when it opens.
+- **Fold any window into it.** Hold Super, drag a window up and it shrinks as you go, bends
+  into the island like a genie, and waits there as an icon. Tap the icon and it unfolds
+  back, tiled windows included.
+- **Your Android phone is part of your desktop.** Phone notifications, calls and
+  messages show up in the island (through KDE Connect and the optional Taildroid fork),
+  and dismissing one here dismisses it on the phone.
+- **It is always solid black.** Over a wallpaper, over a window, in every state.
+- **Fits any screen.** Nothing is ever wider or taller than the monitor it is on.
+- **Quiet by design.** No logging, no background services, album art over the network only
+  if you leave it on.
+
+## What it shows
+
+- **Live activities**: music with a real spectrum and synced lyrics, timer, stopwatch,
+  alarm, screen recording, phone calls, and an AI-is-driving-your-phone indicator.
+- **Alerts**: volume and brightness, charging and low battery, Bluetooth devices, Wi-Fi,
+  Tailscale, USB, Night Light, Stay Awake, Do Not Disturb, keyboard layout.
+- **Notifications** from the desktop and from your phone, with reply.
+- **Two at once**: a second activity detaches into its own bubble beside the island.
 
 ## Install
 
@@ -40,9 +65,6 @@ Two optional steps:
   While `replaceOsd` is on the island answers the `osd` IPC target itself,
   so `omarchy osd` lands in the island; with it off the island answers on
   `dynamic-island-osd` instead and the stock OSD keeps its own target.
-- For blur on the `glass` and `bar` styles, add a layer rule in
-  `~/.config/hypr/looknfeel.lua` (or your Hyprland config) for the layer
-  namespace `omarchy-dynamic-island`.
 
 Requires Omarchy with `omarchy-shell` (Quickshell). No other dependencies,
 no root, no installer, no background daemon. It never edits your config for
@@ -58,7 +80,7 @@ shape is still settling. This is the same order Apple uses.
 
 | Mode | Size | Triggered by |
 |---|---|---|
-| **Idle** | a small bubble (`pill`), or a notch with concave "ears" into the top edge (`notch`) | nothing happening |
+| **Idle** | a small floating bubble | nothing happening |
 | **Compact live activity** | widens sideways: leading + trailing content | music playing (art + waveform tinted by the album color), timer (orange countdown), screen recording (pulsing red dot + elapsed) |
 | **Alert pill** | wide, a little taller | charging / on battery / low battery, Bluetooth connect/disconnect, Do Not Disturb, timer done, `omarchy osd -m` messages |
 | **HUD** | drops down with a level bar | volume, brightness, keyboard backlight: every `omarchy osd -p` |
@@ -99,7 +121,6 @@ then keeps working on its own:
 - **Size**: a 30 px floating bubble 6 px below the top edge (`islandHeight`,
   `pillInset`).
 - **Workspaces**: switching flashes a pill with a dot per workspace.
-- **Weather** sits under the date in the Control Center header.
 
 ## Layout: adaptive and symmetric
 
@@ -116,50 +137,41 @@ recording, then phone mirroring, then timer, then music.
 Other live alerts: buds connecting (with battery for each bud), noise mode
 changes, keyboard layout switches, charging, Bluetooth, Focus.
 
-## Control Center
+## Minimise to the island
 
-Right-click the island, or use the  button in the expanded island, to open
-the Control Center — or bind a key to it, see
-[Keyboard shortcuts](#keyboard-shortcuts-optional-in-confighyprbindingslua).
-It holds everything that usually sits on the right side of the bar. Click
-outside it or press Esc to close (Esc on a sub-page goes back first).
+Hold **Super**, drag a window with the left button and let go on the island: the
+window bends into a funnel and flies into it (the Magic Lamp / Genie effect), then
+waits there as a blue window icon. Tap that icon and the window flies back. While
+you drag, the island leans toward the pointer and reads "Release to minimize".
 
-- **Header**: time and date, the notification center (with a badge count),
-  the calendar, and an **Update** button when Omarchy updates are available.
+- It needs two lines in `~/.config/hypr/bindings.lua`. Both are `non_consuming`, so
+  the stock Super + drag keeps working exactly as before:
 
-- **Wi-Fi**: the round icon toggles the radio. The tile opens the network list:
-  click to join, type the password inline, click a saved network to disconnect,
-  and use × to forget one.
-- **Bluetooth**: toggle, your devices (connect/disconnect, battery, × forget)
-  and nearby devices (click to pair). It searches while the page is open.
-- **Phone** (Taildroid): mirror on/off, ADB devices (mirror, stop,
-  disconnect), connect over Tailscale, Tailscale peers, and wireless-debugging
-  pairing (address + code).
-- **Notifications**: history with per-item dismiss, Clear All, and a silence switch.
-- **Calendar**: month view with today marked; arrows to change month.
-- Focus (Do Not Disturb) is the first quick button.
-- **OnePlus Buds** (when OnePlus Experience is installed): per-bud and case
-  battery, noise control, ANC strength, EQ and switches.
-- **Sound**: volume slider (click the icon to mute) and the  button for
-  output and input devices plus mic mute, and a volume slider for each app
-  playing sound (click its icon to mute just that app).
-- **Brightness** slider (hidden on displays that can't be dimmed).
-- Quick buttons: night light, stay awake, power mode, screenshot, screen
-  recording, phone mirroring (Taildroid) and the power page (power mode, lock,
-  sleep, log out, restart, shut down; destructive ones ask for a second click).
-- **Tray** apps: left click activates, right click opens the app's menu.
-
-It uses the same backends as Omarchy's own panels (Quickshell Networking,
-Bluetooth, Pipewire and the `omarchy-*` helpers), so actions behave the same.
+  ```lua
+  o.bind("SUPER + mouse:272", "Island dock: drag started", "omarchy-shell island dockDragStart", { non_consuming = true })
+  o.bind("SUPER + mouse:272", "Island dock: dropped", "omarchy-shell island dockDragDrop", { release = true, non_consuming = true })
+  ```
+- `omarchy-shell island dockMinimize` does the same for the focused window with no drag,
+  so you can give it a key; `island dockRestore` brings back the newest (or
+  `island dockRestore 0x...` a given window).
+- Minimised windows sit on the special workspace `island`. If the shell restarts it
+  finds them again and they come back without the flight.
+- The flight is plain GPU work: `Genie.qml` and the shaders in `shaders/`. After
+  editing a shader, rebuild it with
+  `qsb --qt6 -o shaders/genie.vert.qsb shaders/genie.vert` (same for `.frag`).
+- Only windows on the monitor that shows the island are taken. `reduceMotion` skips the flight.
 
 ## Gestures
 
 - **Hover** on the notch: opens after a short pause (`openOnHover`, `hoverDelay`).
+- **Touch and hold** (450 ms) on the idle or compact island: expands it, like iOS.
 - **Left click**: open or close. On a notification it runs the default
   action. On a HUD or alert it closes it and opens the island.
-- **Right click** on a notification: dismisses it. Anywhere else: opens the Control Center.
+- **Right click** on a notification: dismisses it.
 - **Middle click**: play / pause.
 - **Scroll** on the closed notch: volume ±2 %.
+- **Swipe sideways** (drag, or two fingers on a touchpad) on a live activity: tuck it away. It keeps running and still shows in the expanded island; the pill comes back the next time it starts. Calls, recordings and the AI indicator can't be tucked.
+- **Swipe up** (drag) on a notification, alert or HUD: send it away early.
 - Click the artwork in the expanded player to raise the player window.
 
 ## Settings
@@ -168,13 +180,11 @@ Every setting goes on the island's entry in `~/.config/omarchy/shell.json`.
 Changes apply as soon as you save the file — no restart:
 
 ```json
-{ "id": "io.github.buildscript-dev.dynamic-island", "style": "glass", "palette": "theme" }
+{ "id": "io.github.buildscript-dev.dynamic-island", "palette": "theme" }
 ```
 
 | Setting | Default | What it does |
 |---|---|---|
-| `shape` | `pill` | `pill` = a floating bubble at the top of the screen · `notch` = a MacBook-style notch attached to the top edge |
-| `style` | `black` | `black` = solid black, like a real notch · `bar` = your bar's color · `glass` = see-through and blurred |
 | `palette` | `apple` | `apple` = Apple's colors (green charging, orange timer, red recording) · `theme` = your Omarchy theme's colors |
 | `showWhenIdle` | `true` | keep the island on screen with nothing happening. Turn it **off** for the standalone look: it hides itself and comes back for music, alerts and notifications, or when you touch the top edge |
 | `monitor` | `focused` | `focused` = follows the monitor you are working on · `external` = the external monitor, or the built-in one when nothing is plugged in · `all` = one per monitor · or a connector name such as `HDMI-A-1` |
@@ -185,12 +195,23 @@ Changes apply as soon as you save the file — no restart:
 | `hideInFullscreen` | `true` | get out of the way of fullscreen windows; a 3 px strip at the top edge brings it back |
 | `openOnHover` / `hoverDelay` | `true` / `320` | open by resting the pointer on it, after this many ms |
 | `scrollVolume` | `true` | scroll on the island to change volume |
+| `reduceMotion` | `false` | the island still changes shape, but settles without bouncing, and content cross-fades instead of zooming and blurring in |
+| call view | — | click the call pill during a call: mute, sound output (steps through this PC's outputs), notes (i) and end. Notes is one text box; the caller's name, number and the time are filled in for you. Each call gets one Markdown file in `~/.local/share/omarchy/call-notes/`; `island callNotes` opens the box any time |
+| `callTranscript` / `whisperModel` | `false` / `~/.local/share/whisper-models/ggml-small.en.bin` | adds a Transcript button to the call view. Press it to record both sides (PC output = caller, microphone = you) until you press it again or the call ends; then `whisper-cli` writes the conversation turn by turn (`**Caller** (00:05): …`, `**Me** (00:09): …`) into that call's file under its name, number, time and duration. Recordings live in `$XDG_RUNTIME_DIR` and are deleted after transcribing. Recording a call can require the other person's consent where you live |
+| `notificationWidth` | `340` | how wide the island opens for a notification (px, 300-700); History uses the same width, at least 380 |
+| `reserveSpace` / `reserveGap` | `false` / `4` | keep tiled windows clear of the resting pill: an invisible strip (layer `omarchy-dynamic-island-space`, Overlay so it stacks under the bar) reserves the pill's overhang below the bar plus `reserveGap` px. Takes no input, draws nothing |
+| `swipeToTuck` | `false` | a two-finger sideways swipe on the island tucks its activity away. Off because a touchpad's vertical scroll drifts sideways |
+| `showHistory` | `true` | scrolling on the island walks one list: from the pill, down opens the full page of what's in front, then each other running thing at full size (one page per music app or browser tab playing, the call, timer, stopwatch, screen recording, phone mirroring, each with its controls), and past the last page, History: recent activity (timers and alarms that went off, calls, recordings, stopwatch runs, songs) and past notifications in cards that stack as they scroll. Up retraces it back to the pill. One flick is one step. With it on, scrolling no longer changes the volume. IPC: `island next` / `island prev` |
+| `showHome` | `true` | open to the clock, calendar and timer card when nothing plays; off, the island only opens for Now Playing |
 | `showClock` / `clockFormat` | `true` / `HH:mm` | clock inside the island (Qt format: `HH:mm`, or `h:mm AP` for AM/PM) |
 | `showWorkspaces` | `true` | flash the workspace when you switch |
 | `artworkTint` | `true` | color the music view from the album art |
 | `showMicIndicator` | `true` | orange dot while the microphone is in use |
-| `islandWidth` / `islandHeight` / `pillInset` | `96` / `30` / `6` | size of the bubble and its gap from the top edge (`pill`) |
-| `notchWidth` | `200` | width of the notch (`notch` shape only) |
+| `islandWidth` / `islandHeight` / `pillInset` | `96` / `30` / `6` | size of the bubble and its gap from the top edge |
+| `appleSize` | `false` | iPhone Pro size from Apple's HIG: 126 x 37. Overrides `islandWidth` and `islandHeight`; `pillInset` still sets the gap |
+| `tapOpensApp` | `false` | iOS gesture model: tap the playing track to open its player, touch and hold (450 ms) to expand |
+| `alertSound` | `true` | play the notification sound with each notification (not in Do Not Disturb) |
+| `haptics` | `true` | a very short quiet click on press, touch-and-hold and swipe, standing in for haptics (a desktop has no motor) |
 
 Omarchy's settings UI reads the same list, so you can also change these from
 the plugin's settings panel instead of editing JSON.
@@ -266,10 +287,9 @@ Only the plugin folder. It declares:
    the island's width, so bar widgets flow around it like the macOS menu bar.
 
 It installs no systemd units and never edits your configuration. The only
-file it writes is the current album-art image in
+files it writes are the current album-art image and the alarm time, both in
 `/run/user/<uid>/omarchy-dynamic-island` (see [Network use](#network-use)).
-Removing an entry from the Control Center's notification list deletes that
-entry from Omarchy's own history folder, as Omarchy's panel does. Everything else is the two optional config
+Everything else is the two optional config
 lines under [Install](#install), which you add yourself.
 
 ## Optional integrations
@@ -283,15 +303,15 @@ same code Omarchy loads for that plugin. It is never downloaded.
 | Plugin | Adds |
 |---|---|
 | [OnePlus Experience](https://github.com/buildscript-dev/omarchy-oneplus-experience) | earbuds page: battery, noise control, EQ · battery and noise-mode alerts |
-| [Taildroid](https://github.com/buildscript-dev/omarchy-taildroid) (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity · quiet island while the phone is mirrored |
+| [Taildroid](https://github.com/buildscript-dev/omarchy-taildroid) (`io.github.buildscript-dev.taildroid`) | mirroring on and off · call live activity (answer, hang up, mute) · quiet island while the phone is mirrored |
 
 If the [`cava`](https://github.com/karlstav/cava) package is installed, the
 music waveform follows the real audio while something plays. Without it the
 bars keep their made-up dance.
 
-The phone page needs my Taildroid fork, which adds calls and messages to
+The phone call and mirroring features need my Taildroid fork, which adds calls and messages to
 [raythurman2386/taildroid](https://github.com/raythurman2386/taildroid).
-Install it the same way, or leave it out: without it the page stays hidden,
+Install it the same way, or leave it out: without it
 the phone IPC methods answer `no-taildroid`, and nothing else changes.
 
 ### With the phone on screen
@@ -323,13 +343,15 @@ checked and shortened, and a page name that isn't on the list is refused.
 omarchy-shell island state               # JSON snapshot (kinds, not contents)
 omarchy-shell island ping
 omarchy-shell island expand | collapse
-omarchy-shell island controls [main|wifi|bluetooth|audio|buds|phone|messages|call|thread|notifications|calendar|power]
 omarchy-shell island timer 300           # start a 5-minute timer
 omarchy-shell island timerCancel
 omarchy-shell island stopwatch           # start / pause the stopwatch
 omarchy-shell island stopwatchReset
-omarchy-shell island alarm 7:30          # next time the clock reads 7:30 (24-hour); kept until the shell restarts
+omarchy-shell island alarm 7:30          # next time the clock reads 7:30 (24-hour); survives a shell restart, not a reboot
 omarchy-shell island alarmCancel
+omarchy-shell island tuck                # tuck the current live activity away (as swiping it sideways does)
+omarchy-shell island alarmStop           # a ringing alarm: stop (or click the pill)
+omarchy-shell island alarmSnooze         # a ringing alarm: 9 more minutes (or right-click the pill)
 omarchy-shell island alert "<glyph>" "Title" "Value"
 omarchy-shell island hud volume 40
 omarchy-shell island notify "Title" "Body"
@@ -338,10 +360,8 @@ omarchy osd -i brightness -p 50          # the stock OSD command, now shown in t
 # Phone continuity. Every one of these needs the Taildroid fork below;
 # without it they change nothing and answer "no-taildroid".
 omarchy-shell island phoneToggle         # mirroring on/off
-omarchy-shell island messages            # open the Messages page
 omarchy-shell island answer              # pick up the call ringing on screen right now
 omarchy-shell island hangup              # end the current call
-omarchy-shell island dial "+15551234"    # open the keypad with this number; you press call
 omarchy-shell island phoneDex            # open the phone's desktop mode
 ```
 
@@ -363,15 +383,15 @@ the `island` IPC target.
 
 | Keys | Opens |
 |---|---|
-| Super + A | Control Center |
-| Super + Ctrl + W / B / A / P | Wi-Fi / Bluetooth / Sound / Power page |
-| Super + Ctrl + Alt + D | Calendar |
-| Super + Shift + Alt + , | Notifications |
 | Super + Shift + I | Taildroid mirroring on/off |
 
+Opened with `omarchy-shell island expand` (bind it to a key), the expanded
+island takes the keyboard: Tab walks its buttons, Space plays or pauses,
+Left / Right skip tracks, Esc closes, and a click outside gives the keyboard
+back. Opened by hovering, it never takes the keyboard.
+
 Bind whichever you want; none are set up for you. The island can replace the
-bar's right-side widgets entirely, since it hosts the clock, the Control
-Center and the tray itself.
+bar's right-side widgets entirely, since it hosts the clock itself.
 
 ## License
 
