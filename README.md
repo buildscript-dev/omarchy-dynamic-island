@@ -309,9 +309,9 @@ If the [`cava`](https://github.com/karlstav/cava) package is installed, the
 music waveform follows the real audio while something plays. Without it the
 bars keep their made-up dance.
 
-The phone page needs my Taildroid fork, which adds calls and messages to
+The phone call and mirroring features need my Taildroid fork, which adds calls and messages to
 [raythurman2386/taildroid](https://github.com/raythurman2386/taildroid).
-Install it the same way, or leave it out: without it the page stays hidden,
+Install it the same way, or leave it out: without it
 the phone IPC methods answer `no-taildroid`, and nothing else changes.
 
 ### With the phone on screen
