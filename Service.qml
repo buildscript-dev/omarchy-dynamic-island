@@ -27,8 +27,8 @@ Item {
   // Fire-and-forget actions and long-lived launches, both in the closed
   // environment with fixed executables (IslandModel.js). Readers use SafeProcess.
   readonly property var childEnv: Model.childEnv(function(k) { return Quickshell.env(k) })
-  function fire(argv, seconds) {
-    Quickshell.execDetached({ command: Model.bounded(argv, seconds || 20, 0), environment: root.childEnv, clearEnvironment: true })
+  function fire(argv, seconds, extraEnv) {
+    Quickshell.execDetached({ command: Model.bounded(argv, seconds || 20, 0), environment: Object.assign({}, root.childEnv, extraEnv || {}), clearEnvironment: true })
   }
   // Only for programs meant to outlive a deadline: the update terminal, a
   // screen recording, a locker, a file the user opened.
@@ -1011,11 +1011,11 @@ Item {
   // Dismissing a phone notification here dismisses it on the phone too, through
   // KDE Connect: the phone's own notification object with the same title, and only
   // when the phone says it can be dismissed (a media player's cannot). The title
-  // goes in as an argument, never into the script text.
-  readonly property string dismissPhoneScript: "D=$(/usr/bin/kdeconnect-cli -a --id-only 2>/dev/null | /usr/bin/head -1)\n[ -n \"$D\" ] || exit 0\nN=/modules/kdeconnect/devices/$D/notifications\nI=org.kde.kdeconnect.device.notifications.notification\nfor id in $(/usr/bin/busctl --user call org.kde.kdeconnect \"$N\" org.kde.kdeconnect.device.notifications activeNotifications 2>/dev/null | /usr/bin/grep -o '\"[0-9A-Za-z_.:-]*\"' | /usr/bin/tr -d '\"'); do\n  t=$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I title 2>/dev/null)\n  [ \"$t\" = \"s \\\"$1\\\"\" ] || continue\n  [ \"$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I dismissable 2>/dev/null)\" = \"b true\" ] || continue\n  /usr/bin/busctl --user call org.kde.kdeconnect \"$N/$id\" $I dismiss\n  exit 0\ndone\n"
+  // goes in through the environment (argv is world-readable in /proc), never into the script text.
+  readonly property string dismissPhoneScript: "D=$(/usr/bin/kdeconnect-cli -a --id-only 2>/dev/null | /usr/bin/head -1)\n[ -n \"$D\" ] || exit 0\nN=/modules/kdeconnect/devices/$D/notifications\nI=org.kde.kdeconnect.device.notifications.notification\nfor id in $(/usr/bin/busctl --user call org.kde.kdeconnect \"$N\" org.kde.kdeconnect.device.notifications activeNotifications 2>/dev/null | /usr/bin/grep -o '\"[0-9A-Za-z_.:-]*\"' | /usr/bin/tr -d '\"'); do\n  t=$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I title 2>/dev/null)\n  [ \"$t\" = \"s \\\"$ISLAND_TITLE\\\"\" ] || continue\n  [ \"$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I dismissable 2>/dev/null)\" = \"b true\" ] || continue\n  /usr/bin/busctl --user call org.kde.kdeconnect \"$N/$id\" $I dismiss\n  exit 0\ndone\n"
   function notificationDismiss() {
     if (activity && activity.phone && String(activity.title || "") !== "")
-      root.fire(["bash", "-c", root.dismissPhoneScript, "dismiss-phone", Model.clip(String(activity.title), 200)], 10)
+      root.fire(["bash", "-c", root.dismissPhoneScript], 10, { ISLAND_TITLE: Model.clip(String(activity.title), 200) })
     root.fire(["omarchy-shell", "-q", "notifications", "dismissOne"], 10)
     finishActivity()
   }
