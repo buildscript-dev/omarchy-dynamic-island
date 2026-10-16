@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.buildscript-dev.dynamic-island",
   "name": "Dynamic Island",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "author": "buildscript-dev",
   "license": "MIT",
-  "description": "An iPhone-style Dynamic Island for Omarchy: a solid black pill that springs open for music, timers, calls, notifications, alerts and your Android phone, with Super + drag to minimise any window into it.",
+  "description": "A solid black, iPhone-style Dynamic Island for Omarchy. It springs open for music, timers, calls, notifications, volume, charging and your Android phone, then gets out of the way. Hold Super and drag any window onto it and it folds in like a genie.",
   "kinds": [
     "service",
     "bar-widget"

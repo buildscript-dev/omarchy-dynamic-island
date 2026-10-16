@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.1.0
+
+- Removed the Control Center (2,447 lines): the island is now only the island.
+- New 16:9 `preview.png`, a showcase video and GIF in `media/`, and a rewritten README.
+
 ## 3.0.0
 
 **Minimise to the island**

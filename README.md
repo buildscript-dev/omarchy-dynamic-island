@@ -1,24 +1,42 @@
 # Dynamic Island for Omarchy
 
-![Dynamic Island for Omarchy: idle, music, alerts, notifications, two activities at once, and drag-to-minimise](preview.png)
+<p align="center">
+  <img src="preview.png" alt="Dynamic Island for Omarchy: a notification, a timer, volume, two activities at once and a charging alert" width="860">
+</p>
 
-An iPhone-style Dynamic Island that runs natively inside `omarchy-shell`
-(Quickshell). A solid black pill floats at the top of the screen and springs
-open for whatever is happening, then gets out of the way.
+**A solid black pill that lives at the top of your screen, springs open for whatever is
+happening, and gets out of the way.** Built natively for `omarchy-shell` (Quickshell):
+no daemon, no installer, no root.
 
-- **Live activities**: music with a real spectrum and synced lyrics, timer,
-  stopwatch, alarm, screen recording, phone calls, and an AI-is-driving-your-phone
-  indicator. A second activity floats beside the island as its own bubble.
-- **Alerts**: volume and brightness, charging and low battery, Bluetooth devices,
-  Wi-Fi, Tailscale, USB, Night Light, Stay Awake, Do Not Disturb, keyboard layout.
-- **Notifications** from the desktop and from your Android phone, with reply, and
-  dismiss-here-dismissed-there through KDE Connect.
-- **Minimise to the island**: hold Super, drag a window up, and it shrinks as you
-  go, bends into the island like a genie, and waits there as an icon. Tap to bring
-  it back.
-- **Feels like the real thing**: spring timings fitted to frame-by-frame footage of
-  an iPhone, Apple's sizes (126 x 37 pill, 371 x 160 player) and system colours,
-  Inter text, Phosphor icons, a long-press to open, a soft tick for haptics.
+<p align="center">
+  <img src="media/showcase.gif" alt="Showcase: notifications, timers, volume, two activities at once, and a window folding into the island" width="760"><br>
+  <sub><a href="media/showcase.mp4">Watch it in full quality (mp4)</a></sub>
+</p>
+
+## Why you will like it
+
+- **It moves like the real thing.** Spring timings fitted frame by frame to iPhone footage,
+  Apple's sizes, system colours, Inter text, a gooey split when a second activity appears,
+  and a soft tick when it opens.
+- **Fold any window into it.** Hold Super, drag a window up and it shrinks as you go, bends
+  into the island like a genie, and waits there as an icon. Tap the icon and it unfolds
+  back, tiled windows included.
+- **Your Android phone is part of your desktop.** Phone notifications, calls and
+  messages show up in the island (through KDE Connect and the optional Taildroid fork),
+  and dismissing one here dismisses it on the phone.
+- **It is always solid black.** Over a wallpaper, over a window, in every state.
+- **Fits any screen.** Nothing is ever wider or taller than the monitor it is on.
+- **Quiet by design.** No logging, no background services, album art over the network only
+  if you leave it on.
+
+## What it shows
+
+- **Live activities**: music with a real spectrum and synced lyrics, timer, stopwatch,
+  alarm, screen recording, phone calls, and an AI-is-driving-your-phone indicator.
+- **Alerts**: volume and brightness, charging and low battery, Bluetooth devices, Wi-Fi,
+  Tailscale, USB, Night Light, Stay Awake, Do Not Disturb, keyboard layout.
+- **Notifications** from the desktop and from your phone, with reply.
+- **Two at once**: a second activity detaches into its own bubble beside the island.
 
 ## Install
 
@@ -285,7 +303,7 @@ same code Omarchy loads for that plugin. It is never downloaded.
 | Plugin | Adds |
 |---|---|
 | [OnePlus Experience](https://github.com/buildscript-dev/omarchy-oneplus-experience) | earbuds page: battery, noise control, EQ · battery and noise-mode alerts |
-| [Taildroid](https://github.com/buildscript-dev/omarchy-taildroid) (`io.github.buildscript-dev.taildroid`) | phone page: mirroring, calls, messages · call live activity · quiet island while the phone is mirrored |
+| [Taildroid](https://github.com/buildscript-dev/omarchy-taildroid) (`io.github.buildscript-dev.taildroid`) | mirroring on and off · call live activity (answer, hang up, mute) · quiet island while the phone is mirrored |
 
 If the [`cava`](https://github.com/karlstav/cava) package is installed, the
 music waveform follows the real audio while something plays. Without it the
