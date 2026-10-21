@@ -227,12 +227,13 @@ PanelWindow {
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
     : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
     : s.live === "ai" ? s.aiLabel
+    : s.live === "trip" ? (s.tripMinutes >= 0 ? s.tripMinutes + "m" : "")
     : s.live === "dock" ? (s.dockCount > 1 ? String(s.dockCount) : "")
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
   readonly property int artSize: s.notchHeight - 8
-  readonly property int leadWidth: s.live === "media" ? artSize : s.live === "recording" ? 9 : s.live === "dock" ? 18 : 16
+  readonly property int leadWidth: s.live === "media" ? artSize : s.live === "recording" ? 9 : s.live === "dock" || s.live === "trip" ? 18 : 16
   readonly property int trailWidth: s.live === "media" ? 22 : Math.ceil(trailMetrics.advanceWidth)
   // Rounded up to 8px steps so the width doesn't twitch every second as digits change.
   readonly property int slot: Math.ceil(Math.max(leadWidth, trailWidth) / 8) * 8
@@ -1014,6 +1015,18 @@ PanelWindow {
       }
       Text {
         textFormat: Text.PlainText
+        visible: win.s.secondLive === "trip"
+        anchors.centerIn: parent
+        width: parent.width - 8
+        horizontalAlignment: Text.AlignHCenter
+        text: win.s.tripMinutes >= 0 ? win.s.tripMinutes + "m" : ""
+        font.family: win.s.textFont
+        font.pixelSize: Model.TYPE.footnote
+        font.weight: Font.DemiBold
+        color: win.s.tint("orange")
+      }
+      Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "call"
         anchors.centerIn: parent
         text: ""
@@ -1241,6 +1254,13 @@ PanelWindow {
             glyph: win.s.glyphs.robot
             trail: win.s.aiLabel
             pulsing: true
+          }
+
+          CompactActivity {
+            kind: "trip"
+            tone: win.s.trip && win.s.trip.type === "ride" ? "green" : win.s.trip && win.s.trip.type === "food" ? "orange" : "blue"
+            iconSource: win.s.trip ? win.s.appIconFor(win.s.trip.app) : ""
+            trail: win.trailText
           }
 
           CompactActivity {

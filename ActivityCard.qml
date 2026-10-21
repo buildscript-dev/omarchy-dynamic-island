@@ -35,6 +35,11 @@ Item {
     if (kind === "phone")
       return { glyph: "", tint: "green", title: s.phoneName, value: s.phoneSince > 0 ? Model.formatTime((Date.now() - s.phoneSince) / 1000) : "",
         sub: "Mirroring on this PC", buttons: [{ id: "stop", glyph: "", label: "Stop", red: true }] }
+    if (kind === "trip" && s.trip)
+      return { glyph: s.glyphs.bell, tint: s.trip.type === "ride" ? "green" : s.trip.type === "food" ? "orange" : "blue",
+        title: s.trip.app, value: s.tripMinutes >= 0 ? s.tripMinutes + " min" : "",
+        sub: s.trip.text,
+        buttons: [{ id: "open", glyph: "↗", label: "Open", text: true }, { id: "stop", glyph: "", label: "Hide", red: true }] }
     if (kind === "ai")
       return { glyph: s.glyphs.robot, tint: "blue", title: "Assistant", value: "", sub: s.aiText || "Working on your phone", buttons: [] }
     return { glyph: "", tint: "white", title: "", value: "", sub: "", buttons: [] }
@@ -52,6 +57,9 @@ Item {
       if (id === "stop") s.stopRecording()
     } else if (kind === "phone") {
       if (id === "stop" && s.phone) s.phone.stopControl()
+    } else if (kind === "trip") {
+      if (id === "open" && s.trip) s.openForApp(s.trip.app)
+      else if (id === "stop") s.hideTrip()
     }
   }
 
@@ -64,6 +72,7 @@ Item {
     var secs = kind === "stopwatch" ? s.stopwatchElapsed
       : kind === "recording" ? (s.recordingSince > 0 ? (Date.now() - s.recordingSince) / 1000 : 0)
       : kind === "phone" ? (s.phoneSince > 0 ? (Date.now() - s.phoneSince) / 1000 : 0) : 0
+    if (kind === "trip") return s.trip ? s.trip.stage / 3 : 0
     return (secs % 60) / 60
   }
   readonly property bool tickBar: kind !== "ai"

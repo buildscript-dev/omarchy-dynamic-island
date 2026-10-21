@@ -561,3 +561,55 @@ function isRedacted(n) {
 function nmcliFields(line) {
   return String(line || "").replace(/\\:/g, "\u0001").split(":").map(function(f) { return f.replace(/\u0001/g, ":") })
 }
+
+// ---- Ride, food and delivery notifications as one live "trip" card.
+// tripFrom(n) reads one notification ({app, title, body, time}) and says what it
+// tells about a trip in flight: { type, app, stage 1..3, etaMin (-1 when unknown),
+// text }, { done: true } when the trip is over, or null when it is not a trip.
+// No lookbehind: Qt's regex engine accepts it and then never matches.
+var TRIP_APPS = [
+  ["ride", /uber|ola\b|ola cabs|rapido|indrive|bolt|lyft|namma yatri/i],
+  ["food", /zomato|swiggy|domino|mcdonald|eatsure|burger king|kfc|pizza hut|starbucks|zepto cafe/i],
+  ["delivery", /amazon|flipkart|blinkit|zepto|instamart|bigbasket|myntra|meesho|delhivery|ekart|bluedart|dunzo|shadowfax|ecom express|xpressbees/i]
+]
+var TRIP_DONE = /delivered|has been delivered|completed|trip ended|ride ended|you have arrived|payment received|rate your|cancel+ed|refund/i
+var TRIP_ETA = /(\d{1,3})\s*(?:-\s*\d{1,3}\s*)?(?:min|mins|minute|minutes)\b/i
+var TRIP_STAGE3 = /arriving now|has arrived|is here|reached|at your (?:door|location)|arrived/i
+var TRIP_STAGE2 = /picked up|on the way|on its way|out for delivery|en route|heading|driver is|rider is|captain is|arriving|nearby/i
+var TRIP_STAGE1 = /confirmed|accepted|preparing|being prepared|placed|packed|shipped|dispatched|assigned|looking for|searching|locating/i
+
+function tripFrom(n) {
+  if (!n) return null
+  var app = String(n.app || "")
+  var type = ""
+  for (var i = 0; i < TRIP_APPS.length; i++) if (TRIP_APPS[i][1].test(app)) { type = TRIP_APPS[i][0]; break }
+  if (type === "") return null
+  var text = String(n.title || "") + " " + String(n.body || "")
+  if (TRIP_DONE.test(text)) return { done: true, app: app, type: type }
+  var stage = TRIP_STAGE3.test(text) ? 3 : TRIP_STAGE2.test(text) ? 2 : TRIP_STAGE1.test(text) ? 1 : 0
+  var m = TRIP_ETA.exec(text)
+  var eta = m ? Number(m[1]) : -1
+  // An ordinary offer or receipt from a shop app is not a trip.
+  if (stage === 0 && eta < 0) return null
+  if (stage === 0) stage = 1
+  return { type: type, app: app, stage: stage, etaMin: eta, text: String(n.title || "").trim() || String(n.body || "").trim() }
+}
+
+// The trip to show from a newest-first history: the first trip notification within
+// maxAgeMs that no later "done" for the same app has closed, and that was not hidden.
+function currentTrip(history, now, maxAgeMs, hiddenAt) {
+  var closed = {}
+  for (var i = 0; i < history.length; i++) {
+    var n = history[i]
+    var t = Number(n.time) || 0
+    if (now - t > maxAgeMs || t <= (hiddenAt || 0)) continue
+    var r = tripFrom(n)
+    if (!r) continue
+    if (r.done) { closed[r.app] = true; continue }
+    if (closed[r.app]) continue
+    r.time = t
+    r.etaAt = r.etaMin >= 0 ? t + r.etaMin * 60000 : 0
+    return r
+  }
+  return null
+}

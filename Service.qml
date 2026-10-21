@@ -1174,6 +1174,7 @@ Item {
     // The mirror's own window is the indicator; a second one on this desktop
     // counting how long the phone has been up says nothing the phone doesn't.
     if (phoneMirroring && !phoneMuted) out.push("phone")
+    if (trip) out.push("trip")
     if (timerActive) out.push("timer")
     if (stopwatchActive) out.push("stopwatch")
     if (mediaLive) out.push("media")
@@ -1186,7 +1187,7 @@ Item {
   // returns the next time that activity starts. A call, a recording and an
   // assistant driving the phone always stay in view.
   property var tucked: ({})
-  readonly property var tuckable: ["timer", "stopwatch", "media", "phone"]
+  readonly property var tuckable: ["timer", "stopwatch", "media", "phone", "trip"]
   // Scrolling on the island brings another running activity to the front
   // (pinnedLive); liveOrder is the order the scroll walks through.
   readonly property var liveOrder: activeLives.filter(function(k) { return !tucked[k] })
@@ -1573,6 +1574,20 @@ Item {
         root.pushActivity({ kind: "alert", source: "phone-error", icon: "", tint: "orange", title: String(ev.message || "Phone").slice(0, 60), value: "", duration: 3500 })
     }
   }
+
+  // ------------------------------------------------------------ trip (ride, food, delivery)
+  // A ride, order or parcel in flight, read from the notifications the phone relays (Uber, Ola,
+  // Zomato, Swiggy, Amazon...). It shows as a live activity until the app says delivered / ended,
+  // the ETA has passed by 10 minutes, or it is hidden. Parsing lives in IslandModel.tripFrom.
+  property real tripHiddenAt: 0
+  readonly property var trip: {
+    root.now
+    var t = Model.currentTrip(root.history, Date.now(), 90 * 60000, root.tripHiddenAt)
+    if (t && t.etaAt > 0 && Date.now() > t.etaAt + 10 * 60000) return null
+    return t
+  }
+  readonly property int tripMinutes: trip && trip.etaAt > 0 ? Math.max(0, Math.ceil((trip.etaAt - Date.now()) / 60000)) : -1
+  function hideTrip() { tripHiddenAt = Date.now() }
 
   // ------------------------------------------------------------ phone battery
   // The S24's charge, from phoned (adb / KDE Connect): a pill when it starts or stops charging,
