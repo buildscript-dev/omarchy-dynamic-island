@@ -1,0 +1,40 @@
+{
+  "_": "Pure helpers of IslandModel.js. Run by tests/run.sh in Node AND in Qt's own JS engine, which differ (Qt silently never matches a lookbehind). Digits are made up.",
+  "otpCode": [
+    ["413174 is your OTP to access DigiLocker. OTP is confidential and valid for 10 minutes.", "413174"],
+    ["602931 is One-Time Password for INR 120.00 transaction towards BLINK COMME using ICICI Bank Credit Card XX4417. OTPs are SECRET.", "602931"],
+    ["Dear Customer, use code 9235 to login to your OLX account. Never share your code with anyone. #4821 dq12BsUH34h - OLX India", "9235"],
+    ["Give PICKUP CODE 7731 to Shadowfax rider +919876543210. Airtel AWB R1234567890SRL", "7731"],
+    ["<#>Approve phone number change on your Wise Account to number ending in 4410 with code 558201. EFTM3ipbQEk", "558201"],
+    ["<#>This code will let you log in to your Wise account. Your code is: 284113. EFTM3ipbQEk", "284113"],
+    ["Your OTP for KitKat Cashback Program is 667120. Please do not share this OTP with anyone.", "667120"],
+    ["OTP for txn of Rs 1,200 is 483921. Call 1930 if fraud", "483921"],
+    ["Your One-Time Password (OTP) for validating your DigiLocker login with ******9989 generated at 2026-10-21 11:49:48 is:\n753214", "753214"],
+    ["DigiLocker: Your OTP to access DigiLocker account<br>Generated at 2026-10-21 11:49:48 is:<br>753214<br>This is an auto-generated email.", "753214"],
+    ["TEST · DigiLocker Your OTP to access DigiLocker is 551203. Valid for 10 minutes.", "551203"],
+    ["Share OTP 640212 ONLY after checking for the correct product.", "640212"],
+    ["Dear SBI Customer, hackers use AI deepfake voice. Verify before sharing. Call 1930 to report such frauds.", ""],
+    ["A/c *9340 Credited for Rs:50.00 on 20-10-2026 21:29:31 by Mob Bk ref no 665123456789 Avl Bal Rs:12.34.Never Share OTP/PIN/CVV", ""],
+    ["Debited Rs 5000 from A/c XX9340. Never share OTP with anyone", ""],
+    ["Debited Rs.5000 from A/c XX9340. Never share OTP", ""],
+    ["We tried reaching you for shipment BETR1234567890. Call 9876543210, PIN 123.", ""],
+    ["lunch at 1234", ""]
+  ],
+  "otpMinutes": [["OTP is confidential and valid for 10 minutes.", 10], ["valid 5 mins", 5], ["Your code is 123456", 0]],
+  "otpGroup": [["413174", "413 174"], ["41317412", "4131 7412"], ["9235", "9235"]],
+  "execArgvOf": [
+    ["[\"omarchy-agent-crash\",\"86904\",\"bluetoothctl\"]", ["omarchy-agent-crash", "86904", "bluetoothctl"]],
+    ["", null], ["rm -rf ~", null], ["{\"a\":1}", null], ["[\"ok\", 3]", null], ["[\"\"]", null], ["[]", null]
+  ],
+  "isRedacted": [
+    [{"body": "Sensitive notification content hidden"}, true],
+    [{"body": "x", "fullText": " Sensitive notification content hidden "}, true],
+    [{"body": "Your OTP is 123456"}, false],
+    [null, false]
+  ],
+  "nmcliFields": [
+    ["wlo1:wifi:connected:Cafe\\:5G", ["wlo1", "wifi", "connected", "Cafe:5G"]],
+    ["tailscale0:tun:connected (externally):tailscale0", ["tailscale0", "tun", "connected (externally)", "tailscale0"]],
+    ["lo:loopback:connected (externally):lo", ["lo", "loopback", "connected (externally)", "lo"]]
+  ]
+}

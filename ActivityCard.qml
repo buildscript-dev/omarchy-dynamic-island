@@ -35,6 +35,11 @@ Item {
     if (kind === "phone")
       return { glyph: "", tint: "green", title: s.phoneName, value: s.phoneSince > 0 ? Model.formatTime((Date.now() - s.phoneSince) / 1000) : "",
         sub: "Mirroring on this PC", buttons: [{ id: "stop", glyph: "", label: "Stop", red: true }] }
+    if (kind === "trip" && s.trip)
+      return { glyph: s.glyphs.bell, tint: s.trip.type === "ride" ? "green" : s.trip.type === "food" ? "orange" : s.trip.type === "sports" ? "purple" : "blue",
+        title: s.trip.app, value: s.trip.type === "sports" ? s.trip.score : Model.minutesText(s.tripMinutes),
+        sub: s.trip.text,
+        buttons: [{ id: "open", glyph: "↗", label: "Open", text: true }, { id: "stop", glyph: "", label: "Hide", red: true }] }
     if (kind === "ai")
       return { glyph: s.glyphs.robot, tint: "blue", title: "Assistant", value: "", sub: s.aiText || "Working on your phone", buttons: [] }
     return { glyph: "", tint: "white", title: "", value: "", sub: "", buttons: [] }
@@ -52,91 +57,125 @@ Item {
       if (id === "stop") s.stopRecording()
     } else if (kind === "phone") {
       if (id === "stop" && s.phone) s.phone.stopControl()
+    } else if (kind === "trip") {
+      if (id === "open" && s.trip) s.openForApp(s.trip.app)
+      else if (id === "stop") s.hideTrip()
     }
   }
 
-  Rectangle {
-    id: badge
-    x: 22
-    y: 22
-    width: 52
-    height: 52
-    radius: 26
-    color: Qt.rgba(1, 1, 1, 0.12)
-    Text {
-      anchors.centerIn: parent
-      text: root.info.glyph
-      font.family: root.s.iconFont
-      font.pixelSize: 24
-      color: root.s.tint(root.info.tint)
-      textFormat: Text.PlainText
-    }
+  // Black card, one accent: the read-out, the tick bar and the primary button take it.
+  readonly property color accent: s.tint(info.tint)
+  // 0..1 across the tick bar: what is left of a timer, otherwise the second hand of a minute.
+  readonly property real progress: {
+    s.now
+    if (kind === "timer") return s.timerTotal > 0 ? Math.max(0, Math.min(1, s.timerLeft / s.timerTotal)) : 0
+    var secs = kind === "stopwatch" ? s.stopwatchElapsed
+      : kind === "recording" ? (s.recordingSince > 0 ? (Date.now() - s.recordingSince) / 1000 : 0)
+      : kind === "phone" ? (s.phoneSince > 0 ? (Date.now() - s.phoneSince) / 1000 : 0) : 0
+    if (kind === "trip") return s.trip ? s.trip.stage / 3 : 0
+    return (secs % 60) / 60
   }
-  Column {
-    anchors.left: badge.right
-    anchors.leftMargin: 14
-    anchors.right: value.left
-    anchors.rightMargin: 12
-    anchors.verticalCenter: badge.verticalCenter
-    spacing: 2
+  readonly property bool tickBar: kind !== "ai" && !(kind === "trip" && s.trip && s.trip.type === "sports")
+
+  Row {
+    id: head
+    x: 22
+    y: 18
+    spacing: 7
+    Rectangle {
+      anchors.verticalCenter: parent.verticalCenter
+      width: 8; height: 8; radius: 4
+      color: root.accent
+    }
     Text {
-      width: parent.width
       text: root.info.title
       font.family: root.s.textFont
-      font.pixelSize: Model.TYPE.body
-      font.weight: Font.DemiBold
-      color: root.fg
-      elide: Text.ElideRight
-      textFormat: Text.PlainText
-    }
-    Text {
-      width: parent.width
-      text: root.info.sub
-      font.family: root.s.textFont
       font.pixelSize: Model.TYPE.footnote
-      color: root.dim
-      elide: Text.ElideRight
+      font.weight: Font.DemiBold
+      color: root.accent
       textFormat: Text.PlainText
     }
   }
   Text {
-    id: value
     anchors.right: parent.right
     anchors.rightMargin: 24
-    anchors.verticalCenter: badge.verticalCenter
-    text: root.info.value
+    anchors.verticalCenter: head.verticalCenter
+    width: parent.width / 2
+    horizontalAlignment: Text.AlignRight
+    text: root.info.sub
     font.family: root.s.textFont
-    font.pixelSize: Model.TYPE.large
-    font.weight: Font.Light
-    font.features: { "tnum": 1 }
-    color: root.s.tint(root.info.tint)
+    font.pixelSize: Model.TYPE.footnote
+    color: root.dim
+    elide: Text.ElideRight
     textFormat: Text.PlainText
+  }
+
+  Text {
+    id: value
+    anchors.left: parent.left
+    anchors.leftMargin: 22
+    anchors.top: head.bottom
+    anchors.topMargin: 2
+    text: root.info.value !== "" ? root.info.value : root.info.sub
+    font.family: root.s.textFont
+    font.pixelSize: root.info.value !== "" ? 40 : 22
+    font.weight: Font.Bold
+    font.features: { "tnum": 1 }
+    color: root.accent
+    textFormat: Text.PlainText
+  }
+
+  // Tick bar, like the reference's Voice Memo / charging cards.
+  Row {
+    id: ticks
+    visible: root.tickBar
+    anchors.left: parent.left
+    anchors.leftMargin: 22
+    anchors.right: parent.right
+    anchors.rightMargin: 22
+    anchors.top: value.bottom
+    anchors.topMargin: 6
+    height: 12
+    spacing: 3
+    Repeater {
+      model: 36
+      delegate: Rectangle {
+        required property int index
+        width: (ticks.width - 35 * 3) / 36
+        height: parent.height
+        radius: width / 2
+        color: (index + 1) / 36 <= root.progress + 0.001 ? root.accent : Qt.rgba(1, 1, 1, 0.16)
+      }
+    }
   }
 
   Row {
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
-    anchors.bottomMargin: 18
-    spacing: 16
+    anchors.bottomMargin: 14
+    spacing: 10
     Repeater {
       model: root.info.buttons
       delegate: Rectangle {
         required property var modelData
-        width: 104
-        height: 40
-        radius: 20
-        color: modelData.red ? Qt.rgba(1, 0.27, 0.23, btn.containsMouse ? 0.34 : 0.24)
-          : btn.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.14)
+        required property int index
+        readonly property color tone: modelData.red ? root.s.tint("red") : root.accent
+        readonly property bool primary: index === 0 && !modelData.red
+        width: 96
+        height: 36
+        radius: 18
+        color: primary ? Qt.rgba(tone.r, tone.g, tone.b, btn.containsMouse ? 1 : 0.92)
+          : Qt.rgba(tone.r, tone.g, tone.b, btn.containsMouse ? 0.34 : 0.22)
         Row {
           anchors.centerIn: parent
-          spacing: 8
+          spacing: 7
           Text {
             anchors.verticalCenter: parent.verticalCenter
             text: modelData.glyph
             font.family: modelData.text ? root.s.textFont : root.s.iconFont
             font.pixelSize: modelData.text ? 14 : 16
             font.weight: Font.DemiBold
-            color: modelData.red ? root.s.tint("red") : root.fg
+            color: primary ? "black" : tone
             textFormat: Text.PlainText
           }
           Text {
@@ -145,7 +184,7 @@ Item {
             font.family: root.s.textFont
             font.pixelSize: Model.TYPE.subhead
             font.weight: Font.DemiBold
-            color: modelData.red ? root.s.tint("red") : root.fg
+            color: primary ? "black" : tone
             textFormat: Text.PlainText
           }
         }

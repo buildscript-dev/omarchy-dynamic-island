@@ -69,6 +69,7 @@ PanelWindow {
   property bool hovered: false
   property bool expanded: false
   property bool historyOpen: false
+  property string historyKind: "notifs"
   property bool callOpen: false
   readonly property alias callView: callView
   readonly property var t: s.activity
@@ -98,7 +99,41 @@ PanelWindow {
   // Views keep drawing the last payload of their kind while they fade out.
   property var lastAlert: ({ icon: "", tint: "white", title: "", value: "" })
   property var lastHud: ({ icon: "", tint: "white", percent: 0, value: "" })
+  // ------------------------------------------------------------ container colour
+  // A dark wash of what the island shows (Service.tintContainers): urgent -> red, an app icon -> its
+  // dominant colour, an alert -> its own tint, music -> the cover colour, else the theme accent.
+  ColorQuantizer {
+    id: notifQ
+    source: (win.mode === "notification" && String(win.lastNotif.image || "").indexOf("file://") === 0) ? win.lastNotif.image : ""
+    depth: 2
+    rescaleSize: 32
+  }
+  function wash(c, a) {
+    if (typeof c === "string") c = Qt.color(c)   // the Apple palette holds plain hex strings
+    if (!c || c.r === undefined) return Qt.rgba(0, 0, 0, 1)
+    return Qt.rgba(c.r * a, c.g * a, c.b * a, 1)
+  }
+  function fillFor() {
+    try {
+      if (!s || !s.tintContainers) return Qt.rgba(0, 0, 0, 1)
+      if (mode === "notification") {
+        if (lastNotif.urgent) return wash(s.tint("red"), 0.3)
+        if (notifCode !== "") return wash(s.tint("green"), 0.22)
+        var icon = notifQ.colors.length > 0 ? Model.vividColor(notifQ.colors, s.themeAccent) : s.themeAccent
+        return wash(icon, 0.30)
+      }
+      if (mode === "alert" && t && t.tint && t.tint !== "white" && t.tint !== "secondary") return wash(s.tint(t.tint), 0.26)
+      if ((mode === "compact" || mode === "expanded") && s.hasMedia) return wash(s.mediaAccent, 0.2)
+    } catch (e) { console.warn("island fill: " + e) }
+    return Qt.rgba(0, 0, 0, 1)
+  }
+  // A plain property refreshed by a timer (a direct binding evaluated to undefined once at creation).
+  property color islandFill: "#000000"
+  Timer { interval: 100; running: true; repeat: true; triggeredOnStart: true; onTriggered: { var c = win.fillFor(); if (c !== win.islandFill) win.islandFill = c } }
+
   property var lastNotif: ({ app: "", title: "", body: "", image: "", urgent: false })
+  // A card holding a one-time code is drawn as one (see the code view in the notification peek).
+  readonly property string notifCode: s.codeOf(lastNotif)
   onTChanged: {
     if (!t) return
     if (t.kind === "alert") lastAlert = t
@@ -192,17 +227,18 @@ PanelWindow {
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
     : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
     : s.live === "ai" ? s.aiLabel
+    : s.live === "trip" ? (s.trip && s.trip.type === "sports" ? s.trip.score : s.tripMinutes >= 120 ? Math.floor(s.tripMinutes / 60) + "h" : s.tripMinutes >= 0 ? s.tripMinutes + "m" : "")
     : s.live === "dock" ? (s.dockCount > 1 ? String(s.dockCount) : "")
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
     : ""
   readonly property int artSize: s.notchHeight - 8
-  readonly property int leadWidth: s.live === "media" ? artSize : s.live === "recording" ? 9 : s.live === "dock" ? 18 : 16
+  readonly property int leadWidth: s.live === "media" ? artSize : s.live === "recording" ? 9 : s.live === "dock" || s.live === "trip" ? 18 : 16
   readonly property int trailWidth: s.live === "media" ? 22 : Math.ceil(trailMetrics.advanceWidth)
   // Rounded up to 8px steps so the width doesn't twitch every second as digits change.
   readonly property int slot: Math.ceil(Math.max(leadWidth, trailWidth) / 8) * 8
-  readonly property int clockWidth: s.showClock ? Math.ceil(clockMetrics.advanceWidth) : 36
-  readonly property int compactContentWidth: 2 * (edge + slot) + 2 * 12 + clockWidth
+  readonly property int clockWidth: s.showClock ? Math.ceil(clockMetrics.advanceWidth) : 12
+  readonly property int compactContentWidth: 2 * (edge + slot) + 2 * 4 + clockWidth
   readonly property int idleContentWidth: s.showClock ? clockWidth + 2 * (s.notchHeight / 2 + 8) : 0
   onBwChanged: if (onThisScreen && (mode === "idle" || mode === "compact") && !hovered) s.restingWidth = Math.round(geometryFor(mode).w)
 
@@ -223,8 +259,12 @@ PanelWindow {
       return { w: callView.preferredWidth, h: callView.preferredHeight, rb: 34, rt: 0 }
     if (m === "history")
       return { w: historyView.preferredWidth, h: historyView.preferredHeight, rb: 34, rt: 0 }
+    if (m === "alert" && lastAlert.source === "output") {
+      var oh = s.notchHeight + 78
+      return { w: Model.clamp(Math.ceil(alertTitleMetrics.advanceWidth) + 96, 230, 420), h: oh, rb: 32, rt: 0 }
+    }
     var content = m === "compact" ? compactContentWidth : m === "idle" ? idleContentWidth
-      : m === "notification" ? s.notificationWidth : alertContentWidth
+      : m === "notification" ? s.notificationWidth * (win.screenName === "TAB" ? 1.4 : 1) : alertContentWidth
     return Model.geometry(m, s.notchWidth, s.notchHeight, content, s.appleSize, s.hasMedia)
   }
   readonly property var geom: {
@@ -407,7 +447,7 @@ PanelWindow {
   function pageStep(dir) {
     var i = pageIndex + dir
     if (i < 0) { callOpen = false; setExpanded(false); feelStep(-1); return }
-    if (i >= s.expandedPages.length) { openHistory(); feelStep(1); return }
+    if (i >= s.expandedPages.length) { openHistory("notifs"); feelStep(1); return }
     showPage(i)
     feelStep(dir)
   }
@@ -418,24 +458,28 @@ PanelWindow {
   // and up retraces it to the pill. 1 = down, -1 = up.
   function scrollStep(dir) {
     if (mode === "history") {
-      if (dir > 0) return
+      if (historyKind === "glance" ? dir < 0 : dir > 0) return
       historyOpen = false
       wheelQuietUntil = Date.now() + 300
-      if (s.expandedPages.length > 0) showPage(s.expandedPages.length - 1)
+      if (historyKind === "notifs" && s.expandedPages.length > 0) showPage(s.expandedPages.length - 1)
       feelStep(-1)
       return
     }
     if (mode === "expanded" || mode === "callview") { pageStep(dir); return }
     // A passing alert, volume pill or notification steps aside for the scroll.
     if ((mode === "alert" || mode === "hud" || mode === "notification") && t && t.source !== "alarm-ring") s.finishActivity()
-    if (dir < 0) return
+    // Up on the pill opens the notification list straight away (down opens the music / activity pages).
+    if (dir < 0) { dwellTimer.stop(); openHistory("glance"); feelStep(-1); return }
     dwellTimer.stop()
     if (s.expandedPages.length > 0) showPage(Math.max(0, pageOf(s.live === "" ? "media" : s.live)))
-    else openHistory()
+    else openHistory("notifs")
     feelStep(1)
   }
-  function openHistory() {
+  // The Control Center was removed; callers still ask to close it. Nothing to do.
+  function closeControls() {}
+  function openHistory(kind) {
     if (!s.showHistory || historyOpen) return
+    historyKind = kind || "notifs"
     if (expanded) setExpanded(false)
     closeControls()
     s.expandedWindow = win
@@ -971,6 +1015,18 @@ PanelWindow {
       }
       Text {
         textFormat: Text.PlainText
+        visible: win.s.secondLive === "trip"
+        anchors.centerIn: parent
+        width: parent.width - 8
+        horizontalAlignment: Text.AlignHCenter
+        text: win.s.trip && win.s.trip.type === "sports" ? win.s.trip.score : win.s.tripMinutes >= 120 ? Math.floor(win.s.tripMinutes / 60) + "h" : win.s.tripMinutes >= 0 ? win.s.tripMinutes + "m" : ""
+        font.family: win.s.textFont
+        font.pixelSize: Model.TYPE.footnote
+        font.weight: Font.DemiBold
+        color: win.s.tint("orange")
+      }
+      Text {
+        textFormat: Text.PlainText
         visible: win.s.secondLive === "call"
         anchors.centerIn: parent
         text: ""
@@ -1064,7 +1120,7 @@ PanelWindow {
           ShapePath {
             id: bubblePath
             strokeWidth: -1
-            fillColor: win.s.islandColor
+            fillColor: win.islandFill
             Behavior on fillColor { ColorAnimation { duration: 300 } }
             PathSvg { path: Model.squirclePath(win.bw, win.bh, win.brb, 0.6) }
           }
@@ -1198,6 +1254,13 @@ PanelWindow {
             glyph: win.s.glyphs.robot
             trail: win.s.aiLabel
             pulsing: true
+          }
+
+          CompactActivity {
+            kind: "trip"
+            tone: win.s.trip ? (win.s.trip.type === "ride" ? "green" : win.s.trip.type === "food" ? "orange" : win.s.trip.type === "sports" ? "purple" : "blue") : "blue"
+            iconSource: win.s.trip ? win.s.appIconFor(win.s.trip.app) : ""
+            trail: win.trailText
           }
 
           CompactActivity {
@@ -1353,10 +1416,70 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: win.mode === "idle" || win.mode === "compact" ? 260 : 90 } }
           }
 
+          // ------------------------------------------------ audio output card (centred)
+          Reveal {
+            id: outputCard
+            reduced: win.s.reduceMotion
+            shown: win.mode === "alert" && win.lastAlert.source === "output"
+            width: win.geometryFor("alert").w
+            height: win.geometryFor("alert").h
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Column {
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.top: parent.top
+              anchors.topMargin: win.s.notchHeight * 0.5 + 4
+              spacing: 6
+
+              // Glyph in a soft badge; pops in with a spring each time the card shows.
+              Item {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 38; height: 38
+                Rectangle {
+                  anchors.fill: parent
+                  radius: width / 2
+                  color: Qt.rgba(0.04, 0.52, 1, 0.22)
+                }
+                Text {
+                  id: outGlyph
+                  textFormat: Text.PlainText
+                  anchors.centerIn: parent
+                  text: win.lastAlert.icon || ""
+                  font.family: win.s.iconFont
+                  font.pixelSize: 20
+                  color: win.s.tint("blue")
+                  scale: 1
+                }
+                SequentialAnimation {
+                  running: outputCard.shown && !win.s.reduceMotion
+                  NumberAnimation { target: outGlyph; property: "scale"; from: 0.5; to: 1.18; duration: 220; easing.type: Easing.OutCubic }
+                  NumberAnimation { target: outGlyph; property: "scale"; to: 1; duration: 260; easing.type: Easing.OutBack }
+                }
+              }
+              Text {
+                textFormat: Text.PlainText
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(implicitWidth, outputCard.width - 40)
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: win.lastAlert.title || ""
+                font: alertTitleMetrics.font
+                color: win.s.textColor
+              }
+              Waveform {
+                anchors.horizontalCenter: parent.horizontalCenter
+                height: 10
+                bars: 7
+                playing: outputCard.shown
+                color: win.s.tint("blue")
+              }
+            }
+          }
+
           // ------------------------------------------------ alert (wide pill)
           Reveal {
             reduced: win.s.reduceMotion
-            shown: win.mode === "alert"
+            shown: win.mode === "alert" && win.lastAlert.source !== "output"
             width: win.geometryFor("alert").w
             height: win.geometryFor("alert").h
             anchors.horizontalCenter: parent.horizontalCenter
@@ -1517,7 +1640,98 @@ PanelWindow {
                 }
               }
             }
+            // ---- one-time code: the digits large, who sent them and for how long, one button that copies (the
+            // whole card copies too). Grouped for the eye only; the copy is the bare digits.
+            Item {
+              id: otpView
+              visible: win.notifCode !== ""
+              readonly property bool copied: win.s.copiedCode !== "" && win.s.copiedCode === win.notifCode
+              readonly property int minutes: win.lastNotif.minutes || Model.otpMinutes(win.s.textOf(win.lastNotif))
+              anchors.left: notifImage.right
+              anchors.leftMargin: 12
+              anchors.right: parent.right
+              anchors.rightMargin: 14
+              anchors.verticalCenter: notifImage.verticalCenter
+              height: Math.max(otpText.implicitHeight, copyPill.height)
+
+              Column {
+                id: otpText
+                anchors.left: parent.left
+                anchors.right: copyPill.left
+                anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: (win.lastNotif.app === "One-time code" ? "" : (win.lastNotif.app || "") + " · ")
+                    + (win.lastNotif.title || "One-time code")
+                    + (otpView.minutes > 0 ? "  ·  " + otpView.minutes + " min" : "")
+                  font.family: win.s.textFont
+                  font.pixelSize: Model.TYPE.caption
+                  font.weight: Font.Medium
+                  color: win.s.secondaryText
+                  elide: Text.ElideRight
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: Model.otpGroup(win.notifCode)
+                  font.family: win.s.displayFont
+                  font.pixelSize: 26
+                  font.weight: Font.DemiBold
+                  font.letterSpacing: 1.5
+                  font.features: { "tnum": 1 }
+                  color: otpView.copied ? win.s.tint("green") : win.s.textColor
+                  Behavior on color { ColorAnimation { duration: 180 } }
+                }
+              }
+              Rectangle {
+                id: copyPill
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                height: 34
+                width: copyRow.implicitWidth + 26
+                radius: height / 2
+                color: otpView.copied ? win.s.tint("green") : Qt.rgba(1, 1, 1, copyTap.containsMouse ? 0.22 : 0.13)
+                scale: copyTap.pressed ? 0.9 : copyTap.containsMouse ? 1.05 : 1
+                Behavior on color { ColorAnimation { duration: 180 } }
+                Behavior on width { SpringAnimation { spring: 5; damping: 0.4; epsilon: 0.3 } }
+                Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.005 } }
+                Accessible.role: Accessible.Button
+                Accessible.name: otpView.copied ? "Code copied" : "Copy code"
+                Row {
+                  id: copyRow
+                  anchors.centerIn: parent
+                  spacing: 6
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: otpView.copied ? win.s.glyphs.check : win.s.glyphs.copy
+                    font.family: win.s.iconFont
+                    font.pixelSize: Model.TYPE.subhead
+                    color: "#ffffff"
+                  }
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: otpView.copied ? "Copied" : "Copy"
+                    font.family: win.s.textFont
+                    font.pixelSize: Model.TYPE.footnote
+                    font.weight: Font.DemiBold
+                    color: "#ffffff"
+                  }
+                }
+                MouseArea {
+                  id: copyTap
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: win.s.notificationActivate()
+                }
+              }
+            }
             Column {
+              visible: win.notifCode === ""
               anchors.left: notifImage.right
               anchors.leftMargin: 12
               anchors.right: cardButtons.visible ? cardButtons.left : parent.right
@@ -1639,7 +1853,8 @@ PanelWindow {
               anchors.fill: parent
               s: win.s
               active: win.mode === "history"
-              onCloseRequested: win.scrollStep(-1)
+              kind: win.historyKind
+              onCloseRequested: win.scrollStep(win.historyKind === "glance" ? 1 : -1)
             }
           }
 

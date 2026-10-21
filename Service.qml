@@ -27,8 +27,8 @@ Item {
   // Fire-and-forget actions and long-lived launches, both in the closed
   // environment with fixed executables (IslandModel.js). Readers use SafeProcess.
   readonly property var childEnv: Model.childEnv(function(k) { return Quickshell.env(k) })
-  function fire(argv, seconds) {
-    Quickshell.execDetached({ command: Model.bounded(argv, seconds || 20, 0), environment: root.childEnv, clearEnvironment: true })
+  function fire(argv, seconds, extraEnv) {
+    Quickshell.execDetached({ command: Model.bounded(argv, seconds || 20, 0), environment: Object.assign({}, root.childEnv, extraEnv || {}), clearEnvironment: true })
   }
   // Only for programs meant to outlive a deadline: the update terminal, a
   // screen recording, a locker, a file the user opened.
@@ -151,6 +151,10 @@ Item {
   // ------------------------------------------------------------ look
   // Pure black, like the iPhone: it melts into the camera and the bezel.
   readonly property color islandColor: "#000000"
+  // Containers take a dark wash of what they show: the app icon, the kind of alert, the cover art,
+  // or the Omarchy theme accent. Off = plain black.
+  readonly property bool tintContainers: setting("tintContainers", true) === true
+  readonly property color themeAccent: Color.accent
   readonly property color textColor: "#ffffff"
   readonly property color secondaryText: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.58)
   readonly property color trackColor: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.18)
@@ -359,7 +363,7 @@ Item {
     // A new name per track, so the Image and the quantizer see a new URL.
     "f=\"$d/$(printf %s \"$1\" | /usr/bin/md5sum | /usr/bin/cut -c1-20).img\"; " +
     "/usr/bin/mv -f -- \"$t\" \"$f\" || exit 1; " +
-    "/usr/bin/find \"$d\" -maxdepth 1 -type f \\( -name \"*.img\" ! -name \"${f##*/}\" -o -name \"art.*\" -mmin +1 \\) -delete; printf %s \"$f\""
+    "/usr/bin/find \"$d\" -maxdepth 1 -type f \\( -name \"*.img\" ! -name \"${f##*/}\" -mmin +1440 -o -name \"art.*\" -mmin +1 \\) -delete; printf %s \"$f\""
   property string artLocal: ""
   onTrackArtChanged: fetchArt()
   Component.onCompleted: fetchArt()
@@ -715,9 +719,9 @@ Item {
     var wifi = "", tail = false
     var net = parts[0].split("\n")
     for (var i = 0; i < net.length; i++) {
-      var f = net[i].split(/(?<!\\):/)
+      var f = Model.nmcliFields(net[i])   // a lookbehind split never matched in Qt: these pills never fired
       if (f.length < 4) continue
-      if (f[1] === "wifi" && f[2] === "connected") wifi = f[3].replace(/\\:/g, ":")
+      if (f[1] === "wifi" && f[2] === "connected") wifi = f[3]
       if (f[0] === "tailscale0") tail = /^connected/.test(f[2])
     }
     var usb = (parts[1] || "").split("\n").map(function(x) { return x.trim() })
@@ -866,8 +870,10 @@ Item {
     // The same message can arrive from the phone and from this machine's own
     // copy of the app (Signal, WhatsApp, Telegram): whichever lands first wins.
     var line = pn ? root.newestLine(pn.text) : (body !== "" ? body : summary)
-    if (Model.seenRecently(root.recentMessages, line, Date.now(), root.duplicateWindow)) return
-    root.recentMessages = Model.rememberMessage(root.recentMessages, line, Date.now(), root.duplicateWindow)
+    // A blanked-out SMS notification says nothing; while the phone's SMS sync is up, the SMS itself brings the card.
+    var kc = root.phone && root.phone.pstate ? root.phone.pstate.kdeconnect || {} : {}
+    if (Model.isRedacted({ body: pn ? String(pn.text) : body }) && kc.reachable && kc.sharing && kc.sharing.sms) return
+    if (root.seenMessage(line, Model.otpCode(summary + " " + (pn ? String(pn.text) : body)))) return
     var iconUrl = root.notifIcon(d, summary)
     var file = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
     if (root.alertSound && !root.dnd) root.fire(["pw-play", "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"], 5)
@@ -878,7 +884,7 @@ Item {
       body: pn ? root.newestLine(pn.text) : (summary !== "" ? body : ""), image: iconUrl,
       replyId: pn ? String(pn.replyId || "") : "",
       phone: !!pn, fullText: pn ? String(pn.text) : "",
-      urgent: Number(d.urgency) === 2,
+      urgent: Number(d.urgency) === 2, execArgv: String(d.execArgv || ""),
       duration: Number(d.urgency) === 2 ? 8000 : 5000
     })
   }
@@ -1000,22 +1006,69 @@ Item {
   // Connect mirroring the phone's popup, or the desktop app for the same chat.
   property var recentMessages: []
   readonly property int duplicateWindow: 12000
-  function notificationActivate() {
-    if (activity && root.openForApp(activity.app)) {
-      finishActivity()
-      return
+  // A one-time code on a card: the one BuildDots read from the SMS itself (island otp), else whatever a
+  // notification's text holds (Model.otpCode says which digits count).
+  function codeOf(n) {
+    if (!n) return ""
+    if (/^\d{4,8}$/.test(String(n.code || ""))) return String(n.code)
+    return Model.otpCode(root.textOf(n))
+  }
+  // A card's whole message: a phone notification shows only its newest line, the code can sit in any of them.
+  function textOf(n) {
+    return n ? String(n.title || "") + " " + String(n.fullText || n.body || "") : ""
+  }
+  // Copy a code. --sensitive keeps it out of the clipboard history (capture.sh skips that hint); launch, not fire,
+  // since wl-copy stays up to serve the paste. The card shows "Copied" in place for a moment, then folds.
+  property string copiedCode: ""
+  Timer { id: copiedReset; interval: 2400; onTriggered: root.copiedCode = "" }
+  Timer { id: copiedFold; interval: 900; onTriggered: root.finishActivity() }
+  function copyCode(code) {
+    if (!/^\d{4,8}$/.test(String(code || ""))) return
+    root.launch(["wl-copy", "--sensitive", "--", code])
+    root.copiedCode = code
+    copiedReset.restart()
+  }
+  // What a click on a notification card does, most specific first: a code is copied; the notification's own
+  // action (Omarchy's omarchy-exec-argv hint, kept in its file) runs; the sending app comes forward. Omarchy's
+  // invokeLast fires the newest popup on screen, whichever card was clicked, so it is used only for the live card
+  // of that very notification. A history card once ran a crash report's "open Claude" this way.
+  function openNotif(n, live, skipCode) {
+    if (!n) return ""
+    var code = skipCode ? "" : root.codeOf(n)
+    if (code !== "") { root.copyCode(code); return "copied" }
+    var argv = Model.execArgvOf(n.execArgv)
+    if (argv) { root.launch(argv); return "ran" }
+    if (root.openForApp(n.app)) return "opened"
+    var newest = root.notifFile.substring(root.notifFile.lastIndexOf("/") + 1)
+    if (live && n.source === "notification" && n.file !== "" && n.file === newest) {
+      root.fire(["omarchy-shell", "-q", "notifications", "invokeLast"], 10)
+      return "invoked"
     }
-    root.fire(["omarchy-shell", "-q", "notifications", "invokeLast"], 10)
+    return ""
+  }
+  function notificationActivate() {
+    if (root.openNotif(activity, true, false) === "copied") { copiedFold.restart(); return }
     finishActivity()
+  }
+  // One message, one card: the phone's SMS, KDE Connect's copy of its notification and BuildDots' code card can
+  // all carry the same thing. A message counts as seen by its text and, when it holds a code, by that code.
+  function seenMessage(text, code) {
+    var now = Date.now()
+    var dup = Model.seenRecently(root.recentMessages, text, now, root.duplicateWindow)
+      || (code !== "" && Model.seenRecently(root.recentMessages, "otp:" + code, now, root.duplicateWindow))
+    var next = Model.rememberMessage(root.recentMessages, text, now, root.duplicateWindow)
+    if (code !== "") next = Model.rememberMessage(next, "otp:" + code, now, root.duplicateWindow)
+    root.recentMessages = next
+    return dup
   }
   // Dismissing a phone notification here dismisses it on the phone too, through
   // KDE Connect: the phone's own notification object with the same title, and only
   // when the phone says it can be dismissed (a media player's cannot). The title
-  // goes in as an argument, never into the script text.
-  readonly property string dismissPhoneScript: "D=$(/usr/bin/kdeconnect-cli -a --id-only 2>/dev/null | /usr/bin/head -1)\n[ -n \"$D\" ] || exit 0\nN=/modules/kdeconnect/devices/$D/notifications\nI=org.kde.kdeconnect.device.notifications.notification\nfor id in $(/usr/bin/busctl --user call org.kde.kdeconnect \"$N\" org.kde.kdeconnect.device.notifications activeNotifications 2>/dev/null | /usr/bin/grep -o '\"[0-9A-Za-z_.:-]*\"' | /usr/bin/tr -d '\"'); do\n  t=$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I title 2>/dev/null)\n  [ \"$t\" = \"s \\\"$1\\\"\" ] || continue\n  [ \"$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I dismissable 2>/dev/null)\" = \"b true\" ] || continue\n  /usr/bin/busctl --user call org.kde.kdeconnect \"$N/$id\" $I dismiss\n  exit 0\ndone\n"
+  // goes in through the environment (argv is world-readable in /proc), never into the script text.
+  readonly property string dismissPhoneScript: "D=$(/usr/bin/kdeconnect-cli -a --id-only 2>/dev/null | /usr/bin/head -1)\n[ -n \"$D\" ] || exit 0\nN=/modules/kdeconnect/devices/$D/notifications\nI=org.kde.kdeconnect.device.notifications.notification\nfor id in $(/usr/bin/busctl --user call org.kde.kdeconnect \"$N\" org.kde.kdeconnect.device.notifications activeNotifications 2>/dev/null | /usr/bin/grep -o '\"[0-9A-Za-z_.:-]*\"' | /usr/bin/tr -d '\"'); do\n  t=$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I title 2>/dev/null)\n  [ \"$t\" = \"s \\\"$ISLAND_TITLE\\\"\" ] || continue\n  [ \"$(/usr/bin/busctl --user get-property org.kde.kdeconnect \"$N/$id\" $I dismissable 2>/dev/null)\" = \"b true\" ] || continue\n  /usr/bin/busctl --user call org.kde.kdeconnect \"$N/$id\" $I dismiss\n  exit 0\ndone\n"
   function notificationDismiss() {
     if (activity && activity.phone && String(activity.title || "") !== "")
-      root.fire(["bash", "-c", root.dismissPhoneScript, "dismiss-phone", Model.clip(String(activity.title), 200)], 10)
+      root.fire(["bash", "-c", root.dismissPhoneScript], 10, { ISLAND_TITLE: Model.clip(String(activity.title), 200) })
     root.fire(["omarchy-shell", "-q", "notifications", "dismissOne"], 10)
     finishActivity()
   }
@@ -1121,6 +1174,7 @@ Item {
     // The mirror's own window is the indicator; a second one on this desktop
     // counting how long the phone has been up says nothing the phone doesn't.
     if (phoneMirroring && !phoneMuted) out.push("phone")
+    if (trip) out.push("trip")
     if (timerActive) out.push("timer")
     if (stopwatchActive) out.push("stopwatch")
     if (mediaLive) out.push("media")
@@ -1133,7 +1187,7 @@ Item {
   // returns the next time that activity starts. A call, a recording and an
   // assistant driving the phone always stay in view.
   property var tucked: ({})
-  readonly property var tuckable: ["timer", "stopwatch", "media", "phone"]
+  readonly property var tuckable: ["timer", "stopwatch", "media", "phone", "trip"]
   // Scrolling on the island brings another running activity to the front
   // (pinnedLive); liveOrder is the order the scroll walks through.
   readonly property var liveOrder: activeLives.filter(function(k) { return !tucked[k] })
@@ -1510,8 +1564,7 @@ Item {
           value: ev.on ? "Connected" : "Off", duration: 2200 })
       else if (ev.kind === "sms") {
         var text = String(ev.body || "")
-        var dup = Model.seenRecently(root.recentMessages, text, Date.now(), root.duplicateWindow)
-        root.recentMessages = Model.rememberMessage(root.recentMessages, text, Date.now(), root.duplicateWindow)
+        var dup = root.seenMessage(text, Model.otpCode(text))
         if (root.showNotifications && !root.phoneMuted && !dup)
           root.pushActivity({ kind: "notification", source: "sms", file: "", app: "Messages · " + root.phoneName,
             title: ev.name || (ev.addresses || []).join(", "), body: text, image: "",
@@ -1520,6 +1573,40 @@ Item {
       else if (ev.kind === "error")
         root.pushActivity({ kind: "alert", source: "phone-error", icon: "", tint: "orange", title: String(ev.message || "Phone").slice(0, 60), value: "", duration: 3500 })
     }
+  }
+
+  // ------------------------------------------------------------ trip (ride, food, delivery)
+  // A ride, order or parcel in flight, read from the notifications the phone relays (Uber, Ola,
+  // Zomato, Swiggy, Amazon...). It shows as a live activity until the app says delivered / ended,
+  // the ETA has passed by 10 minutes, or it is hidden. Parsing lives in IslandModel.tripFrom.
+  property real tripHiddenAt: 0
+  readonly property var trip: {
+    root.now
+    var t = Model.currentTrip(root.history, Date.now(), 0, root.tripHiddenAt)
+    if (t && t.etaAt > 0 && Date.now() > t.etaAt + 10 * 60000) return null
+    return t
+  }
+  readonly property int tripMinutes: trip && trip.etaAt > 0 ? Math.max(0, Math.ceil((trip.etaAt - Date.now()) / 60000)) : -1
+  function hideTrip() { tripHiddenAt = Date.now() }
+
+  // ------------------------------------------------------------ phone battery
+  // The S24's charge, from phoned (adb / KDE Connect): a pill when it starts or stops charging,
+  // and one warning as it drops to 20 %.
+  readonly property int phoneBatLevel: root.phone && root.phone.pstate && root.phone.pstate.battery ? Number(root.phone.pstate.battery.level) : -1
+  readonly property bool phoneBatCharging: !!(root.phone && root.phone.pstate && root.phone.pstate.battery && root.phone.pstate.battery.charging)
+  property int phoneBatPrev: -1
+  onPhoneBatChargingChanged: {
+    if (!root.settled || root.phoneMuted || root.phoneBatLevel < 0) return
+    root.pushActivity({ kind: "alert", source: "phone-battery", icon: root.phoneBatCharging ? root.glyphs.charging : root.glyphs.batteryAlert, tint: root.phoneBatCharging ? "green" : "secondary",
+      title: root.phoneName, value: (root.phoneBatCharging ? "Charging " : "") + root.phoneBatLevel + "%", duration: 2400 })
+  }
+  onPhoneBatLevelChanged: {
+    var was = root.phoneBatPrev
+    root.phoneBatPrev = root.phoneBatLevel
+    if (!root.settled || root.phoneMuted || root.phoneBatCharging) return
+    if (root.phoneBatLevel >= 0 && root.phoneBatLevel <= 20 && was > 20)
+      root.pushActivity({ kind: "alert", source: "phone-battery", icon: root.glyphs.batteryAlert, tint: "orange",
+        title: root.phoneName, value: "Low battery " + root.phoneBatLevel + "%", duration: 4000 })
   }
 
   // ------------------------------------------------------------ system update
@@ -1565,13 +1652,15 @@ Item {
     var sameMonitor = mon === lastWorkspaceMonitor
     lastWorkspaceMonitor = mon
     if (settled && showWorkspaces && sameMonitor && lastWorkspace !== -1 && ws.id !== lastWorkspace) {
-      var ids = []
+      // Virtual numbers (match ~/.local/bin/ws-go): MSI workspaces first, then the Tab, then the laptop.
+      var items = []
       var list = Hyprland.workspaces ? Hyprland.workspaces.values : []
-      for (var i = 0; i < list.length; i++) if (list[i] && list[i].id > 0 && ids.indexOf(list[i].id) === -1) ids.push(list[i].id)
-      if (ids.indexOf(ws.id) === -1) ids.push(ws.id)
-      ids.sort(function(a, b) { return a - b })
-      var dots = ids.map(function(id) { return id === ws.id ? "●" : "○" }).join(" ")
-      pushActivity({ kind: "alert", source: "workspace", icon: "", tint: "white", title: String(ws.name || ws.id), value: dots, duration: 1100 })
+      function rank(w) { var m = w.monitor ? String(w.monitor.name) : ""; return m === "TAB" ? 1 : m.indexOf("eDP") === 0 ? 2 : 0 }
+      for (var i = 0; i < list.length; i++) if (list[i] && list[i].id > 0) items.push({ id: list[i].id, r: rank(list[i]) })
+      items.sort(function(a, b) { return a.r - b.r || a.id - b.id })
+      var pos = 0
+      var dots = items.map(function(it, k) { if (it.id === ws.id) pos = k + 1; return it.id === ws.id ? "●" : "○" }).join(" ")
+      pushActivity({ kind: "alert", source: "workspace", icon: "", tint: "white", title: String(pos || ws.id), value: dots, duration: 1100 })
     }
     lastWorkspace = ws.id
   }
@@ -1670,7 +1759,7 @@ Item {
             out.push({ file: lines[i].substring(0, tab), app: root.notifApp(d, summary),
               title: pn ? String(pn.title) : summary,
               body: pn ? root.newestLine(pn.text) : Model.plainText(d.body),
-              time: Number(d.timestamp) || 0, urgent: Number(d.urgency) === 2,
+              time: Number(d.timestamp) || 0, urgent: Number(d.urgency) === 2, execArgv: String(d.execArgv || ""),
               replyId: pn ? String(pn.replyId || "") : "",
               phone: !!pn, fullText: pn ? String(pn.text) : "",
               image: root.notifIcon(d, summary) })
@@ -1688,9 +1777,9 @@ Item {
   // ponytail: in memory only, so a shell restart empties it; keep it in the
   // private run directory if that ever matters.
   property var recent: []
-  function logRecent(icon, tint, title, value) {
+  function logRecent(icon, tint, title, value, image) {
     var e = { icon: Model.clip(icon, 16), tint: String(tint || "white"), title: Model.clip(title, 200),
-      value: Model.clip(value, 120), time: Date.now() }
+      value: Model.clip(value, 120), time: Date.now(), image: String(image || "") }
     var next = recent.slice(0, 39)
     next.unshift(e)
     recent = next
@@ -1706,7 +1795,7 @@ Item {
       if (!root.isPlaying || root.trackTitle === "") return
       var top = root.recent.length > 0 ? root.recent[0] : null
       if (top && top.title === root.trackTitle) return
-      root.logRecent(root.glyphs.music, "white", root.trackTitle, root.trackArtist)
+      root.logRecent(root.glyphs.music, "pink", root.trackTitle, root.trackArtist, root.artLocal)
     }
   }
   onTrackTitleChanged: if (trackTitle !== "") songLog.restart()
@@ -1812,7 +1901,7 @@ Item {
   // The window on the focused screen reports its resting width here.
   property int restingWidth: notchWidth
   // iOS minimal: round, or an oval when the content is wider than a glyph (the stopwatch time).
-  readonly property int bubbleWidth: secondLive === "stopwatch" ? Math.round(notchHeight * 1.25) : notchHeight
+  readonly property int bubbleWidth: secondLive === "stopwatch" ? Math.min(45, Math.round(notchHeight * 1.25)) : notchHeight
   readonly property int barFootprint: restingWidth + (secondLive !== "" ? bubbleWidth + 8 : 0) * 2
 
   // ------------------------------------------------------------ IPC
@@ -1922,7 +2011,17 @@ Item {
     }
     function notify(title: string, body: string): string {
       root.pushActivity({ kind: "notification", source: "ipc-notify", file: "", app: "Dynamic Island",
-        title: Model.clip(title, 120), body: Model.clip(body, 400), image: "", urgent: false, duration: 5000 })
+        title: Model.clip(title, 120), body: Model.clip(body, 400), image: "", urgent: false,
+        duration: 5000 })
+      return "ok"
+    }
+    // A one-time code read from an SMS: from (the sender), the code, and how many minutes it lasts (0: not said).
+    function otp(from: string, code: string, minutes: string): string {
+      if (!/^\d{4,8}$/.test(code)) return "bad code"
+      if (root.seenMessage("", code)) return "shown"   // the island already had it from the SMS itself
+      root.pushActivity({ kind: "notification", source: "ipc-otp", file: "", app: "One-time code",
+        title: Model.clip(from, 60), body: "", code: code, minutes: Model.clamp(Number(minutes) || 0, 0, 60),
+        image: "", urgent: false, sms: true, duration: 20000 })
       return "ok"
     }
   }

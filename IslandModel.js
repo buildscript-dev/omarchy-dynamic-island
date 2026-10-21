@@ -44,6 +44,7 @@ var G = {
   wifi: glyph(0xE4EA),
   power: glyph(0xE3DA),
   check: glyph(0xE182),
+  copy: glyph(0xE1CA),
   cross: glyph(0xE4F6)
 }
 
@@ -58,6 +59,7 @@ var APPLE = {
   blue: "#0A84FF",
   indigo: "#5E5CE6",
   purple: "#BF5AF2",
+  pink: "#FF375F",
   white: "#FFFFFF",
   secondary: "#98989F"
 }
@@ -82,6 +84,17 @@ function batteryGlyph(percent, charging) {
 // Map an `omarchy osd` payload onto an island activity. Progress payloads
 // become a HUD (icon + level bar + value); message payloads become an alert
 // (icon + text). Returns null for payloads the island should ignore.
+// Sink descriptions are driver strings; show what a person would call them.
+function friendlyOutput(d) {
+  var n = d.toLowerCase()
+  if (n.indexOf("sunshine") !== -1) return "Stream (Sunshine)"
+  if (n.indexOf("hdmi") !== -1) { var m = d.match(/\[([^\]]+)\]/); return m ? m[1] : "HDMI Display" }
+  if (n.indexOf("analog") !== -1 || n.indexOf("ryzen hd audio") !== -1) return "Laptop Speakers"
+  if (n.indexOf("vw experience") !== -1) return "VW Chaser Bar"
+  if (n.indexOf("easy effects") !== -1) return "Equalised Sound"
+  return d
+}
+
 function osdTransient(p) {
   var key = String(p.icon || "").toLowerCase()
   var message = String(p.message || "")
@@ -132,6 +145,13 @@ function osdTransient(p) {
     return { kind: "hud", source: kind, icon: icon, tint: tint, percent: percent, title: "", value: percent + "%", duration: duration }
   }
   if (message === "" && icon === "") return null
+  // "omarchy audio output switch": the device name arrives as the message.
+  // Show it as a centred output card, with a glyph that fits the device.
+  if (kind === "volume" && message !== "") {
+    var n = message.toLowerCase()
+    var phones = /bud|pod|head|bluez|bluetooth|bt |wh-|wf-|earphone/.test(n)
+    return { kind: "alert", source: "output", icon: phones ? G.headphones : G.volHigh, tint: "blue", title: friendlyOutput(message), value: "", duration: 2400 }
+  }
   return { kind: "alert", source: kind, icon: icon, tint: tint, title: message, value: "", duration: duration }
 }
 
@@ -480,4 +500,145 @@ function swipeAction(dx, dy, mode) {
   if (mode === "compact" && ax >= SWIPE_MIN && ax > 2 * ay) return "tuck"
   if ((mode === "notification" || mode === "alert" || mode === "hud") && dy <= -SWIPE_MIN && ay > 2 * ax) return "dismiss"
   return ""
+}
+
+// One-time codes. A candidate is 4 to 8 digits standing on its own: nothing of a word, a card tail (XX1234), a
+// masked or hashed number (*9340, #1234), a date, a time or a decimal touches it, no currency comes before it, and
+// it is not 1930, the fraud helpline banks print in every message. Of the candidates, the one nearest a code word
+// wins, on either side: "413174 is your OTP", "your code is 413174", "ending in 1234 with code 567890".
+// No lookbehind anywhere: Qt's JS engine accepts it and then never matches, silently. The text before a run is
+// checked by hand instead (run tests/run.sh, which tests in Qt's engine as well as Node's).
+var OTP_WORD = /\b(otp|one[- ]time|code|passcode|pin|verification|verify)\b/gi
+var OTP_NUM = /\d{4,8}/g
+function otpCode(text) {
+  var t = String(text || "")
+  var words = [], m
+  OTP_WORD.lastIndex = 0
+  while ((m = OTP_WORD.exec(t)) !== null) words.push([m.index, m.index + m[0].length])
+  if (words.length === 0) return ""
+  var best = "", gap = Infinity
+  OTP_NUM.lastIndex = 0
+  while ((m = OTP_NUM.exec(t)) !== null) {
+    var a = m.index, b = a + m[0].length
+    var before = t.slice(Math.max(0, a - 6), a), after = t.slice(b, b + 2)
+    if (/[\w*#+:\/-]$/.test(before) || /\d[.,]$/.test(before) || /(?:rs|inr|₹)[.:]?\s?$/i.test(before)) continue
+    if (/^[\w*#:\/-]/.test(after) || /^[.,]\d/.test(after) || m[0] === "1930") continue
+    for (var i = 0; i < words.length; i++) {
+      var g = words[i][0] >= b ? words[i][0] - b : a - words[i][1]
+      if (g < gap) { gap = g; best = m[0] }
+    }
+  }
+  return best
+}
+// How long the message says the code lasts, in minutes; 0 when it does not say.
+function otpMinutes(text) {
+  var m = /valid(?:\s+(?:for|till|upto|up to))?\s+(\d{1,2})\s*(?:min|mins|minutes)\b/i.exec(String(text || ""))
+  return m ? Number(m[1]) : 0
+}
+// The code as it reads best: 413 174, 4131 7412; other lengths as they are.
+function otpGroup(code) {
+  var c = String(code || "")
+  return c.length === 6 ? c.slice(0, 3) + " " + c.slice(3) : c.length === 8 ? c.slice(0, 4) + " " + c.slice(4) : c
+}
+
+// A notification's own click action: Omarchy's omarchy-exec-argv hint, a JSON array of strings, kept in its file.
+// Null for anything else (empty, not JSON, not all strings, absurdly long), so a bad hint is never run.
+function execArgvOf(v) {
+  var a
+  try { a = JSON.parse(String(v || "")) } catch (e) { return null }
+  if (!Array.isArray(a) || a.length === 0 || a.length > 64) return null
+  for (var i = 0; i < a.length; i++)
+    if (typeof a[i] !== "string" || a[i].length > 4096 || /[\u0000]/.test(a[i])) return null
+  return a[0] !== "" ? a : null
+}
+
+// Android hides a notification that holds a code from companion apps; KDE Connect then relays only this line.
+function isRedacted(n) {
+  return /^\s*sensitive notification content hidden\s*$/i.test(String((n && (n.fullText || n.body)) || ""))
+}
+
+// One line of `nmcli -t` output as its fields: ":" separates them, "\\:" is a colon inside one (an SSID "Cafe:5G").
+function nmcliFields(line) {
+  return String(line || "").replace(/\\:/g, "\u0001").split(":").map(function(f) { return f.replace(/\u0001/g, ":") })
+}
+
+// ---- Ride, food and delivery notifications as one live "trip" card.
+// tripFrom(n) reads one notification ({app, title, body, time}) and says what it
+// tells about a trip in flight: { type, app, stage 1..3, etaMin (-1 when unknown),
+// text }, { done: true } when the trip is over, or null when it is not a trip.
+// No lookbehind: Qt's regex engine accepts it and then never matches.
+var TRIP_APPS = [
+  ["ride", /uber|ola\b|ola cabs|rapido|indrive|bolt|lyft|namma yatri/i],
+  ["food", /zomato|swiggy|domino|mcdonald|eatsure|burger king|kfc|pizza hut|starbucks|zepto cafe/i],
+  ["flight", /indigo|air india|vistara|akasa|spicejet|airasia|emirates|qatar airways|etihad|lufthansa|british airways|singapore airlines|ixigo|makemytrip|cleartrip|easemytrip|flightradar|flightaware|digiyatra/i],
+  ["sports", /cricbuzz|cricinfo|espn|sofascore|fotmob|onefootball|dream11|jiocinema|hotstar|sony liv|sportstar|goal\.com|premier league|uefa|nba|ipl/i],
+  ["delivery", /amazon|flipkart|blinkit|zepto|instamart|bigbasket|myntra|meesho|delhivery|ekart|bluedart|dunzo|shadowfax|ecom express|xpressbees/i]
+]
+var TRIP_AGE = { ride: 90 * 60000, food: 90 * 60000, delivery: 90 * 60000, flight: 12 * 3600000, sports: 4 * 3600000 }
+var TRIP_SCORE = /\b(\d{1,3})\s*\/\s*(\d{1,2})\b|\b(\d{1,2})\s*[-:]\s*(\d{1,2})\b/
+var TRIP_SPORTS_DONE = /won by|match (?:ended|over|tied|drawn|abandoned)|full[- ]time|final result|stumps|\bFT\b/i
+var TRIP_SPORTS_LIVE = /live|wicket|sixes|six\b|four\b|goal|toss|kick[- ]?off|half[- ]time|innings|over\b|overs\b/i
+var TRIP_FLIGHT_DONE = /landed|baggage|belt \d|arrived at/i
+var TRIP_HOURS = /(\d{1,2})\s*(?:h|hr|hrs|hour|hours)\b(?:\s*(\d{1,2})\s*(?:m|min|mins)\b)?/i
+var TRIP_DONE = /delivered|has been delivered|completed|trip ended|ride ended|you have arrived|payment received|rate your|cancel+ed|refund/i
+var TRIP_ETA = /(\d{1,3})\s*(?:-\s*\d{1,3}\s*)?(?:min|mins|minute|minutes)\b/i
+var TRIP_STAGE3 = /arriving now|has arrived|is here|reached|at your (?:door|location)|arrived/i
+var TRIP_STAGE2 = /picked up|on the way|on its way|out for delivery|en route|heading|driver is|rider is|captain is|arriving|nearby/i
+var TRIP_STAGE1 = /confirmed|accepted|preparing|being prepared|placed|packed|shipped|dispatched|assigned|looking for|searching|locating/i
+
+function tripFrom(n) {
+  if (!n) return null
+  var app = String(n.app || "")
+  var type = ""
+  for (var i = 0; i < TRIP_APPS.length; i++) if (TRIP_APPS[i][1].test(app)) { type = TRIP_APPS[i][0]; break }
+  if (type === "") return null
+  var text = String(n.title || "") + " " + String(n.body || "")
+  if (type === "sports") {
+    if (TRIP_SPORTS_DONE.test(text)) return { done: true, app: app, type: type }
+    var sm = TRIP_SCORE.exec(text)
+    if (!sm && !TRIP_SPORTS_LIVE.test(text)) return null
+    return { type: type, app: app, stage: 0, etaMin: -1, score: sm ? sm[0].replace(/\s+/g, "") : "", text: String(n.title || "").trim() || String(n.body || "").trim() }
+  }
+  if (type === "flight") {
+    if (TRIP_FLIGHT_DONE.test(text)) return { done: true, app: app, type: type }
+    var fs = /took off|departed|in the air|airborne|en route/i.test(text) ? 3 : /boarding|gate/i.test(text) ? 2 : /check-?in|web check|boarding pass|confirmed|on time|delayed|departs|departure/i.test(text) ? 1 : 0
+    var hm = TRIP_HOURS.exec(text)
+    var fm = TRIP_ETA.exec(text)
+    var fe = hm ? Number(hm[1]) * 60 + Number(hm[2] || 0) : fm ? Number(fm[1]) : -1
+    if (fs === 0 && fe < 0) return null
+    return { type: type, app: app, stage: fs || 1, etaMin: fe, text: String(n.title || "").trim() || String(n.body || "").trim() }
+  }
+  if (TRIP_DONE.test(text)) return { done: true, app: app, type: type }
+  var stage = TRIP_STAGE3.test(text) ? 3 : TRIP_STAGE2.test(text) ? 2 : TRIP_STAGE1.test(text) ? 1 : 0
+  var m = TRIP_ETA.exec(text)
+  var eta = m ? Number(m[1]) : -1
+  // An ordinary offer or receipt from a shop app is not a trip.
+  if (stage === 0 && eta < 0) return null
+  if (stage === 0) stage = 1
+  return { type: type, app: app, stage: stage, etaMin: eta, text: String(n.title || "").trim() || String(n.body || "").trim() }
+}
+
+// The trip to show from a newest-first history: the first trip notification within
+// maxAgeMs that no later "done" for the same app has closed, and that was not hidden.
+function currentTrip(history, now, maxAgeMs, hiddenAt) {
+  var closed = {}
+  for (var i = 0; i < history.length; i++) {
+    var n = history[i]
+    var t = Number(n.time) || 0
+    var r = tripFrom(n)
+    if (!r) continue
+    if (now - t > (maxAgeMs > 0 ? maxAgeMs : TRIP_AGE[r.type]) || t <= (hiddenAt || 0)) continue
+    if (r.done) { closed[r.app] = true; continue }
+    if (closed[r.app]) continue
+    r.time = t
+    r.etaAt = r.etaMin >= 0 ? t + r.etaMin * 60000 : 0
+    return r
+  }
+  return null
+}
+
+// "2h 10m" or "45 min" for the minutes left.
+function minutesText(m) {
+  if (m < 0) return ""
+  return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min"
 }

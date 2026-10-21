@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.2.0
+
+**One-time codes**
+- A message holding a code (SMS, phone or desktop notification) shows as its own card: the code
+  large and grouped, who sent it, how long it lasts, and a Copy button. The copy is the bare digits
+  and stays out of clipboard history (`wl-copy --sensitive`). Old codes read "Code expired".
+- The code is the standalone 4-8 digit run nearest "OTP" or "code"; card tails (XX1234), masked
+  numbers, dates, amounts and the 1930 helpline never count.
+- Android's blank "Sensitive notification content hidden" cards stay out of the way while the
+  SMS sync brings the full message.
+
+**Notifications**
+- A click runs that notification's own action or opens its app. It no longer fires whichever
+  popup is newest (a history click could open an unrelated crash report).
+- One card per message across SMS, the KDE Connect relay and BuildDots.
+- History split into "Needs a look" with Activity, and Notifications; black cards.
+
+**Live activities**
+- Trip (ride, food, delivery), flight (boarding, ETA) and sports (live score) cards from notifications.
+- Phone battery pills for charging and low battery.
+
+**Fixes**
+- Qt's JS engine never matches a regex lookbehind, silently: the Wi-Fi and Tailscale pills had
+  never fired. Gone everywhere; `tests/run.sh` now runs the helper tests in Node and in Qt.
+
 ## 3.1.0
 
 - Removed the Control Center (2,447 lines): the island is now only the island.
