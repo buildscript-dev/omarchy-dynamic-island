@@ -1574,6 +1574,26 @@ Item {
     }
   }
 
+  // ------------------------------------------------------------ phone battery
+  // The S24's charge, from phoned (adb / KDE Connect): a pill when it starts or stops charging,
+  // and one warning as it drops to 20 %.
+  readonly property int phoneBatLevel: root.phone && root.phone.pstate && root.phone.pstate.battery ? Number(root.phone.pstate.battery.level) : -1
+  readonly property bool phoneBatCharging: !!(root.phone && root.phone.pstate && root.phone.pstate.battery && root.phone.pstate.battery.charging)
+  property int phoneBatPrev: -1
+  onPhoneBatChargingChanged: {
+    if (!root.settled || root.phoneMuted || root.phoneBatLevel < 0) return
+    root.pushActivity({ kind: "alert", source: "phone-battery", icon: root.phoneBatCharging ? root.glyphs.charging : root.glyphs.batteryAlert, tint: root.phoneBatCharging ? "green" : "secondary",
+      title: root.phoneName, value: (root.phoneBatCharging ? "Charging " : "") + root.phoneBatLevel + "%", duration: 2400 })
+  }
+  onPhoneBatLevelChanged: {
+    var was = root.phoneBatPrev
+    root.phoneBatPrev = root.phoneBatLevel
+    if (!root.settled || root.phoneMuted || root.phoneBatCharging) return
+    if (root.phoneBatLevel >= 0 && root.phoneBatLevel <= 20 && was > 20)
+      root.pushActivity({ kind: "alert", source: "phone-battery", icon: root.glyphs.batteryAlert, tint: "orange",
+        title: root.phoneName, value: "Low battery " + root.phoneBatLevel + "%", duration: 4000 })
+  }
+
   // ------------------------------------------------------------ system update
   property bool updateAvailable: false
   SafeProcess {
@@ -1866,7 +1886,7 @@ Item {
   // The window on the focused screen reports its resting width here.
   property int restingWidth: notchWidth
   // iOS minimal: round, or an oval when the content is wider than a glyph (the stopwatch time).
-  readonly property int bubbleWidth: secondLive === "stopwatch" ? Math.round(notchHeight * 1.25) : notchHeight
+  readonly property int bubbleWidth: secondLive === "stopwatch" ? Math.min(45, Math.round(notchHeight * 1.25)) : notchHeight
   readonly property int barFootprint: restingWidth + (secondLive !== "" ? bubbleWidth + 8 : 0) * 2
 
   // ------------------------------------------------------------ IPC
