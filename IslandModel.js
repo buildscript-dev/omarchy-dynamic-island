@@ -570,8 +570,16 @@ function nmcliFields(line) {
 var TRIP_APPS = [
   ["ride", /uber|ola\b|ola cabs|rapido|indrive|bolt|lyft|namma yatri/i],
   ["food", /zomato|swiggy|domino|mcdonald|eatsure|burger king|kfc|pizza hut|starbucks|zepto cafe/i],
+  ["flight", /indigo|air india|vistara|akasa|spicejet|airasia|emirates|qatar airways|etihad|lufthansa|british airways|singapore airlines|ixigo|makemytrip|cleartrip|easemytrip|flightradar|flightaware|digiyatra/i],
+  ["sports", /cricbuzz|cricinfo|espn|sofascore|fotmob|onefootball|dream11|jiocinema|hotstar|sony liv|sportstar|goal\.com|premier league|uefa|nba|ipl/i],
   ["delivery", /amazon|flipkart|blinkit|zepto|instamart|bigbasket|myntra|meesho|delhivery|ekart|bluedart|dunzo|shadowfax|ecom express|xpressbees/i]
 ]
+var TRIP_AGE = { ride: 90 * 60000, food: 90 * 60000, delivery: 90 * 60000, flight: 12 * 3600000, sports: 4 * 3600000 }
+var TRIP_SCORE = /\b(\d{1,3})\s*\/\s*(\d{1,2})\b|\b(\d{1,2})\s*[-:]\s*(\d{1,2})\b/
+var TRIP_SPORTS_DONE = /won by|match (?:ended|over|tied|drawn|abandoned)|full[- ]time|final result|stumps|\bFT\b/i
+var TRIP_SPORTS_LIVE = /live|wicket|sixes|six\b|four\b|goal|toss|kick[- ]?off|half[- ]time|innings|over\b|overs\b/i
+var TRIP_FLIGHT_DONE = /landed|baggage|belt \d|arrived at/i
+var TRIP_HOURS = /(\d{1,2})\s*(?:h|hr|hrs|hour|hours)\b(?:\s*(\d{1,2})\s*(?:m|min|mins)\b)?/i
 var TRIP_DONE = /delivered|has been delivered|completed|trip ended|ride ended|you have arrived|payment received|rate your|cancel+ed|refund/i
 var TRIP_ETA = /(\d{1,3})\s*(?:-\s*\d{1,3}\s*)?(?:min|mins|minute|minutes)\b/i
 var TRIP_STAGE3 = /arriving now|has arrived|is here|reached|at your (?:door|location)|arrived/i
@@ -585,6 +593,21 @@ function tripFrom(n) {
   for (var i = 0; i < TRIP_APPS.length; i++) if (TRIP_APPS[i][1].test(app)) { type = TRIP_APPS[i][0]; break }
   if (type === "") return null
   var text = String(n.title || "") + " " + String(n.body || "")
+  if (type === "sports") {
+    if (TRIP_SPORTS_DONE.test(text)) return { done: true, app: app, type: type }
+    var sm = TRIP_SCORE.exec(text)
+    if (!sm && !TRIP_SPORTS_LIVE.test(text)) return null
+    return { type: type, app: app, stage: 0, etaMin: -1, score: sm ? sm[0].replace(/\s+/g, "") : "", text: String(n.title || "").trim() || String(n.body || "").trim() }
+  }
+  if (type === "flight") {
+    if (TRIP_FLIGHT_DONE.test(text)) return { done: true, app: app, type: type }
+    var fs = /took off|departed|in the air|airborne|en route/i.test(text) ? 3 : /boarding|gate/i.test(text) ? 2 : /check-?in|web check|boarding pass|confirmed|on time|delayed|departs|departure/i.test(text) ? 1 : 0
+    var hm = TRIP_HOURS.exec(text)
+    var fm = TRIP_ETA.exec(text)
+    var fe = hm ? Number(hm[1]) * 60 + Number(hm[2] || 0) : fm ? Number(fm[1]) : -1
+    if (fs === 0 && fe < 0) return null
+    return { type: type, app: app, stage: fs || 1, etaMin: fe, text: String(n.title || "").trim() || String(n.body || "").trim() }
+  }
   if (TRIP_DONE.test(text)) return { done: true, app: app, type: type }
   var stage = TRIP_STAGE3.test(text) ? 3 : TRIP_STAGE2.test(text) ? 2 : TRIP_STAGE1.test(text) ? 1 : 0
   var m = TRIP_ETA.exec(text)
@@ -602,9 +625,9 @@ function currentTrip(history, now, maxAgeMs, hiddenAt) {
   for (var i = 0; i < history.length; i++) {
     var n = history[i]
     var t = Number(n.time) || 0
-    if (now - t > maxAgeMs || t <= (hiddenAt || 0)) continue
     var r = tripFrom(n)
     if (!r) continue
+    if (now - t > (maxAgeMs > 0 ? maxAgeMs : TRIP_AGE[r.type]) || t <= (hiddenAt || 0)) continue
     if (r.done) { closed[r.app] = true; continue }
     if (closed[r.app]) continue
     r.time = t
@@ -612,4 +635,10 @@ function currentTrip(history, now, maxAgeMs, hiddenAt) {
     return r
   }
   return null
+}
+
+// "2h 10m" or "45 min" for the minutes left.
+function minutesText(m) {
+  if (m < 0) return ""
+  return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + " min"
 }

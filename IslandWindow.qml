@@ -227,7 +227,7 @@ PanelWindow {
     : s.live === "timer" ? Model.formatTime(Math.ceil(s.timerLeft))
     : s.live === "stopwatch" ? Model.formatTime(s.stopwatchElapsed)
     : s.live === "ai" ? s.aiLabel
-    : s.live === "trip" ? (s.tripMinutes >= 0 ? s.tripMinutes + "m" : "")
+    : s.live === "trip" ? (s.trip && s.trip.type === "sports" ? s.trip.score : s.tripMinutes >= 120 ? Math.floor(s.tripMinutes / 60) + "h" : s.tripMinutes >= 0 ? s.tripMinutes + "m" : "")
     : s.live === "dock" ? (s.dockCount > 1 ? String(s.dockCount) : "")
     : s.live === "recording" ? (s.now, Model.formatTime((Date.now() - s.recordingSince) / 1000))
     : s.live === "phone" ? (s.now, Model.formatTime((Date.now() - s.phoneSince) / 1000))
@@ -1019,7 +1019,7 @@ PanelWindow {
         anchors.centerIn: parent
         width: parent.width - 8
         horizontalAlignment: Text.AlignHCenter
-        text: win.s.tripMinutes >= 0 ? win.s.tripMinutes + "m" : ""
+        text: win.s.trip && win.s.trip.type === "sports" ? win.s.trip.score : win.s.tripMinutes >= 120 ? Math.floor(win.s.tripMinutes / 60) + "h" : win.s.tripMinutes >= 0 ? win.s.tripMinutes + "m" : ""
         font.family: win.s.textFont
         font.pixelSize: Model.TYPE.footnote
         font.weight: Font.DemiBold
@@ -1258,7 +1258,7 @@ PanelWindow {
 
           CompactActivity {
             kind: "trip"
-            tone: win.s.trip && win.s.trip.type === "ride" ? "green" : win.s.trip && win.s.trip.type === "food" ? "orange" : "blue"
+            tone: win.s.trip ? (win.s.trip.type === "ride" ? "green" : win.s.trip.type === "food" ? "orange" : win.s.trip.type === "sports" ? "purple" : "blue") : "blue"
             iconSource: win.s.trip ? win.s.appIconFor(win.s.trip.app) : ""
             trail: win.trailText
           }

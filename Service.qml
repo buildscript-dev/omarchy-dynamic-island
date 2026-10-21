@@ -1582,7 +1582,7 @@ Item {
   property real tripHiddenAt: 0
   readonly property var trip: {
     root.now
-    var t = Model.currentTrip(root.history, Date.now(), 90 * 60000, root.tripHiddenAt)
+    var t = Model.currentTrip(root.history, Date.now(), 0, root.tripHiddenAt)
     if (t && t.etaAt > 0 && Date.now() > t.etaAt + 10 * 60000) return null
     return t
   }

@@ -36,8 +36,8 @@ Item {
       return { glyph: "", tint: "green", title: s.phoneName, value: s.phoneSince > 0 ? Model.formatTime((Date.now() - s.phoneSince) / 1000) : "",
         sub: "Mirroring on this PC", buttons: [{ id: "stop", glyph: "", label: "Stop", red: true }] }
     if (kind === "trip" && s.trip)
-      return { glyph: s.glyphs.bell, tint: s.trip.type === "ride" ? "green" : s.trip.type === "food" ? "orange" : "blue",
-        title: s.trip.app, value: s.tripMinutes >= 0 ? s.tripMinutes + " min" : "",
+      return { glyph: s.glyphs.bell, tint: s.trip.type === "ride" ? "green" : s.trip.type === "food" ? "orange" : s.trip.type === "sports" ? "purple" : "blue",
+        title: s.trip.app, value: s.trip.type === "sports" ? s.trip.score : Model.minutesText(s.tripMinutes),
         sub: s.trip.text,
         buttons: [{ id: "open", glyph: "↗", label: "Open", text: true }, { id: "stop", glyph: "", label: "Hide", red: true }] }
     if (kind === "ai")
@@ -75,7 +75,7 @@ Item {
     if (kind === "trip") return s.trip ? s.trip.stage / 3 : 0
     return (secs % 60) / 60
   }
-  readonly property bool tickBar: kind !== "ai"
+  readonly property bool tickBar: kind !== "ai" && !(kind === "trip" && s.trip && s.trip.type === "sports")
 
   Row {
     id: head
